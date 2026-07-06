@@ -8,3 +8,9 @@ pytest
 httpx
 torch
 numpy
+nibabel
+# NOTE: TotalSpineSeg is NOT installed here. It pins numpy<2 and pulls in
+# nnU-Net/torchio, which conflict with torch/numpy above. It is invoked as an
+# external CLI (see app/inference/segmentation.py + Settings.totalspineseg_bin);
+# install it in its own env: `pip install totalspineseg` then
+# `totalspineseg_init`.
