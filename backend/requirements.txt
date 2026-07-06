@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+sqlalchemy>=2
+pymysql
+pydantic>=2
+pydantic-settings
+pytest
+httpx

@@ -1,0 +1,7 @@
+data/
+*.pth
+__pycache__/
+.venv/
+node_modules/
+*.db
+.env
