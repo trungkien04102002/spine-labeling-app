@@ -6,3 +6,5 @@ pydantic>=2
 pydantic-settings
 pytest
 httpx
+torch
+numpy
