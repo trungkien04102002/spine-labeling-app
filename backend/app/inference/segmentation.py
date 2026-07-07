@@ -112,6 +112,22 @@ def _find_labelmap(output_path: Path) -> Path:
     return masks[0]
 
 
+def _ensure_nifti(volume_path: str, work_dir: Path) -> Path:
+    """Return a NIfTI path for ``volume_path``, converting if needed."""
+    src = Path(volume_path)
+    if src.is_file() and (
+        src.name.endswith(".nii") or src.name.endswith(".nii.gz")
+    ):
+        return src
+    import SimpleITK as sitk
+
+    from app.inference.volume_io import _read_image
+
+    converted = work_dir / "seg_input.nii.gz"
+    sitk.WriteImage(_read_image(volume_path), str(converted))
+    return converted
+
+
 def run_segmentation(
     volume_path: str,
     output_dir: str | None = None,
@@ -137,9 +153,13 @@ def run_segmentation(
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
 
+    # The TotalSpineSeg CLI only accepts NIfTI. Convert other inputs (e.g. the
+    # SPIDER .mha, a DICOM series dir) to a temp .nii.gz first.
+    nifti_input = _ensure_nifti(volume_path, output_path)
+
     cmd = [
         settings.totalspineseg_bin,
-        str(volume_path),
+        str(nifti_input),
         str(output_path),
         "--device",
         settings.seg_device,
