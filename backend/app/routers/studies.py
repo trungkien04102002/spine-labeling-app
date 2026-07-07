@@ -53,7 +53,9 @@ def upload_study(
     }
 
 
-@router.get("/studies/{study_id}/display")
+# The `.nii.gz` suffix is load-bearing: the Cornerstone NIfTI loader decides
+# whether to gunzip by whether the URL path ends in ".gz".
+@router.get("/studies/{study_id}/display.nii.gz")
 def get_display_volume(
     study_id: str,
     db: Session = Depends(get_db),

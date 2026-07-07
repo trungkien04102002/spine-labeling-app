@@ -63,6 +63,22 @@ def _web_stem(path: str) -> str:
     return src.stem
 
 
+def _orient_slices_last(image: sitk.Image) -> sitk.Image:
+    """Permute so the fewest-slice axis is last (the axis the viewer scrolls).
+
+    Cornerstone's NIfTI loader enumerates one image per slice along the 3rd
+    axis. Sagittal-acquired lumbar MRI (RSNA/SPIDER) has few through-plane
+    slices; without this, the loader would slice the wrong (high-count) axis
+    and produce thin, unreadable frames.
+    """
+    size = image.GetSize()  # (x, y, z)
+    min_axis = min(range(3), key=lambda i: size[i])
+    if min_axis == 2:
+        return image
+    order = [i for i in range(3) if i != min_axis] + [min_axis]
+    return sitk.PermuteAxes(image, order)
+
+
 def to_web_form(path: str, out_dir: str) -> str:
     """Convert a volume to a Cornerstone3D-friendly NIfTI (``.nii.gz``).
 
@@ -73,7 +89,7 @@ def to_web_form(path: str, out_dir: str) -> str:
     Returns:
         Absolute path to the written ``.nii.gz`` file.
     """
-    image = _read_image(path)
+    image = _orient_slices_last(_read_image(path))
     out_path = Path(out_dir) / f"{_web_stem(path)}.nii.gz"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     sitk.WriteImage(image, str(out_path))

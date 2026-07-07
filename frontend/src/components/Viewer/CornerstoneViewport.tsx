@@ -1,10 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  RenderingEngine,
-  Enums,
-  volumeLoader,
-  setVolumesForViewports,
-} from "@cornerstonejs/core";
+import { RenderingEngine, Enums, type Types } from "@cornerstonejs/core";
 import {
   ToolGroupManager,
   addTool,
@@ -17,7 +12,7 @@ import {
 import { createNiftiImageIdsAndCacheMetadata } from "@cornerstonejs/nifti-volume-loader";
 import { ensureCornerstoneInitialized } from "../../lib/cornerstone";
 
-const { ViewportType, OrientationAxis } = Enums;
+const { ViewportType } = Enums;
 const { MouseBindings } = csToolsEnums;
 
 interface Props {
@@ -26,8 +21,10 @@ interface Props {
 }
 
 /**
- * Renders a study's NIfTI as a sagittal volume viewport with slice scroll
- * (wheel), window/level (left drag), pan (middle drag) and zoom (right drag).
+ * Renders a study's NIfTI as a 2D stack viewport (one image per slice) with
+ * wheel slice scroll, left-drag window/level, middle-drag pan, right-drag zoom.
+ * A stack viewport auto-fits each slice to the canvas — the right fit for
+ * reviewing sagittal MRI.
  */
 export default function CornerstoneViewport({ studyId, apiBaseUrl }: Props) {
   const elementRef = useRef<HTMLDivElement>(null);
@@ -44,21 +41,15 @@ export default function CornerstoneViewport({ studyId, apiBaseUrl }: Props) {
     (async () => {
       await ensureCornerstoneInitialized();
 
-      const url = `${apiBaseUrl}/studies/${studyId}/display`;
+      const url = `${apiBaseUrl}/studies/${studyId}/display.nii.gz`;
       const imageIds = await createNiftiImageIdsAndCacheMetadata({ url });
       if (cancelled || !elementRef.current) return;
-
-      const volumeId = `nifti-vol-${studyId}`;
-      const volume = await volumeLoader.createAndCacheVolume(volumeId, {
-        imageIds,
-      });
 
       engine = new RenderingEngine(renderingEngineId);
       engine.enableElement({
         viewportId,
         element: elementRef.current,
-        type: ViewportType.ORTHOGRAPHIC,
-        defaultOptions: { orientation: OrientationAxis.SAGITTAL },
+        type: ViewportType.STACK,
       });
 
       [StackScrollTool, ZoomTool, PanTool, WindowLevelTool].forEach(addTool);
@@ -86,9 +77,17 @@ export default function CornerstoneViewport({ studyId, apiBaseUrl }: Props) {
         bindings: [{ mouseButton: MouseBindings.Wheel }],
       });
 
-      await setVolumesForViewports(engine, [{ volumeId }], [viewportId]);
-      volume.load();
-      engine.renderViewports([viewportId]);
+      const viewport = engine.getViewport(viewportId) as Types.IStackViewport;
+      // Start on the middle slice (most informative for a sagittal stack).
+      await viewport.setStack(imageIds, Math.floor(imageIds.length / 2));
+      if (cancelled) return;
+      // Fit once layout has settled: resize with keepCamera=false recomputes
+      // the canvas size and re-centers/scales the image to it.
+      requestAnimationFrame(() => {
+        if (cancelled || !engine) return;
+        engine.resize(true, false);
+        viewport.render();
+      });
     })().catch((err: unknown) => {
       if (!cancelled) {
         setError(err instanceof Error ? err.message : String(err));
@@ -108,7 +107,16 @@ export default function CornerstoneViewport({ studyId, apiBaseUrl }: Props) {
       <div
         ref={elementRef}
         onContextMenu={(e) => e.preventDefault()}
-        style={{ width: "100%", height: "600px", background: "black" }}
+        style={{
+          position: "relative",
+          width: "100%",
+          height: "600px",
+          background: "black",
+          overflow: "hidden",
+          // The app root sets text-align:center; that shifts Cornerstone's
+          // absolutely-positioned canvas. Reset it so the canvas fills the box.
+          textAlign: "left",
+        }}
       />
     </div>
   );

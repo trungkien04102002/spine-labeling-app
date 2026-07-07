@@ -1,6 +1,9 @@
-import { init as coreInit } from "@cornerstonejs/core";
+import { init as coreInit, imageLoader } from "@cornerstonejs/core";
 import { init as toolsInit } from "@cornerstonejs/tools";
-import { init as niftiLoaderInit } from "@cornerstonejs/nifti-volume-loader";
+import {
+  init as niftiLoaderInit,
+  cornerstoneNiftiImageLoader,
+} from "@cornerstonejs/nifti-volume-loader";
 
 let initPromise: Promise<void> | null = null;
 
@@ -11,6 +14,8 @@ export function ensureCornerstoneInitialized(): Promise<void> {
       await coreInit();
       await toolsInit();
       niftiLoaderInit();
+      // Register the per-image NIfTI loader so 'nifti:' imageIds resolve.
+      imageLoader.registerImageLoader("nifti", cornerstoneNiftiImageLoader);
     })();
   }
   return initPromise;
