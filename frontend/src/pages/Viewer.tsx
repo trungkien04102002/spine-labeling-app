@@ -257,6 +257,16 @@ export default function Viewer() {
 
         {/* Side panel */}
         <aside className="flex min-w-[260px] flex-[1_1_280px] flex-col gap-5">
+          {legend.length > 0 && (
+            <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+              <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-slate-800">
+                <span className="h-4 w-1 rounded bg-gradient-to-b from-teal-500 to-cyan-500" />
+                Structures
+              </h2>
+              <Legend entries={legend} />
+            </div>
+          )}
+
           <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
             <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-slate-800">
               <span className="h-4 w-1 rounded bg-gradient-to-b from-teal-500 to-cyan-500" />
@@ -329,12 +339,6 @@ export default function Viewer() {
               )
             )}
           </div>
-
-          {legend.length > 0 && (
-            <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-              <Legend entries={legend} />
-            </div>
-          )}
         </aside>
       </main>
     </div>

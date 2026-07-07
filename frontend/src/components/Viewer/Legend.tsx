@@ -11,32 +11,37 @@ function prettyName(name: string): string {
 export default function Legend({ entries }: { entries: LegendEntry[] }) {
   if (entries.length === 0) return null;
   return (
-    <div>
-      <h4 style={{ margin: "0 0 0.4rem" }}>Structures</h4>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: "2px 12px",
-          fontSize: "0.8rem",
-        }}
-      >
-        {entries.map((e) => (
-          <div key={e.id} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span
-              style={{
-                display: "inline-block",
-                width: 12,
-                height: 12,
-                borderRadius: 2,
-                background: `rgb(${e.color[0]},${e.color[1]},${e.color[2]})`,
-                flexShrink: 0,
-              }}
-            />
-            {prettyName(e.name)}
-          </div>
-        ))}
-      </div>
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+        gap: "3px 14px",
+        fontSize: "0.78rem",
+      }}
+    >
+      {entries.map((e) => (
+        <div
+          key={e.id}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            whiteSpace: "nowrap",
+          }}
+        >
+          <span
+            style={{
+              display: "inline-block",
+              width: 11,
+              height: 11,
+              borderRadius: 2,
+              background: `rgb(${e.color[0]},${e.color[1]},${e.color[2]})`,
+              flexShrink: 0,
+            }}
+          />
+          {prettyName(e.name)}
+        </div>
+      ))}
     </div>
   );
 }
