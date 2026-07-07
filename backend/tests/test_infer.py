@@ -108,6 +108,20 @@ def test_infer_returns_contract_and_persists_v0(client):
     db.close()
 
 
+def test_get_annotation_after_infer(client):
+    test_client, _ = client
+    assert test_client.get("/studies/s1/annotation").status_code == 404  # none yet
+
+    test_client.post("/studies/s1/infer")
+
+    resp = test_client.get("/studies/s1/annotation")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["study_id"] == "s1"
+    assert body["segmentation"]["mask_uri"] == "/studies/s1/mask.nii.gz"
+    assert len(body["grading"]) >= 1
+
+
 def test_infer_unknown_study_404(client):
     test_client, _ = client
     assert test_client.post("/studies/nope/infer").status_code == 404

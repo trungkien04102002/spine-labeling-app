@@ -62,6 +62,31 @@ export function getStudyDetail(studyId: string): Promise<StudyDetail> {
   return apiFetch<StudyDetail>(`/studies/${studyId}`);
 }
 
+export interface GradingItem {
+  level: string;
+  condition: string;
+  severity: string;
+  score: number;
+  bbox: number[] | null;
+  heatmap_uri: string | null;
+}
+
+export interface InferResult {
+  study_id: string;
+  segmentation: { mask_uri: string; labels: Record<string, string> };
+  grading: GradingItem[];
+  model_version: string;
+}
+
+/** Latest annotation results; rejects (404) if inference has not run. */
+export function getAnnotation(studyId: string): Promise<InferResult> {
+  return apiFetch<InferResult>(`/studies/${studyId}/annotation`);
+}
+
+export function runInference(studyId: string): Promise<InferResult> {
+  return apiFetch<InferResult>(`/studies/${studyId}/infer`, { method: "POST" });
+}
+
 export function uploadStudy(studyId: string, file: File): Promise<UploadResponse> {
   const form = new FormData();
   form.append("file", file);

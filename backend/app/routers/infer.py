@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
@@ -52,3 +53,22 @@ def infer_study(
     db.commit()
 
     return result
+
+
+@router.get("/studies/{study_id}/annotation", response_model=InferResult)
+def get_latest_annotation(
+    study_id: str,
+    db: Session = Depends(get_db),
+) -> InferResult:
+    """Return the most recent annotation's results (AI or corrected)."""
+    ann = (
+        db.query(Annotation)
+        .filter_by(study_id=study_id)
+        .order_by(desc(Annotation.version), desc(Annotation.id))
+        .first()
+    )
+    if ann is None:
+        raise HTTPException(
+            status_code=404, detail="No annotation yet; run inference first."
+        )
+    return InferResult(**ann.payload_json)

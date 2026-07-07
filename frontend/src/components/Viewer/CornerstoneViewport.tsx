@@ -26,6 +26,8 @@ interface Props {
   apiBaseUrl: string;
   /** Optional overlay pinned inside the image box (e.g. a PACS-style header). */
   overlay?: ReactNode;
+  /** When set, scroll the stack to this slice index (jump-to-disc). */
+  targetSlice?: number | null;
 }
 
 /**
@@ -38,8 +40,10 @@ export default function CornerstoneViewport({
   studyId,
   apiBaseUrl,
   overlay,
+  targetSlice,
 }: Props) {
   const elementRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<Types.IStackViewport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [segAvailable, setSegAvailable] = useState(false);
   const [segVisible, setSegVisible] = useState(true);
@@ -95,6 +99,7 @@ export default function CornerstoneViewport({
       });
 
       const viewport = engine.getViewport(viewportId) as Types.IStackViewport;
+      viewportRef.current = viewport;
       // Start on the middle slice (most informative for a sagittal stack).
       await viewport.setStack(imageIds, Math.floor(imageIds.length / 2));
       if (cancelled) return;
@@ -159,11 +164,22 @@ export default function CornerstoneViewport({
 
     return () => {
       cancelled = true;
+      viewportRef.current = null;
       segmentation.removeSegmentation(segmentationId);
       ToolGroupManager.destroyToolGroup(toolGroupId);
       engine?.destroy();
     };
   }, [studyId, apiBaseUrl, viewportId, segmentationId]);
+
+  // Jump the stack to a requested slice (e.g. clicking a disc in the grade table).
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (viewport == null || targetSlice == null) return;
+    const count = viewport.getImageIds().length;
+    const index = Math.min(Math.max(Math.round(targetSlice), 0), count - 1);
+    viewport.setImageIdIndex(index);
+    viewport.render();
+  }, [targetSlice]);
 
   // Apply visibility toggle whenever it changes (once the seg is present).
   useEffect(() => {

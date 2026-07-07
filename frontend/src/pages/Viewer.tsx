@@ -1,7 +1,15 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import CornerstoneViewport from "../components/Viewer/CornerstoneViewport";
-import { API_BASE_URL, getStudyDetail, type StudyDetail } from "../lib/api";
+import GradeTable from "../components/Viewer/GradeTable";
+import {
+  API_BASE_URL,
+  getAnnotation,
+  getStudyDetail,
+  runInference,
+  type InferResult,
+  type StudyDetail,
+} from "../lib/api";
 
 /**
  * Translucent metadata overlay pinned to a corner of the image, the way a PACS
@@ -74,13 +82,35 @@ function InfoOverlay({ detail }: { detail: StudyDetail }) {
 export default function Viewer() {
   const { studyId } = useParams<{ studyId: string }>();
   const [detail, setDetail] = useState<StudyDetail | null>(null);
+  const [result, setResult] = useState<InferResult | null>(null);
+  const [targetSlice, setTargetSlice] = useState<number | null>(null);
+  const [running, setRunning] = useState(false);
+  const [runError, setRunError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!studyId) return;
     getStudyDetail(studyId)
       .then(setDetail)
       .catch(() => setDetail(null));
+    getAnnotation(studyId)
+      .then(setResult)
+      .catch(() => setResult(null)); // 404 = inference not run yet
   }, [studyId]);
+
+  async function handleRunAI() {
+    if (!studyId) return;
+    setRunning(true);
+    setRunError(null);
+    try {
+      const res = await runInference(studyId);
+      setResult(res);
+      getStudyDetail(studyId).then(setDetail).catch(() => {});
+    } catch (err) {
+      setRunError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setRunning(false);
+    }
+  }
 
   return (
     <div style={{ padding: "1rem", fontFamily: "sans-serif" }}>
@@ -92,13 +122,50 @@ export default function Viewer() {
         Wheel: scroll slices · Left drag: window/level · Middle drag: pan · Right
         drag: zoom
       </p>
-      {studyId && (
-        <CornerstoneViewport
-          studyId={studyId}
-          apiBaseUrl={API_BASE_URL}
-          overlay={detail ? <InfoOverlay detail={detail} /> : null}
-        />
-      )}
+
+      <div style={{ display: "flex", gap: "1rem", alignItems: "flex-start" }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {studyId && (
+            <CornerstoneViewport
+              studyId={studyId}
+              apiBaseUrl={API_BASE_URL}
+              overlay={detail ? <InfoOverlay detail={detail} /> : null}
+              targetSlice={targetSlice}
+            />
+          )}
+        </div>
+
+        <aside style={{ flex: "0 0 360px" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: "0.5rem",
+            }}
+          >
+            <h3 style={{ margin: 0 }}>Abnormality grades</h3>
+            <button onClick={handleRunAI} disabled={running}>
+              {running ? "Running AI… (~10 min)" : "Run AI"}
+            </button>
+          </div>
+          {runError && <p style={{ color: "crimson" }}>{runError}</p>}
+          {result ? (
+            <>
+              <GradeTable grading={result.grading} onJump={setTargetSlice} />
+              <p style={{ color: "#888", fontSize: "0.75rem", marginTop: 8 }}>
+                Model: {result.model_version}. Click a level to jump to that disc.
+              </p>
+            </>
+          ) : (
+            !running && (
+              <p style={{ color: "#888" }}>
+                No AI results yet — click “Run AI”.
+              </p>
+            )
+          )}
+        </aside>
+      </div>
     </div>
   );
 }
