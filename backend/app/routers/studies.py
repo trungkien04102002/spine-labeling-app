@@ -71,3 +71,26 @@ def get_display_volume(
         media_type="application/gzip",
         filename=f"{study_id}.nii.gz",
     )
+
+
+# Same `.nii.gz` suffix rule as the display volume (Cornerstone gunzips on it).
+@router.get("/studies/{study_id}/mask.nii.gz")
+def get_mask_volume(
+    study_id: str,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+) -> FileResponse:
+    """Serve the study's segmentation labelmap (written by ``/infer``)."""
+    study = db.get(Study, study_id)
+    if study is None:
+        raise HTTPException(status_code=404, detail=f"Unknown study: {study_id}")
+    mask_path = Path(settings.data_dir) / study_id / "mask.nii.gz"
+    if not mask_path.is_file():
+        raise HTTPException(
+            status_code=404, detail="No segmentation mask; run inference first."
+        )
+    return FileResponse(
+        str(mask_path),
+        media_type="application/gzip",
+        filename=f"{study_id}_mask.nii.gz",
+    )

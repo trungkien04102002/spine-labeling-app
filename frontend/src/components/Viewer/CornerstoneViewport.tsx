@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { RenderingEngine, Enums, type Types } from "@cornerstonejs/core";
+import {
+  RenderingEngine,
+  Enums,
+  imageLoader,
+  type Types,
+} from "@cornerstonejs/core";
 import {
   ToolGroupManager,
   addTool,
@@ -7,13 +12,14 @@ import {
   ZoomTool,
   PanTool,
   WindowLevelTool,
+  segmentation,
   Enums as csToolsEnums,
 } from "@cornerstonejs/tools";
 import { createNiftiImageIdsAndCacheMetadata } from "@cornerstonejs/nifti-volume-loader";
 import { ensureCornerstoneInitialized } from "../../lib/cornerstone";
 
 const { ViewportType } = Enums;
-const { MouseBindings } = csToolsEnums;
+const { MouseBindings, SegmentationRepresentations } = csToolsEnums;
 
 interface Props {
   studyId: string;
@@ -23,19 +29,24 @@ interface Props {
 /**
  * Renders a study's NIfTI as a 2D stack viewport (one image per slice) with
  * wheel slice scroll, left-drag window/level, middle-drag pan, right-drag zoom.
- * A stack viewport auto-fits each slice to the canvas — the right fit for
- * reviewing sagittal MRI.
+ * If the study has a segmentation mask (from `/infer`), it is overlaid as a
+ * labelmap with a visibility toggle and an opacity slider.
  */
 export default function CornerstoneViewport({ studyId, apiBaseUrl }: Props) {
   const elementRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
+  const [segAvailable, setSegAvailable] = useState(false);
+  const [segVisible, setSegVisible] = useState(true);
+  const [segOpacity, setSegOpacity] = useState(0.5);
+
+  const viewportId = `vp-${studyId}`;
+  const segmentationId = `seg-${studyId}`;
 
   useEffect(() => {
     let cancelled = false;
     let engine: RenderingEngine | undefined;
 
     const renderingEngineId = `engine-${studyId}`;
-    const viewportId = `vp-${studyId}`;
     const toolGroupId = `tg-${studyId}`;
 
     (async () => {
@@ -81,6 +92,52 @@ export default function CornerstoneViewport({ studyId, apiBaseUrl }: Props) {
       // Start on the middle slice (most informative for a sagittal stack).
       await viewport.setStack(imageIds, Math.floor(imageIds.length / 2));
       if (cancelled) return;
+
+      // Overlay the segmentation labelmap if the study has one. The mask is a
+      // NIfTI with the same geometry as the display volume, so its per-slice
+      // imageIds line up 1:1 with the base stack.
+      const maskUrl = `${apiBaseUrl}/studies/${studyId}/mask.nii.gz`;
+      const hasMask = (await fetch(maskUrl)).ok;
+      if (hasMask && !cancelled) {
+        const maskImageIds = await createNiftiImageIdsAndCacheMetadata({
+          url: maskUrl,
+        });
+        if (cancelled) return;
+        // A stack-viewport labelmap needs images that are *derived* from the
+        // base stack (registered as such in the cache). Load the mask's pixels,
+        // create blank derived labelmaps from the base stack, then copy the mask
+        // voxels into them slice-by-slice (index-aligned: same NIfTI geometry).
+        const maskImages = await Promise.all(
+          maskImageIds.map((id) => imageLoader.loadAndCacheImage(id)),
+        );
+        if (cancelled) return;
+        const derivedImages =
+          imageLoader.createAndCacheDerivedLabelmapImages(imageIds);
+        for (let i = 0; i < derivedImages.length; i++) {
+          derivedImages[i].getPixelData().set(maskImages[i].getPixelData());
+        }
+        const labelmapImageIds = derivedImages.map((img) => img.imageId);
+        segmentation.addSegmentations([
+          {
+            segmentationId,
+            representation: {
+              type: SegmentationRepresentations.Labelmap,
+              data: { imageIds: labelmapImageIds },
+            },
+          },
+        ]);
+        await segmentation.addLabelmapRepresentationToViewport(viewportId, [
+          { segmentationId, type: SegmentationRepresentations.Labelmap },
+        ]);
+        // The pixel data was written after the images were cached; tell the
+        // segmentation machinery so it (re)builds textures and repaints.
+        segmentation.triggerSegmentationEvents.triggerSegmentationDataModified(
+          segmentationId,
+        );
+        if (!cancelled) setSegAvailable(true);
+      }
+
+      if (cancelled) return;
       // Fit once layout has settled: resize with keepCamera=false recomputes
       // the canvas size and re-centers/scales the image to it.
       requestAnimationFrame(() => {
@@ -96,14 +153,69 @@ export default function CornerstoneViewport({ studyId, apiBaseUrl }: Props) {
 
     return () => {
       cancelled = true;
+      segmentation.removeSegmentation(segmentationId);
       ToolGroupManager.destroyToolGroup(toolGroupId);
       engine?.destroy();
     };
-  }, [studyId, apiBaseUrl]);
+  }, [studyId, apiBaseUrl, viewportId, segmentationId]);
+
+  // Apply visibility toggle whenever it changes (once the seg is present).
+  useEffect(() => {
+    if (!segAvailable) return;
+    segmentation.config.visibility.setSegmentationRepresentationVisibility(
+      viewportId,
+      { segmentationId, type: SegmentationRepresentations.Labelmap },
+      segVisible,
+    );
+  }, [segAvailable, segVisible, viewportId, segmentationId]);
+
+  // Apply opacity (fillAlpha) whenever the slider changes.
+  useEffect(() => {
+    if (!segAvailable) return;
+    segmentation.config.style.setStyle(
+      {
+        type: SegmentationRepresentations.Labelmap,
+        viewportId,
+        segmentationId,
+      },
+      { fillAlpha: segOpacity },
+    );
+  }, [segAvailable, segOpacity, viewportId, segmentationId]);
 
   return (
     <div>
       {error && <p style={{ color: "crimson" }}>Viewer error: {error}</p>}
+      {segAvailable && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "1rem",
+            marginBottom: "0.5rem",
+          }}
+        >
+          <label>
+            <input
+              type="checkbox"
+              checked={segVisible}
+              onChange={(e) => setSegVisible(e.target.checked)}
+            />{" "}
+            Segmentation
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            Opacity
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.05}
+              value={segOpacity}
+              disabled={!segVisible}
+              onChange={(e) => setSegOpacity(Number(e.target.value))}
+            />
+          </label>
+        </div>
+      )}
       <div
         ref={elementRef}
         onContextMenu={(e) => e.preventDefault()}

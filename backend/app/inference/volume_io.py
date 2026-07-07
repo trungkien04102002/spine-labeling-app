@@ -94,3 +94,25 @@ def to_web_form(path: str, out_dir: str) -> str:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     sitk.WriteImage(image, str(out_path))
     return str(out_path.resolve())
+
+
+def to_web_mask(mask_path: str, out_dir: str) -> str:
+    """Convert a segmentation labelmap to a viewer-aligned ``mask.nii.gz``.
+
+    Applies the SAME ``_orient_slices_last`` permutation as ``to_web_form`` so
+    the mask's slice axis lines up with the display volume, and casts to uint16
+    (Cornerstone labelmaps expect integer voxels). Axis permutation preserves
+    label ids exactly -- there is no resampling/interpolation.
+
+    Args:
+        mask_path: TotalSpineSeg labelmap NIfTI (original orientation).
+        out_dir: study data dir; the mask is written as ``mask.nii.gz`` there.
+
+    Returns:
+        Absolute path to the written ``mask.nii.gz`` file.
+    """
+    image = sitk.Cast(_orient_slices_last(_read_image(mask_path)), sitk.sitkUInt16)
+    out_path = Path(out_dir) / "mask.nii.gz"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    sitk.WriteImage(image, str(out_path))
+    return str(out_path.resolve())
