@@ -9,6 +9,7 @@ httpx
 torch
 numpy
 nibabel
+SimpleITK
 # NOTE: TotalSpineSeg is NOT installed here. It pins numpy<2 and pulls in
 # nnU-Net/torchio, which conflict with torch/numpy above. It is invoked as an
 # external CLI (see app/inference/segmentation.py + Settings.totalspineseg_bin);
