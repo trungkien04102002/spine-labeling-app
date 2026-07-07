@@ -87,6 +87,23 @@ export function runInference(studyId: string): Promise<InferResult> {
   return apiFetch<InferResult>(`/studies/${studyId}/infer`, { method: "POST" });
 }
 
+/** Save a corrected annotation as a new version. */
+export function saveAnnotation(
+  studyId: string,
+  result: InferResult,
+): Promise<InferResult> {
+  return apiFetch<InferResult>(`/studies/${studyId}/annotations`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(result),
+  });
+}
+
+/** URL of the export zip (original + mask + grades + labeled PNG). */
+export function exportUrl(studyId: string): string {
+  return `${API_BASE_URL}/studies/${studyId}/export`;
+}
+
 export function uploadStudy(studyId: string, file: File): Promise<UploadResponse> {
   const form = new FormData();
   form.append("file", file);

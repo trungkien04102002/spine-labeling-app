@@ -5,14 +5,16 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile
 from fastapi.responses import FileResponse
+from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
 from app.db import get_db
+from app.export import build_export_zip
 from app.inference.volume_io import read_dicom_tags, read_metadata, to_web_form
-from app.models_db import Patient, Study
+from app.models_db import Annotation, Patient, Study
 from app.schemas import StudyDetail
 
 router = APIRouter(tags=["studies"])
@@ -127,4 +129,38 @@ def get_mask_volume(
         str(mask_path),
         media_type="application/gzip",
         filename=f"{study_id}_mask.nii.gz",
+    )
+
+
+@router.get("/studies/{study_id}/export")
+def export_study(
+    study_id: str,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+) -> Response:
+    """Export the latest annotation as a zip (original + mask + grades + PNG)."""
+    study = db.get(Study, study_id)
+    if study is None:
+        raise HTTPException(status_code=404, detail=f"Unknown study: {study_id}")
+    ann = (
+        db.query(Annotation)
+        .filter_by(study_id=study_id)
+        .order_by(desc(Annotation.version), desc(Annotation.id))
+        .first()
+    )
+    if ann is None:
+        raise HTTPException(
+            status_code=404, detail="No annotation to export; run inference first."
+        )
+
+    mask_path = Path(settings.data_dir) / study_id / "mask.nii.gz"
+    zip_bytes = build_export_zip(
+        study.display_path, str(mask_path), ann.payload_json
+    )
+    return Response(
+        content=zip_bytes,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{study_id}_export.zip"'
+        },
     )

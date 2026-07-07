@@ -6,6 +6,7 @@ const CONDITIONS = [
   { key: "left_foraminal", label: "L. foraminal" },
   { key: "right_foraminal", label: "R. foraminal" },
 ];
+const SEVERITIES = ["Normal/Mild", "Moderate", "Severe"];
 
 /** Background color for a severity label. */
 function severityColor(severity: string): string {
@@ -18,13 +19,15 @@ interface Props {
   grading: GradingItem[];
   /** Called with a slice index when a level row is clicked (jump-to-disc). */
   onJump: (slice: number) => void;
+  /** When set, each cell shows a severity dropdown that calls this on change. */
+  onEditSeverity?: (level: string, condition: string, severity: string) => void;
 }
 
 /**
  * Per-disc abnormality grades: one row per lumbar level, one cell per condition
  * (color-coded by severity). Clicking a row scrolls the viewer to that disc.
  */
-export default function GradeTable({ grading, onJump }: Props) {
+export default function GradeTable({ grading, onJump, onEditSeverity }: Props) {
   // Index items by level+condition for O(1) cell lookup.
   const byLevel = new Map<string, Map<string, GradingItem>>();
   for (const item of grading) {
@@ -79,7 +82,24 @@ export default function GradeTable({ grading, onJump }: Props) {
                   >
                     {item ? (
                       <>
-                        {item.severity}
+                        {onEditSeverity ? (
+                          <select
+                            value={item.severity}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) =>
+                              onEditSeverity(level, c.key, e.target.value)
+                            }
+                            style={{ font: "inherit", background: "transparent", border: "none" }}
+                          >
+                            {SEVERITIES.map((s) => (
+                              <option key={s} value={s}>
+                                {s}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          item.severity
+                        )}
                         <br />
                         <span style={{ color: "#666", fontSize: "0.75rem" }}>
                           {(item.score * 100).toFixed(0)}%

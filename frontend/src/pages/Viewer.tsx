@@ -4,9 +4,11 @@ import CornerstoneViewport from "../components/Viewer/CornerstoneViewport";
 import GradeTable from "../components/Viewer/GradeTable";
 import {
   API_BASE_URL,
+  exportUrl,
   getAnnotation,
   getStudyDetail,
   runInference,
+  saveAnnotation,
   type InferResult,
   type StudyDetail,
 } from "../lib/api";
@@ -86,6 +88,9 @@ export default function Viewer() {
   const [targetSlice, setTargetSlice] = useState<number | null>(null);
   const [running, setRunning] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [savedNote, setSavedNote] = useState<string | null>(null);
 
   useEffect(() => {
     if (!studyId) return;
@@ -93,7 +98,10 @@ export default function Viewer() {
       .then(setDetail)
       .catch(() => setDetail(null));
     getAnnotation(studyId)
-      .then(setResult)
+      .then((r) => {
+        setResult(r);
+        setDirty(false);
+      })
       .catch(() => setResult(null)); // 404 = inference not run yet
   }, [studyId]);
 
@@ -104,11 +112,43 @@ export default function Viewer() {
     try {
       const res = await runInference(studyId);
       setResult(res);
+      setDirty(false);
       getStudyDetail(studyId).then(setDetail).catch(() => {});
     } catch (err) {
       setRunError(err instanceof Error ? err.message : String(err));
     } finally {
       setRunning(false);
+    }
+  }
+
+  function handleEditSeverity(level: string, condition: string, severity: string) {
+    setResult((prev) =>
+      prev
+        ? {
+            ...prev,
+            grading: prev.grading.map((g) =>
+              g.level === level && g.condition === condition
+                ? { ...g, severity }
+                : g,
+            ),
+          }
+        : prev,
+    );
+    setDirty(true);
+    setSavedNote(null);
+  }
+
+  async function handleSave() {
+    if (!studyId || !result) return;
+    setSaving(true);
+    try {
+      await saveAnnotation(studyId, result);
+      setDirty(false);
+      setSavedNote("Saved as a new corrected version.");
+    } catch (err) {
+      setRunError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -152,9 +192,37 @@ export default function Viewer() {
           {runError && <p style={{ color: "crimson" }}>{runError}</p>}
           {result ? (
             <>
-              <GradeTable grading={result.grading} onJump={setTargetSlice} />
+              <GradeTable
+                grading={result.grading}
+                onJump={setTargetSlice}
+                onEditSeverity={handleEditSeverity}
+              />
+              <div
+                style={{
+                  display: "flex",
+                  gap: "0.5rem",
+                  alignItems: "center",
+                  marginTop: 8,
+                }}
+              >
+                <button onClick={handleSave} disabled={!dirty || saving}>
+                  {saving ? "Saving…" : dirty ? "Save corrections" : "Saved"}
+                </button>
+                <a href={exportUrl(studyId!)} target="_blank" rel="noreferrer">
+                  <button>Export</button>
+                </a>
+                {dirty && (
+                  <span style={{ color: "#c60", fontSize: "0.8rem" }}>
+                    unsaved edits
+                  </span>
+                )}
+              </div>
+              {savedNote && (
+                <p style={{ color: "green", fontSize: "0.8rem" }}>{savedNote}</p>
+              )}
               <p style={{ color: "#888", fontSize: "0.75rem", marginTop: 8 }}>
-                Model: {result.model_version}. Click a level to jump to that disc.
+                Model: {result.model_version}. Click a level to jump to that disc;
+                change a severity, then Save.
               </p>
             </>
           ) : (
