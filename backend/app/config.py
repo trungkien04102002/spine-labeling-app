@@ -16,3 +16,8 @@ class Settings(BaseSettings):
     totalspineseg_bin: str = "totalspineseg"  # CLI name or absolute path
     totalspineseg_data: str = ""  # weights dir; "" -> CLI's packaged default
     seg_device: str = "cpu"  # "cpu" | "cuda" (CLI does not accept "mps")
+
+
+def get_settings() -> Settings:
+    """FastAPI dependency yielding app settings (overridable in tests)."""
+    return Settings()
