@@ -1,9 +1,20 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.db import init_db
 from app.routers import studies
 
-app = FastAPI(title="spine-labeling-app")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Ensure the MySQL schema exists when the server boots.
+    init_db()
+    yield
+
+
+app = FastAPI(title="spine-labeling-app", lifespan=lifespan)
 
 # Allow the Vite dev frontend (localhost:5173) to call the API from the browser.
 app.add_middleware(

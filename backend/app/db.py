@@ -26,4 +26,7 @@ def get_db() -> Generator[Session, None, None]:
 
 def init_db(bind: Engine = engine) -> None:
     """Create all tables on the given engine (defaults to the app's MySQL engine)."""
+    # Import models so their tables register on Base.metadata before create_all.
+    import app.models_db  # noqa: F401
+
     Base.metadata.create_all(bind=bind)
