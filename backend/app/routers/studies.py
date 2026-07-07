@@ -131,6 +131,8 @@ def get_mask_volume(
         str(mask_path),
         media_type="application/gzip",
         filename=f"{study_id}_mask.nii.gz",
+        # The mask changes when a doctor saves edits; never serve a stale copy.
+        headers={"Cache-Control": "no-store"},
     )
 
 

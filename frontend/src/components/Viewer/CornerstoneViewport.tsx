@@ -31,10 +31,9 @@ import { ensureCornerstoneInitialized } from "../../lib/cornerstone";
 const { ViewportType } = Enums;
 const { MouseBindings, SegmentationRepresentations } = csToolsEnums;
 
-// Mask brush/erase editing is wired but painting on a Cornerstone3D *stack*
-// labelmap isn't reliably writing yet; keep it hidden until that's solved.
-// Grade editing + versioned save + export (the P3 core loop) are unaffected.
-const MASK_EDIT_ENABLED = false;
+// Mask brush/erase editing on the stack labelmap (paint requires window/level
+// to be passive so the primary button reaches the brush).
+const MASK_EDIT_ENABLED = true;
 
 /** Handle the viewer exposes so a parent can read the edited mask for saving. */
 export interface MaskEditApi {
@@ -277,6 +276,8 @@ export default function CornerstoneViewport({
         segmentationId,
       );
       segmentation.segmentIndex.setActiveSegmentIndex(segmentationId, activeLabel);
+      // Free the primary button from window/level so the brush receives it.
+      toolGroup.setToolPassive(WindowLevelTool.toolName);
       toolGroup.setToolConfiguration(BrushTool.toolName, {
         activeStrategy:
           editTool === "erase" ? "ERASE_INSIDE_CIRCLE" : "FILL_INSIDE_CIRCLE",
