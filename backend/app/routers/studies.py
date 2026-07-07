@@ -6,6 +6,7 @@ import shutil
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
@@ -50,3 +51,21 @@ def upload_study(
         "volume_path": study.volume_path,
         "display_path": study.display_path,
     }
+
+
+@router.get("/studies/{study_id}/display")
+def get_display_volume(
+    study_id: str,
+    db: Session = Depends(get_db),
+) -> FileResponse:
+    """Serve the study's viewer NIfTI so the browser (Cornerstone3D) can load it."""
+    study = db.get(Study, study_id)
+    if study is None:
+        raise HTTPException(status_code=404, detail=f"Unknown study: {study_id}")
+    if not study.display_path or not Path(study.display_path).is_file():
+        raise HTTPException(status_code=404, detail="No display volume for study.")
+    return FileResponse(
+        study.display_path,
+        media_type="application/gzip",
+        filename=f"{study_id}.nii.gz",
+    )

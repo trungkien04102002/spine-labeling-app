@@ -87,6 +87,25 @@ def test_upload_stores_and_converts(client):
     db.close()
 
 
+def test_display_served_after_upload(client):
+    test_client, _, data_dir = client
+    payload = _nifti_bytes(data_dir)
+    test_client.post(
+        "/studies/s1/upload",
+        files={"file": ("vol.nii.gz", payload, "application/octet-stream")},
+    )
+
+    resp = test_client.get("/studies/s1/display")
+    assert resp.status_code == 200
+    assert len(resp.content) > 0
+
+
+def test_display_missing_404(client):
+    test_client, _, _ = client
+    # s1 has no upload yet in this test.
+    assert test_client.get("/studies/s1/display").status_code == 404
+
+
 def test_upload_unknown_study_404(client):
     test_client, _, data_dir = client
     payload = _nifti_bytes(data_dir)
