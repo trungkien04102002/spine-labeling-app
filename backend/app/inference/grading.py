@@ -83,46 +83,70 @@ def _level_from_filename(npy_path: Path) -> str:
     return "-".join(t.upper() for t in level_tokens)
 
 
+def _grade_crop(
+    model: GradingModelWithCBAM,
+    volume: np.ndarray,
+    level: str,
+    bbox: list[float] | None = None,
+) -> list[GradingItem]:
+    """Grade one `(9, 112, 224)` crop -> one `GradingItem` per condition head."""
+    # [9, 112, 224] -> [1, 1, 9, 112, 224] (batch, channel dims).
+    tensor = torch.from_numpy(volume).float().unsqueeze(0).unsqueeze(0)
+    with torch.no_grad():
+        outputs = model(tensor)
+
+    items: list[GradingItem] = []
+    for head_name, condition in _HEAD_TO_CONDITION.items():
+        probs = F.softmax(outputs[head_name], dim=1).squeeze(0)
+        class_idx = int(torch.argmax(probs).item())
+        items.append(
+            GradingItem(
+                level=level,
+                condition=condition,
+                severity=_SEVERITY_BY_CLASS[class_idx],
+                score=float(probs[class_idx].item()),
+                bbox=bbox,
+                heatmap_uri=None,
+            )
+        )
+    return items
+
+
+def grade_crops(crops: dict[str, dict[str, object]]) -> list[GradingItem]:
+    """Grade per-disc crops produced by `crops.extract_disc_crops`.
+
+    Args:
+        crops: ``{level: {"crop": np.ndarray(9,112,224), "bbox": [...]}}``.
+
+    Returns:
+        Three `GradingItem`s per disc (canal_stenosis, left/right foraminal),
+        each carrying the disc's bbox for the viewer overlay.
+    """
+    model = _load_model()
+    items: list[GradingItem] = []
+    for level, data in crops.items():
+        items.extend(
+            _grade_crop(model, data["crop"], level, bbox=data.get("bbox"))  # type: ignore[arg-type]
+        )
+    return items
+
+
 def run_grading(study_dir: str) -> list[GradingItem]:
     """Run the CBAM grading model on every per-IVD `.npy` crop in `study_dir`.
+
+    Kept for RSNA-style preprocessed studies that ship `.npy` crops. The app's
+    live path grades seg-localized crops via `grade_crops` instead.
 
     Args:
         study_dir: directory containing one or more preprocessed `(9, 112, 224)`
             float32 `.npy` crops, one per IVD level.
 
     Returns:
-        A `GradingItem` per (level, condition) pair -- three per crop file
-        (canal_stenosis, left_foraminal, right_foraminal).
+        A `GradingItem` per (level, condition) pair -- three per crop file.
     """
     model = _load_model()
-    study_path = Path(study_dir)
-    npy_files = sorted(study_path.glob("*.npy"))
-
     items: list[GradingItem] = []
-    for npy_path in npy_files:
+    for npy_path in sorted(Path(study_dir).glob("*.npy")):
         volume = np.load(npy_path)
-        # [9, 112, 224] -> [1, 1, 9, 112, 224] (batch, channel dims).
-        tensor = torch.from_numpy(volume).float().unsqueeze(0).unsqueeze(0)
-
-        with torch.no_grad():
-            outputs = model(tensor)
-
-        level = _level_from_filename(npy_path)
-        for head_name, condition in _HEAD_TO_CONDITION.items():
-            logits = outputs[head_name]
-            probs = F.softmax(logits, dim=1).squeeze(0)
-            class_idx = int(torch.argmax(probs).item())
-            score = float(probs[class_idx].item())
-
-            items.append(
-                GradingItem(
-                    level=level,
-                    condition=condition,
-                    severity=_SEVERITY_BY_CLASS[class_idx],
-                    score=score,
-                    bbox=None,
-                    heatmap_uri=None,
-                )
-            )
-
+        items.extend(_grade_crop(model, volume, _level_from_filename(npy_path)))
     return items

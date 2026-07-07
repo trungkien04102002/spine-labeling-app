@@ -119,25 +119,35 @@ def test_infer_without_volume_400(client):
 
 
 def test_local_backend_runs_both_models(monkeypatch, tmp_path):
-    """LocalBackend composes segmentation + grading into one InferResult."""
+    """LocalBackend composes seg -> disc crops -> grading into one InferResult."""
     from app.inference import local
 
     monkeypatch.setattr(
-        local, "run_segmentation", lambda vp: ("/tmp/m.nii.gz", {2: "spinal_canal"})
+        local, "run_segmentation", lambda vp: ("m.nii.gz", {2: "spinal_canal"})
+    )
+    # Stub the seg-driven crop step (its array math is covered by test_crops).
+    monkeypatch.setattr(
+        local,
+        "_crops_from_mask",
+        lambda vp, mp: {"L4-L5": {"crop": None, "bbox": [1, 2, 3, 4, 5]}},
     )
     monkeypatch.setattr(
         local,
-        "run_grading",
-        lambda gd: [
+        "grade_crops",
+        lambda crops: [
             GradingItem(
-                level="L4-L5", condition="canal_stenosis", severity="Severe", score=0.8
+                level=level,
+                condition="canal_stenosis",
+                severity="Severe",
+                score=0.8,
+                bbox=data["bbox"],
             )
+            for level, data in crops.items()
         ],
     )
 
-    result = local.LocalBackend().infer(
-        "s1", str(tmp_path / "v.mha"), grading_dir=str(tmp_path)
-    )
+    result = local.LocalBackend().infer("s1", str(tmp_path / "v.mha"))
     assert result.study_id == "s1"
     assert result.segmentation.labels == {2: "spinal_canal"}
     assert result.grading[0].severity == "Severe"
+    assert result.grading[0].bbox == [1, 2, 3, 4, 5]
