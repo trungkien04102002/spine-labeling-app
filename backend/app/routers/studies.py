@@ -5,7 +5,9 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile
+import numpy as np
+import SimpleITK as sitk
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
@@ -130,6 +132,44 @@ def get_mask_volume(
         media_type="application/gzip",
         filename=f"{study_id}_mask.nii.gz",
     )
+
+
+@router.put("/studies/{study_id}/mask")
+async def save_mask(
+    study_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+) -> dict[str, object]:
+    """Persist a doctor-edited labelmap (raw uint8 voxels, display geometry).
+
+    The frontend sends the edited Cornerstone labelmap as a flat little-endian
+    uint8 buffer in slice order (z, y, x); we reshape it to the display volume's
+    size, copy that volume's geometry, and overwrite ``mask.nii.gz``.
+    """
+    study = db.get(Study, study_id)
+    if study is None:
+        raise HTTPException(status_code=404, detail=f"Unknown study: {study_id}")
+    if not study.display_path or not Path(study.display_path).is_file():
+        raise HTTPException(status_code=400, detail="Study has no display volume.")
+
+    raw = await request.body()
+    display = sitk.ReadImage(study.display_path)
+    x, y, z = display.GetSize()  # (x, y, z)
+    expected = x * y * z
+    arr = np.frombuffer(raw, dtype=np.uint8)
+    if arr.size != expected:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Mask size {arr.size} != expected {expected} ({z}x{y}x{x}).",
+        )
+
+    mask_img = sitk.GetImageFromArray(arr.reshape((z, y, x)).astype(np.uint16))
+    mask_img.CopyInformation(display)
+    mask_path = Path(settings.data_dir) / study_id / "mask.nii.gz"
+    mask_path.parent.mkdir(parents=True, exist_ok=True)
+    sitk.WriteImage(mask_img, str(mask_path))
+    return {"ok": True, "shape": [z, y, x]}
 
 
 @router.get("/studies/{study_id}/export")

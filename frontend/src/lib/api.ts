@@ -99,6 +99,15 @@ export function saveAnnotation(
   });
 }
 
+/** Persist a doctor-edited labelmap (raw uint8 voxels, slice order z,y,x). */
+export function saveMask(studyId: string, voxels: Uint8Array): Promise<unknown> {
+  return apiFetch(`/studies/${studyId}/mask`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/octet-stream" },
+    body: voxels as unknown as BodyInit,
+  });
+}
+
 /** URL of the export zip (original + mask + grades + labeled PNG). */
 export function exportUrl(studyId: string): string {
   return `${API_BASE_URL}/studies/${studyId}/export`;

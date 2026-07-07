@@ -1,7 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import CornerstoneViewport from "../components/Viewer/CornerstoneViewport";
+import CornerstoneViewport, {
+  type LegendEntry,
+  type MaskEditApi,
+} from "../components/Viewer/CornerstoneViewport";
 import GradeTable from "../components/Viewer/GradeTable";
+import Legend from "../components/Viewer/Legend";
 import {
   API_BASE_URL,
   exportUrl,
@@ -9,6 +13,7 @@ import {
   getStudyDetail,
   runInference,
   saveAnnotation,
+  saveMask,
   type InferResult,
   type StudyDetail,
 } from "../lib/api";
@@ -91,6 +96,9 @@ export default function Viewer() {
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedNote, setSavedNote] = useState<string | null>(null);
+  const [maskDirty, setMaskDirty] = useState(false);
+  const [legend, setLegend] = useState<LegendEntry[]>([]);
+  const editApiRef = useRef<MaskEditApi | null>(null);
 
   useEffect(() => {
     if (!studyId) return;
@@ -142,6 +150,12 @@ export default function Viewer() {
     if (!studyId || !result) return;
     setSaving(true);
     try {
+      // Persist the edited mask first (if painted), then the corrected grades.
+      if (maskDirty && editApiRef.current) {
+        const voxels = editApiRef.current.getMaskVolume();
+        if (voxels) await saveMask(studyId, voxels);
+        setMaskDirty(false);
+      }
       await saveAnnotation(studyId, result);
       setDirty(false);
       setSavedNote("Saved as a new corrected version.");
@@ -153,29 +167,43 @@ export default function Viewer() {
   }
 
   return (
-    <div style={{ padding: "1rem", fontFamily: "sans-serif" }}>
+    <div style={{ padding: "1rem", fontFamily: "sans-serif", textAlign: "left" }}>
       <p>
         <Link to="/">← back to patients</Link>
       </p>
-      <h1>Viewer — study {studyId}</h1>
+      <h1 style={{ textAlign: "center" }}>Viewer — study {studyId}</h1>
       <p style={{ color: "#666", marginTop: 0 }}>
         Wheel: scroll slices · Left drag: window/level · Middle drag: pan · Right
         drag: zoom
       </p>
 
-      <div style={{ display: "flex", gap: "1rem", alignItems: "flex-start" }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
+      <div
+        style={{
+          display: "flex",
+          gap: "1rem",
+          alignItems: "flex-start",
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ flex: "2 1 480px", minWidth: 0 }}>
           {studyId && (
             <CornerstoneViewport
               studyId={studyId}
               apiBaseUrl={API_BASE_URL}
               overlay={detail ? <InfoOverlay detail={detail} /> : null}
               targetSlice={targetSlice}
+              segLabels={result?.segmentation.labels}
+              editApiRef={editApiRef}
+              onMaskEdited={() => {
+                setMaskDirty(true);
+                setSavedNote(null);
+              }}
+              onLegend={setLegend}
             />
           )}
         </div>
 
-        <aside style={{ flex: "0 0 360px" }}>
+        <aside style={{ flex: "1 1 320px", minWidth: 280 }}>
           <div
             style={{
               display: "flex",
@@ -205,13 +233,20 @@ export default function Viewer() {
                   marginTop: 8,
                 }}
               >
-                <button onClick={handleSave} disabled={!dirty || saving}>
-                  {saving ? "Saving…" : dirty ? "Save corrections" : "Saved"}
+                <button
+                  onClick={handleSave}
+                  disabled={(!dirty && !maskDirty) || saving}
+                >
+                  {saving
+                    ? "Saving…"
+                    : dirty || maskDirty
+                      ? "Save corrections"
+                      : "Saved"}
                 </button>
                 <a href={exportUrl(studyId!)} target="_blank" rel="noreferrer">
                   <button>Export</button>
                 </a>
-                {dirty && (
+                {(dirty || maskDirty) && (
                   <span style={{ color: "#c60", fontSize: "0.8rem" }}>
                     unsaved edits
                   </span>
@@ -231,6 +266,12 @@ export default function Viewer() {
                 No AI results yet — click “Run AI”.
               </p>
             )
+          )}
+
+          {legend.length > 0 && (
+            <div style={{ marginTop: "1rem" }}>
+              <Legend entries={legend} />
+            </div>
           )}
         </aside>
       </div>
