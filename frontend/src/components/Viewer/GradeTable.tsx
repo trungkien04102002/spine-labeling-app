@@ -31,12 +31,12 @@ function conditionLabel(key: string): string {
   );
 }
 
-/** Background color for a severity label (neutral for values we don't know). */
+/** Cell tint for a severity label (light theme; neutral for unknown scales). */
 function severityColor(severity: string): string {
-  if (severity === "Severe") return "#f8d0d0";
-  if (severity === "Moderate") return "#fce7c4";
-  if (severity === "Normal/Mild") return "#d8f0d8";
-  return "#eef0f4"; // unknown severity scale (e.g. a Pfirrmann grade)
+  if (severity === "Severe") return "#fde2e2";
+  if (severity === "Moderate") return "#fdefc7";
+  if (severity === "Normal/Mild") return "#e3f2e3";
+  return "#f1f3f5"; // unknown severity scale (e.g. a Pfirrmann grade)
 }
 
 /** Order values by a hint list first, then append the rest (natural sort). */

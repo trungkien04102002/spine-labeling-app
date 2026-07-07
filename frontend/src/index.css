@@ -7,12 +7,10 @@
 
 body {
   margin: 0;
-  background: #f1f5f9; /* slate-100 */
-  color: #0f172a; /* slate-900 */
+  background: #f4f7fb;
+  color: #1e293b;
 }
 
-/* The Vite/template starter constrained #root to a narrow centered column;
-   a clinical app uses the full width. */
 #root {
   width: 100%;
   max-width: none;
