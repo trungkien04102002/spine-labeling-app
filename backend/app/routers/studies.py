@@ -32,10 +32,15 @@ def create_study(
         raise HTTPException(
             status_code=409, detail=f"Study '{payload.id}' already exists."
         )
-    patient = Patient(name=payload.patient_name.strip() or "Unknown")
-    db.add(patient)
-    db.commit()
-    db.refresh(patient)
+    # Group studies under one patient: reuse an existing patient of the same
+    # name, otherwise create a new one.
+    name = payload.patient_name.strip() or "Unknown"
+    patient = db.query(Patient).filter_by(name=name).first()
+    if patient is None:
+        patient = Patient(name=name)
+        db.add(patient)
+        db.commit()
+        db.refresh(patient)
     study = Study(id=payload.id, patient_id=patient.id, modality=payload.modality)
     db.add(study)
     db.commit()
