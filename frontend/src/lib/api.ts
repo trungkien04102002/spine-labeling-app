@@ -62,6 +62,36 @@ export function getStudyDetail(studyId: string): Promise<StudyDetail> {
   return apiFetch<StudyDetail>(`/studies/${studyId}`);
 }
 
+export function createStudy(
+  id: string,
+  patientName: string,
+  modality: string,
+): Promise<unknown> {
+  return apiFetch("/studies", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, patient_name: patientName, modality }),
+  });
+}
+
+export function updateStudy(
+  studyId: string,
+  patch: { patient_name?: string; modality?: string },
+): Promise<unknown> {
+  return apiFetch(`/studies/${studyId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+}
+
+export async function deleteStudy(studyId: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/studies/${studyId}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw new Error(`Delete failed: ${res.status}`);
+}
+
 export interface GradingItem {
   level: string;
   condition: string;

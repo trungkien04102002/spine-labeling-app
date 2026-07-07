@@ -16,10 +16,68 @@ from app.config import Settings, get_settings
 from app.db import get_db
 from app.export import build_export_zip
 from app.inference.volume_io import read_dicom_tags, read_metadata, to_web_form
-from app.models_db import Annotation, Patient, Study
-from app.schemas import StudyDetail
+from app.models_db import Annotation, CorrectionLog, Patient, Study
+from app.schemas import StudyCreate, StudyDetail, StudyUpdate
 
 router = APIRouter(tags=["studies"])
+
+
+@router.post("/studies", status_code=201)
+def create_study(
+    payload: StudyCreate,
+    db: Session = Depends(get_db),
+) -> dict[str, object]:
+    """Create a new (empty) study + its patient; a volume is uploaded later."""
+    if db.get(Study, payload.id) is not None:
+        raise HTTPException(
+            status_code=409, detail=f"Study '{payload.id}' already exists."
+        )
+    patient = Patient(name=payload.patient_name.strip() or "Unknown")
+    db.add(patient)
+    db.commit()
+    db.refresh(patient)
+    study = Study(id=payload.id, patient_id=patient.id, modality=payload.modality)
+    db.add(study)
+    db.commit()
+    return {"id": study.id, "patient_id": patient.id}
+
+
+@router.patch("/studies/{study_id}")
+def update_study(
+    study_id: str,
+    payload: StudyUpdate,
+    db: Session = Depends(get_db),
+) -> dict[str, object]:
+    """Edit a study's modality and/or its patient's name."""
+    study = db.get(Study, study_id)
+    if study is None:
+        raise HTTPException(status_code=404, detail=f"Unknown study: {study_id}")
+    if payload.modality is not None:
+        study.modality = payload.modality
+    if payload.patient_name is not None:
+        patient = db.get(Patient, study.patient_id)
+        if patient is not None:
+            patient.name = payload.patient_name.strip() or patient.name
+    db.commit()
+    return {"id": study.id, "modality": study.modality}
+
+
+@router.delete("/studies/{study_id}", status_code=204)
+def delete_study(
+    study_id: str,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+) -> Response:
+    """Delete a study, its annotations/logs, and its files on disk."""
+    study = db.get(Study, study_id)
+    if study is None:
+        raise HTTPException(status_code=404, detail=f"Unknown study: {study_id}")
+    db.query(Annotation).filter_by(study_id=study_id).delete()
+    db.query(CorrectionLog).filter_by(study_id=study_id).delete()
+    db.delete(study)
+    db.commit()
+    shutil.rmtree(Path(settings.data_dir) / study_id, ignore_errors=True)
+    return Response(status_code=204)
 
 
 @router.get("/studies/{study_id}", response_model=StudyDetail)

@@ -17,6 +17,17 @@ class PatientOut(BaseModel):
     studies: list[StudyOut]
 
 
+class StudyCreate(BaseModel):
+    id: str
+    patient_name: str
+    modality: str = "MRI"
+
+
+class StudyUpdate(BaseModel):
+    patient_name: str | None = None
+    modality: str | None = None
+
+
 class StudyDetail(BaseModel):
     """Study + patient + image metadata shown in the viewer header."""
 
