@@ -197,129 +197,148 @@ export default function Viewer() {
     }
   }
 
+  const btn =
+    "rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed";
+
   return (
-    <div style={{ padding: "1rem", fontFamily: "sans-serif", textAlign: "left" }}>
-      <p>
-        <Link to="/">← back to patients</Link>
-      </p>
-      <h1 style={{ textAlign: "center" }}>Viewer — study {studyId}</h1>
-      <p style={{ color: "#666", marginTop: 0 }}>
-        Wheel: scroll slices · Left drag: window/level · Middle drag: pan · Right
-        drag: zoom
-      </p>
-
-      <div
-        style={{
-          display: "flex",
-          gap: "1rem",
-          alignItems: "flex-start",
-          flexWrap: "wrap",
-        }}
-      >
-        <div style={{ flex: "2 1 480px", minWidth: 0 }}>
-          {studyId && (
-            <CornerstoneViewport
-              studyId={studyId}
-              apiBaseUrl={API_BASE_URL}
-              overlay={detail ? <InfoOverlay detail={detail} /> : null}
-              targetSlice={targetSlice}
-              segLabels={result?.segmentation.labels}
-              editApiRef={editApiRef}
-              onMaskEdited={() => {
-                setMaskDirty(true);
-                setSavedNote(null);
-              }}
-              onLegend={setLegend}
-            />
-          )}
-        </div>
-
-        <aside style={{ flex: "1 1 320px", minWidth: 280 }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: "0.5rem",
-            }}
-          >
-            <h3 style={{ margin: 0 }}>Abnormality grades</h3>
-            <button onClick={handleRunAI} disabled={running}>
-              {running ? "Running AI… (~10 min)" : "Run AI"}
-            </button>
+    <div className="min-h-screen bg-slate-100">
+      {/* App header */}
+      <header className="border-b border-slate-200 bg-white">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3">
+          <div className="flex items-center gap-3">
+            <Link
+              to="/"
+              className="text-sm font-medium text-indigo-600 hover:text-indigo-500"
+            >
+              ← Worklist
+            </Link>
+            <span className="text-slate-300">/</span>
+            <div>
+              <h1 className="text-base font-semibold leading-tight text-slate-900">
+                Study {studyId}
+              </h1>
+              <p className="text-xs text-slate-500">
+                {detail?.patient_name ?? "…"}
+              </p>
+            </div>
           </div>
-          {runError && <p style={{ color: "crimson" }}>{runError}</p>}
-          {result ? (
-            <>
-              <GradeTable
-                grading={result.grading}
-                onJump={setTargetSlice}
-                onEditSeverity={handleEditSeverity}
-              />
-              <div
-                style={{
-                  display: "flex",
-                  gap: "0.5rem",
-                  alignItems: "center",
-                  marginTop: 8,
+          <button
+            onClick={handleRunAI}
+            disabled={running}
+            className="rounded-md bg-indigo-600 px-3.5 py-1.5 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+          >
+            {running ? "Running AI… (~10 min)" : "Run AI"}
+          </button>
+        </div>
+      </header>
+
+      <main className="mx-auto flex max-w-7xl flex-wrap items-start gap-4 px-6 py-6">
+        {/* Viewer card */}
+        <section className="min-w-0 flex-[2_1_480px]">
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            {studyId && (
+              <CornerstoneViewport
+                studyId={studyId}
+                apiBaseUrl={API_BASE_URL}
+                overlay={detail ? <InfoOverlay detail={detail} /> : null}
+                targetSlice={targetSlice}
+                segLabels={result?.segmentation.labels}
+                editApiRef={editApiRef}
+                onMaskEdited={() => {
+                  setMaskDirty(true);
+                  setSavedNote(null);
                 }}
-              >
-                <button
-                  onClick={handleUndo}
-                  disabled={!gradeHistory.canUndo}
-                  title="Undo (Ctrl+Z)"
-                >
-                  ↶ Undo
-                </button>
-                <button
-                  onClick={handleRedo}
-                  disabled={!gradeHistory.canRedo}
-                  title="Redo (Ctrl+Shift+Z)"
-                >
-                  ↷ Redo
-                </button>
-                <button
-                  onClick={handleSave}
-                  disabled={(!dirty && !maskDirty) || saving}
-                >
-                  {saving
-                    ? "Saving…"
-                    : dirty || maskDirty
-                      ? "Save corrections"
-                      : "Saved"}
-                </button>
-                <a href={exportUrl(studyId!)} target="_blank" rel="noreferrer">
-                  <button>Export</button>
-                </a>
-                {(dirty || maskDirty) && (
-                  <span style={{ color: "#c60", fontSize: "0.8rem" }}>
-                    unsaved edits
-                  </span>
-                )}
+                onLegend={setLegend}
+              />
+            )}
+          </div>
+          <p className="mt-2 text-xs text-slate-500">
+            Wheel: scroll slices · Left drag: window/level · Middle drag: pan ·
+            Right drag: zoom
+          </p>
+        </section>
+
+        {/* Side panel */}
+        <aside className="flex min-w-[280px] flex-[1_1_320px] flex-col gap-4">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h2 className="mb-3 text-sm font-semibold text-slate-900">
+              Abnormality grades
+            </h2>
+            {runError && (
+              <div className="mb-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                {runError}
               </div>
-              {savedNote && (
-                <p style={{ color: "green", fontSize: "0.8rem" }}>{savedNote}</p>
-              )}
-              <p style={{ color: "#888", fontSize: "0.75rem", marginTop: 8 }}>
-                Model: {result.model_version}. Click a level to jump to that disc;
-                change a severity, then Save.
-              </p>
-            </>
-          ) : (
-            !running && (
-              <p style={{ color: "#888" }}>
-                No AI results yet — click “Run AI”.
-              </p>
-            )
-          )}
+            )}
+            {result ? (
+              <>
+                <GradeTable
+                  grading={result.grading}
+                  onJump={setTargetSlice}
+                  onEditSeverity={handleEditSeverity}
+                />
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={handleUndo}
+                    disabled={!gradeHistory.canUndo}
+                    title="Undo (Ctrl+Z)"
+                    className={btn}
+                  >
+                    ↶ Undo
+                  </button>
+                  <button
+                    onClick={handleRedo}
+                    disabled={!gradeHistory.canRedo}
+                    title="Redo (Ctrl+Shift+Z)"
+                    className={btn}
+                  >
+                    ↷ Redo
+                  </button>
+                  <button
+                    onClick={handleSave}
+                    disabled={(!dirty && !maskDirty) || saving}
+                    className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {saving
+                      ? "Saving…"
+                      : dirty || maskDirty
+                        ? "Save corrections"
+                        : "Saved"}
+                  </button>
+                  <a href={exportUrl(studyId!)} target="_blank" rel="noreferrer">
+                    <span className={btn}>Export</span>
+                  </a>
+                  {(dirty || maskDirty) && (
+                    <span className="text-xs font-medium text-amber-600">
+                      unsaved edits
+                    </span>
+                  )}
+                </div>
+                {savedNote && (
+                  <p className="mt-2 text-xs font-medium text-emerald-600">
+                    {savedNote}
+                  </p>
+                )}
+                <p className="mt-2 text-[11px] leading-relaxed text-slate-400">
+                  Model: {result.model_version}. Click a level to jump to that
+                  disc; change a severity, then Save.
+                </p>
+              </>
+            ) : (
+              !running && (
+                <p className="text-sm text-slate-400">
+                  No AI results yet — click “Run AI”.
+                </p>
+              )
+            )}
+          </div>
 
           {legend.length > 0 && (
-            <div style={{ marginTop: "1rem" }}>
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <Legend entries={legend} />
             </div>
           )}
         </aside>
-      </div>
+      </main>
     </div>
   );
 }
