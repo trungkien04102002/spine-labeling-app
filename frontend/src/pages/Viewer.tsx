@@ -6,6 +6,7 @@ import CornerstoneViewport, {
 } from "../components/Viewer/CornerstoneViewport";
 import GradeTable from "../components/Viewer/GradeTable";
 import Legend from "../components/Viewer/Legend";
+import { useHistory } from "../lib/history";
 import {
   API_BASE_URL,
   exportUrl,
@@ -89,7 +90,9 @@ function InfoOverlay({ detail }: { detail: StudyDetail }) {
 export default function Viewer() {
   const { studyId } = useParams<{ studyId: string }>();
   const [detail, setDetail] = useState<StudyDetail | null>(null);
-  const [result, setResult] = useState<InferResult | null>(null);
+  // Grade edits flow through an undo/redo history; `result` is its cursor.
+  const gradeHistory = useHistory<InferResult | null>(null);
+  const result = gradeHistory.state;
   const [targetSlice, setTargetSlice] = useState<number | null>(null);
   const [running, setRunning] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
@@ -107,10 +110,12 @@ export default function Viewer() {
       .catch(() => setDetail(null));
     getAnnotation(studyId)
       .then((r) => {
-        setResult(r);
+        gradeHistory.reset(r);
         setDirty(false);
       })
-      .catch(() => setResult(null)); // 404 = inference not run yet
+      .catch(() => gradeHistory.reset(null)); // 404 = inference not run yet
+    // gradeHistory identity is stable; only re-run when the study changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studyId]);
 
   async function handleRunAI() {
@@ -119,7 +124,7 @@ export default function Viewer() {
     setRunError(null);
     try {
       const res = await runInference(studyId);
-      setResult(res);
+      gradeHistory.reset(res);
       setDirty(false);
       getStudyDetail(studyId).then(setDetail).catch(() => {});
     } catch (err) {
@@ -130,21 +135,47 @@ export default function Viewer() {
   }
 
   function handleEditSeverity(level: string, condition: string, severity: string) {
-    setResult((prev) =>
-      prev
-        ? {
-            ...prev,
-            grading: prev.grading.map((g) =>
-              g.level === level && g.condition === condition
-                ? { ...g, severity }
-                : g,
-            ),
-          }
-        : prev,
-    );
+    if (!result) return;
+    gradeHistory.set({
+      ...result,
+      grading: result.grading.map((g) =>
+        g.level === level && g.condition === condition ? { ...g, severity } : g,
+      ),
+    });
     setDirty(true);
     setSavedNote(null);
   }
+
+  function handleUndo() {
+    if (!gradeHistory.canUndo) return;
+    gradeHistory.undo();
+    setDirty(true);
+    setSavedNote(null);
+  }
+
+  function handleRedo() {
+    if (!gradeHistory.canRedo) return;
+    gradeHistory.redo();
+    setDirty(true);
+    setSavedNote(null);
+  }
+
+  // Ctrl/Cmd+Z = undo, Ctrl/Cmd+Shift+Z (or Ctrl+Y) = redo.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const key = e.key.toLowerCase();
+      if (key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        handleUndo();
+      } else if ((key === "z" && e.shiftKey) || key === "y") {
+        e.preventDefault();
+        handleRedo();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
 
   async function handleSave() {
     if (!studyId || !result) return;
@@ -233,6 +264,20 @@ export default function Viewer() {
                   marginTop: 8,
                 }}
               >
+                <button
+                  onClick={handleUndo}
+                  disabled={!gradeHistory.canUndo}
+                  title="Undo (Ctrl+Z)"
+                >
+                  ↶ Undo
+                </button>
+                <button
+                  onClick={handleRedo}
+                  disabled={!gradeHistory.canRedo}
+                  title="Redo (Ctrl+Shift+Z)"
+                >
+                  ↷ Redo
+                </button>
                 <button
                   onClick={handleSave}
                   disabled={(!dirty && !maskDirty) || saving}
