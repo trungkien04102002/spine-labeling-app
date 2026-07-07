@@ -13,9 +13,11 @@
     "@cornerstonejs/core": "^5.2.1",
     "@cornerstonejs/nifti-volume-loader": "^5.2.1",
     "@cornerstonejs/tools": "^5.2.1",
+    "@tailwindcss/vite": "^4.3.2",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "react-router-dom": "^7.18.1"
+    "react-router-dom": "^7.18.1",
+    "tailwindcss": "^4.3.2"
   },
   "devDependencies": {
     "@types/node": "^24.13.2",
