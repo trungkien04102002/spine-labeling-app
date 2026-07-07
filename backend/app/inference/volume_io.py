@@ -34,6 +34,26 @@ def _read_image(path: str) -> sitk.Image:
     return sitk.ReadImage(str(src))
 
 
+def read_metadata(path: str) -> dict[str, object]:
+    """Read display-worthy volume metadata (dimensions, spacing, slice count).
+
+    Args:
+        path: a NIfTI / MHA file or DICOM series directory.
+
+    Returns:
+        A dict with ``dimensions`` (x, y, z), ``spacing_mm`` (x, y, z rounded),
+        and ``num_slices`` (the size of the last/scroll axis).
+    """
+    image = _read_image(path)
+    size = [int(s) for s in image.GetSize()]
+    spacing = [round(float(s), 3) for s in image.GetSpacing()]
+    return {
+        "dimensions": size,
+        "spacing_mm": spacing,
+        "num_slices": size[2] if len(size) == 3 else size[-1],
+    }
+
+
 def load_volume(path: str) -> tuple[np.ndarray, tuple[float, float, float]]:
     """Load a volume to a numpy array + voxel spacing.
 

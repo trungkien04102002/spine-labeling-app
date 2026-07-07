@@ -26,6 +26,19 @@ export interface UploadResponse {
   display_path: string;
 }
 
+export interface StudyDetail {
+  id: string;
+  patient_id: number;
+  patient_name: string;
+  modality: string;
+  created_at: string;
+  has_volume: boolean;
+  has_mask: boolean;
+  dimensions: number[] | null;
+  spacing_mm: number[] | null;
+  num_slices: number | null;
+}
+
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, init);
   if (!response.ok) {
@@ -42,6 +55,10 @@ export function getHealth(): Promise<HealthResponse> {
 
 export function getPatients(): Promise<PatientOut[]> {
   return apiFetch<PatientOut[]>("/patients");
+}
+
+export function getStudyDetail(studyId: string): Promise<StudyDetail> {
+  return apiFetch<StudyDetail>(`/studies/${studyId}`);
 }
 
 export function uploadStudy(studyId: string, file: File): Promise<UploadResponse> {

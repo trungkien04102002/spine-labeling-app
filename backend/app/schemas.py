@@ -17,6 +17,21 @@ class PatientOut(BaseModel):
     studies: list[StudyOut]
 
 
+class StudyDetail(BaseModel):
+    """Study + patient + image metadata shown in the viewer header."""
+
+    id: str
+    patient_id: int
+    patient_name: str
+    modality: str
+    created_at: datetime.datetime
+    has_volume: bool
+    has_mask: bool
+    dimensions: list[int] | None = None
+    spacing_mm: list[float] | None = None
+    num_slices: int | None = None
+
+
 class SegmentationResult(BaseModel):
     mask_uri: str
     labels: dict[int, str]

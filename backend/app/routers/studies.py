@@ -11,10 +11,41 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
 from app.db import get_db
-from app.inference.volume_io import to_web_form
-from app.models_db import Study
+from app.inference.volume_io import read_metadata, to_web_form
+from app.models_db import Patient, Study
+from app.schemas import StudyDetail
 
 router = APIRouter(tags=["studies"])
+
+
+@router.get("/studies/{study_id}", response_model=StudyDetail)
+def get_study_detail(
+    study_id: str,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+) -> StudyDetail:
+    """Return study + patient + image metadata for the viewer header."""
+    study = db.get(Study, study_id)
+    if study is None:
+        raise HTTPException(status_code=404, detail=f"Unknown study: {study_id}")
+    patient = db.get(Patient, study.patient_id)
+
+    detail = StudyDetail(
+        id=study.id,
+        patient_id=study.patient_id,
+        patient_name=patient.name if patient else "unknown",
+        modality=study.modality,
+        created_at=study.created_at,
+        has_volume=bool(study.volume_path),
+        has_mask=(Path(settings.data_dir) / study_id / "mask.nii.gz").is_file(),
+    )
+    # Image metadata comes from the viewer NIfTI (already reoriented).
+    if study.display_path and Path(study.display_path).is_file():
+        meta = read_metadata(study.display_path)
+        detail.dimensions = meta["dimensions"]  # type: ignore[assignment]
+        detail.spacing_mm = meta["spacing_mm"]  # type: ignore[assignment]
+        detail.num_slices = meta["num_slices"]  # type: ignore[assignment]
+    return detail
 
 
 @router.post("/studies/{study_id}/upload")
