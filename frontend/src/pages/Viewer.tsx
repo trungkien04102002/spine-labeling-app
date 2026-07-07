@@ -253,13 +253,6 @@ export default function Viewer() {
             Wheel: scroll slices · Left drag: window/level · Middle drag: pan ·
             Right drag: zoom
           </p>
-
-          {/* Legend sits right under the image so colors are easy to match. */}
-          {legend.length > 0 && (
-            <div className="mt-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-              <Legend entries={legend} />
-            </div>
-          )}
         </section>
 
         {/* Side panel */}
@@ -336,6 +329,12 @@ export default function Viewer() {
               )
             )}
           </div>
+
+          {legend.length > 0 && (
+            <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+              <Legend entries={legend} />
+            </div>
+          )}
         </aside>
       </main>
     </div>
