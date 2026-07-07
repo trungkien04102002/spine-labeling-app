@@ -37,6 +37,7 @@ export interface StudyDetail {
   dimensions: number[] | null;
   spacing_mm: number[] | null;
   num_slices: number | null;
+  dicom_tags: Record<string, string>;
 }
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {

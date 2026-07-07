@@ -30,6 +30,8 @@ class StudyDetail(BaseModel):
     dimensions: list[int] | None = None
     spacing_mm: list[float] | None = None
     num_slices: int | None = None
+    # Acquisition tags from the source DICOM (empty for MHA/NIfTI sources).
+    dicom_tags: dict[str, str] = {}
 
 
 class SegmentationResult(BaseModel):

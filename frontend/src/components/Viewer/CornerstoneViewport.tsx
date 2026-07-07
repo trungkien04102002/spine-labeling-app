@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   RenderingEngine,
   Enums,
@@ -24,6 +24,8 @@ const { MouseBindings, SegmentationRepresentations } = csToolsEnums;
 interface Props {
   studyId: string;
   apiBaseUrl: string;
+  /** Optional overlay pinned inside the image box (e.g. a PACS-style header). */
+  overlay?: ReactNode;
 }
 
 /**
@@ -32,7 +34,11 @@ interface Props {
  * If the study has a segmentation mask (from `/infer`), it is overlaid as a
  * labelmap with a visibility toggle and an opacity slider.
  */
-export default function CornerstoneViewport({ studyId, apiBaseUrl }: Props) {
+export default function CornerstoneViewport({
+  studyId,
+  apiBaseUrl,
+  overlay,
+}: Props) {
   const elementRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [segAvailable, setSegAvailable] = useState(false);
@@ -216,20 +222,23 @@ export default function CornerstoneViewport({ studyId, apiBaseUrl }: Props) {
           </label>
         </div>
       )}
-      <div
-        ref={elementRef}
-        onContextMenu={(e) => e.preventDefault()}
-        style={{
-          position: "relative",
-          width: "100%",
-          height: "600px",
-          background: "black",
-          overflow: "hidden",
-          // The app root sets text-align:center; that shifts Cornerstone's
-          // absolutely-positioned canvas. Reset it so the canvas fills the box.
-          textAlign: "left",
-        }}
-      />
+      <div style={{ position: "relative" }}>
+        <div
+          ref={elementRef}
+          onContextMenu={(e) => e.preventDefault()}
+          style={{
+            position: "relative",
+            width: "100%",
+            height: "600px",
+            background: "black",
+            overflow: "hidden",
+            // The app root sets text-align:center; that shifts Cornerstone's
+            // absolutely-positioned canvas. Reset it so the canvas fills the box.
+            textAlign: "left",
+          }}
+        />
+        {overlay}
+      </div>
     </div>
   );
 }

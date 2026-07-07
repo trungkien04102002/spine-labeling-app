@@ -54,6 +54,57 @@ def read_metadata(path: str) -> dict[str, object]:
     }
 
 
+# Curated DICOM tags worth surfacing in the viewer, in display order. Only a
+# DICOM source carries these; MHA/NIfTI (e.g. SPIDER) have none, so the result
+# is simply empty for those. Public tags only -- RSNA/Kaggle data is anonymized.
+_DICOM_TAGS: list[tuple[str, str]] = [
+    ("0008|103e", "Series"),
+    ("0018|0024", "Sequence"),
+    ("0018|0020", "Scanning sequence"),
+    ("0018|0021", "Sequence variant"),
+    ("0018|0087", "Field strength (T)"),
+    ("0018|0080", "TR (ms)"),
+    ("0018|0081", "TE (ms)"),
+    ("0018|1314", "Flip angle"),
+    ("0018|0091", "Echo train length"),
+    ("0018|0050", "Slice thickness (mm)"),
+    ("0018|0088", "Slice spacing (mm)"),
+    ("0018|0023", "Acquisition type"),
+    ("0018|5100", "Patient position"),
+    ("0018|0015", "Body part"),
+    ("0010|1010", "Patient age"),
+    ("0010|0040", "Patient sex"),
+    ("0008|0020", "Study date"),
+    ("0008|0070", "Manufacturer"),
+]
+
+
+def read_dicom_tags(path: str) -> dict[str, str]:
+    """Return curated, human-labeled DICOM acquisition tags from a series.
+
+    Reads the first slice's header. Returns ``{}`` when ``path`` is not a DICOM
+    series directory (MHA/NIfTI carry none), or when no curated tag is present.
+    """
+    src = Path(path)
+    if not src.is_dir():
+        return {}
+    reader = sitk.ImageSeriesReader()
+    files = reader.GetGDCMSeriesFileNames(str(src))
+    if not files:
+        return {}
+    reader.SetFileNames(files)
+    reader.LoadPrivateTagsOn()
+    reader.MetaDataDictionaryArrayUpdateOn()
+    reader.Execute()
+    tags: dict[str, str] = {}
+    for key, label in _DICOM_TAGS:
+        if reader.HasMetaDataKey(0, key):
+            value = reader.GetMetaData(0, key).strip()
+            if value:
+                tags[label] = value
+    return tags
+
+
 def load_volume(path: str) -> tuple[np.ndarray, tuple[float, float, float]]:
     """Load a volume to a numpy array + voxel spacing.
 

@@ -106,6 +106,32 @@ def test_display_missing_404(client):
     assert test_client.get("/studies/s1/display.nii.gz").status_code == 404
 
 
+def test_study_detail_reports_metadata(client):
+    test_client, _, data_dir = client
+    payload = _nifti_bytes(data_dir)
+    test_client.post(
+        "/studies/s1/upload",
+        files={"file": ("vol.nii.gz", payload, "application/octet-stream")},
+    )
+
+    resp = test_client.get("/studies/s1")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["id"] == "s1"
+    assert body["patient_name"] == "Demo"
+    assert body["has_volume"] is True
+    assert body["has_mask"] is False
+    assert len(body["dimensions"]) == 3
+    assert body["num_slices"] == body["dimensions"][2]
+    # A NIfTI/MHA source carries no acquisition tags.
+    assert body["dicom_tags"] == {}
+
+
+def test_study_detail_unknown_404(client):
+    test_client, _, _ = client
+    assert test_client.get("/studies/nope").status_code == 404
+
+
 def test_upload_unknown_study_404(client):
     test_client, _, data_dir = client
     payload = _nifti_bytes(data_dir)

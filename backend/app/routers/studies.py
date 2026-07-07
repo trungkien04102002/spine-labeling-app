@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
 from app.db import get_db
-from app.inference.volume_io import read_metadata, to_web_form
+from app.inference.volume_io import read_dicom_tags, read_metadata, to_web_form
 from app.models_db import Patient, Study
 from app.schemas import StudyDetail
 
@@ -45,6 +45,9 @@ def get_study_detail(
         detail.dimensions = meta["dimensions"]  # type: ignore[assignment]
         detail.spacing_mm = meta["spacing_mm"]  # type: ignore[assignment]
         detail.num_slices = meta["num_slices"]  # type: ignore[assignment]
+    # Acquisition tags survive only in the original DICOM (not the NIfTI).
+    if study.volume_path:
+        detail.dicom_tags = read_dicom_tags(study.volume_path)
     return detail
 
 

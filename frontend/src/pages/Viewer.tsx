@@ -3,12 +3,70 @@ import { Link, useParams } from "react-router-dom";
 import CornerstoneViewport from "../components/Viewer/CornerstoneViewport";
 import { API_BASE_URL, getStudyDetail, type StudyDetail } from "../lib/api";
 
-/** Small label/value row for the study metadata panel. */
-function MetaRow({ label, value }: { label: string; value: string }) {
+/**
+ * Translucent metadata overlay pinned to a corner of the image, the way a PACS
+ * workstation annotates the view. Patient/study identity sits top-left;
+ * acquisition parameters (DICOM only) can be toggled open.
+ */
+function InfoOverlay({ detail }: { detail: StudyDetail }) {
+  const [showTags, setShowTags] = useState(false);
+  const dims = detail.dimensions;
+  const sp = detail.spacing_mm;
+  const tagEntries = Object.entries(detail.dicom_tags);
+
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem" }}>
-      <span style={{ color: "#888" }}>{label}</span>
-      <span style={{ fontWeight: 500 }}>{value}</span>
+    <div
+      style={{
+        position: "absolute",
+        top: 8,
+        left: 8,
+        zIndex: 2,
+        color: "#d8f0ff",
+        font: "11px/1.4 monospace",
+        textShadow: "0 0 3px #000",
+        pointerEvents: "none",
+        maxWidth: "45%",
+      }}
+    >
+      <div style={{ fontWeight: 700 }}>{detail.patient_name}</div>
+      <div>ID {detail.patient_id} · {detail.id}</div>
+      <div>
+        {detail.modality} · {new Date(detail.created_at).toLocaleDateString()}
+      </div>
+      {dims && (
+        <div>
+          {dims[0]}×{dims[1]}×{dims[2]} · {detail.num_slices} sl
+        </div>
+      )}
+      {sp && (
+        <div>
+          {sp[0]}×{sp[1]}×{sp[2]} mm
+        </div>
+      )}
+      <div>seg: {detail.has_mask ? "on" : "—"}</div>
+      {tagEntries.length > 0 && (
+        <div style={{ pointerEvents: "auto", marginTop: 4 }}>
+          <button
+            onClick={() => setShowTags((v) => !v)}
+            style={{
+              font: "10px monospace",
+              background: "rgba(0,0,0,0.4)",
+              color: "#d8f0ff",
+              border: "1px solid #567",
+              borderRadius: 3,
+              cursor: "pointer",
+            }}
+          >
+            {showTags ? "▾ acquisition" : "▸ acquisition"}
+          </button>
+          {showTags &&
+            tagEntries.map(([k, v]) => (
+              <div key={k}>
+                {k}: {v}
+              </div>
+            ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -24,74 +82,23 @@ export default function Viewer() {
       .catch(() => setDetail(null));
   }, [studyId]);
 
-  const dims = detail?.dimensions;
-  const sp = detail?.spacing_mm;
-
   return (
     <div style={{ padding: "1rem", fontFamily: "sans-serif" }}>
       <p>
         <Link to="/">← back to patients</Link>
       </p>
       <h1>Viewer — study {studyId}</h1>
-
-      <div style={{ display: "flex", gap: "1rem", alignItems: "flex-start" }}>
-        {/* Patient / study / image metadata — mirrors a clinical viewer header. */}
-        <aside
-          style={{
-            flex: "0 0 260px",
-            fontSize: "0.85rem",
-            border: "1px solid #ddd",
-            borderRadius: 6,
-            padding: "0.75rem",
-            background: "#fafafa",
-          }}
-        >
-          <h3 style={{ margin: "0 0 0.5rem" }}>Study info</h3>
-          {detail ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <MetaRow label="Patient" value={detail.patient_name} />
-              <MetaRow label="Patient ID" value={String(detail.patient_id)} />
-              <MetaRow label="Study ID" value={detail.id} />
-              <MetaRow label="Modality" value={detail.modality} />
-              <MetaRow
-                label="Acquired"
-                value={new Date(detail.created_at).toLocaleString()}
-              />
-              {dims && (
-                <MetaRow
-                  label="Dimensions"
-                  value={`${dims[0]} × ${dims[1]} × ${dims[2]}`}
-                />
-              )}
-              {sp && (
-                <MetaRow
-                  label="Spacing (mm)"
-                  value={`${sp[0]} × ${sp[1]} × ${sp[2]}`}
-                />
-              )}
-              {detail.num_slices != null && (
-                <MetaRow label="Slices" value={String(detail.num_slices)} />
-              )}
-              <MetaRow
-                label="Segmentation"
-                value={detail.has_mask ? "available" : "not run"}
-              />
-            </div>
-          ) : (
-            <p style={{ color: "#888" }}>Loading…</p>
-          )}
-        </aside>
-
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ color: "#666", marginTop: 0 }}>
-            Wheel: scroll slices · Left drag: window/level · Middle drag: pan ·
-            Right drag: zoom
-          </p>
-          {studyId && (
-            <CornerstoneViewport studyId={studyId} apiBaseUrl={API_BASE_URL} />
-          )}
-        </div>
-      </div>
+      <p style={{ color: "#666", marginTop: 0 }}>
+        Wheel: scroll slices · Left drag: window/level · Middle drag: pan · Right
+        drag: zoom
+      </p>
+      {studyId && (
+        <CornerstoneViewport
+          studyId={studyId}
+          apiBaseUrl={API_BASE_URL}
+          overlay={detail ? <InfoOverlay detail={detail} /> : null}
+        />
+      )}
     </div>
   );
 }

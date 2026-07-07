@@ -2,7 +2,9 @@
 
 from pathlib import Path
 
+import numpy as np
 import pytest
+import SimpleITK as sitk
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -19,11 +21,14 @@ from app.schemas import GradingItem, InferResult, SegmentationResult
 class FakeBackend(InferenceBackend):
     """Returns a canned InferResult without running the real models."""
 
+    def __init__(self, mask_path: str):
+        self.mask_path = mask_path
+
     def infer(self, study_id, volume_path, grading_dir=None) -> InferResult:
         return InferResult(
             study_id=study_id,
             segmentation=SegmentationResult(
-                mask_uri="/tmp/mask.nii.gz", labels={41: "vertebrae_L1"}
+                mask_uri=self.mask_path, labels={41: "vertebrae_L1"}
             ),
             grading=[
                 GradingItem(
@@ -66,9 +71,15 @@ def client(tmp_path):
         finally:
             db.close()
 
+    # A real (tiny) labelmap NIfTI the /infer endpoint can reorient into place.
+    raw_mask = tmp_path / "raw_mask.nii.gz"
+    mask_arr = np.zeros((8, 16, 24), dtype=np.uint16)
+    mask_arr[2:5, 4:8, 6:10] = 41
+    sitk.WriteImage(sitk.GetImageFromArray(mask_arr), str(raw_mask))
+
     app.dependency_overrides[get_db] = override_db
     app.dependency_overrides[get_settings] = lambda: Settings(data_dir=str(tmp_path))
-    app.dependency_overrides[get_backend] = lambda: FakeBackend()
+    app.dependency_overrides[get_backend] = lambda: FakeBackend(str(raw_mask))
     yield TestClient(app), TestingSession
     app.dependency_overrides.clear()
 
@@ -81,16 +92,18 @@ def test_infer_returns_contract_and_persists_v0(client):
     assert resp.status_code == 200
     body = resp.json()
     assert body["study_id"] == "s1"
-    assert body["segmentation"]["mask_uri"]
+    # mask_uri is rewritten to the API path the frontend loads from.
+    assert body["segmentation"]["mask_uri"] == "/studies/s1/mask.nii.gz"
     assert len(body["grading"]) >= 1
     assert body["model_version"] == "fake-1.0"
 
-    # A v0 "ai" annotation row was persisted.
+    # A v0 "ai" annotation row was persisted, pointing at the reoriented mask.
     db = TestingSession()
     ann = db.query(Annotation).filter_by(study_id="s1").one()
     assert ann.version == 0
     assert ann.kind == "ai"
-    assert ann.mask_path == "/tmp/mask.nii.gz"
+    assert ann.mask_path.endswith("s1/mask.nii.gz")
+    assert Path(ann.mask_path).is_file()
     assert ann.payload_json["grading"][0]["level"] == "L4-L5"
     db.close()
 
