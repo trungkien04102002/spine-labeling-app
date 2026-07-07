@@ -385,9 +385,13 @@ export default function CornerstoneViewport({
             display: "flex",
             alignItems: "center",
             gap: "1rem",
-            marginBottom: "0.5rem",
             flexWrap: "wrap",
             whiteSpace: "nowrap",
+            padding: "8px 12px",
+            fontSize: "0.85rem",
+            color: "#334155",
+            background: "#f8fafc",
+            borderBottom: "1px solid #e2e8f0",
           }}
         >
           <label>

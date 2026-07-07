@@ -232,7 +232,7 @@ export default function Viewer() {
       <main className="mx-auto flex max-w-7xl flex-wrap items-start gap-5 px-6 py-6">
         {/* Viewer */}
         <section className="min-w-0 flex-[2_1_480px]">
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
             {studyId && (
               <CornerstoneViewport
                 studyId={studyId}
@@ -253,11 +253,18 @@ export default function Viewer() {
             Wheel: scroll slices · Left drag: window/level · Middle drag: pan ·
             Right drag: zoom
           </p>
+
+          {/* Legend sits right under the image so colors are easy to match. */}
+          {legend.length > 0 && (
+            <div className="mt-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+              <Legend entries={legend} />
+            </div>
+          )}
         </section>
 
         {/* Side panel */}
         <aside className="flex min-w-[280px] flex-[1_1_320px] flex-col gap-5">
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
             <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-slate-800">
               <span className="h-4 w-1 rounded bg-gradient-to-b from-teal-500 to-cyan-500" />
               Abnormality grades
@@ -329,12 +336,6 @@ export default function Viewer() {
               )
             )}
           </div>
-
-          {legend.length > 0 && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <Legend entries={legend} />
-            </div>
-          )}
         </aside>
       </main>
     </div>
