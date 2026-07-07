@@ -1,4 +1,20 @@
+import datetime
+
 from pydantic import BaseModel
+
+
+class StudyOut(BaseModel):
+    id: str
+    modality: str
+    has_volume: bool
+    created_at: datetime.datetime
+
+
+class PatientOut(BaseModel):
+    id: int
+    name: str
+    created_at: datetime.datetime
+    studies: list[StudyOut]
 
 
 class SegmentationResult(BaseModel):

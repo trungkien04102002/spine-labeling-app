@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.db import init_db
-from app.routers import infer, studies
+from app.routers import infer, patients, studies
 
 
 @asynccontextmanager
@@ -28,6 +28,7 @@ app.add_middleware(
 )
 
 
+app.include_router(patients.router)
 app.include_router(studies.router)
 app.include_router(infer.router)
 
