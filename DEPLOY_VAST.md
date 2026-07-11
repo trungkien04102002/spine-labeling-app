@@ -25,16 +25,11 @@ is excluded, so the VM starts with an empty worklist.
 
 ### Option A — git clone (recommended)
 
-The code lives in a **private** GitHub repo:
-`git@github.com:trungkien04102002/spine-labeling-app.git`. On the VM you need
-credentials to clone it — the simplest is a GitHub Personal Access Token
-(Settings → Developer settings → Fine-grained token, read-only, this repo):
+The repo is public, so clone it directly (no credentials needed):
 
 ```bash
 cd /workspace
-git clone https://<YOUR_PAT>@github.com/trungkien04102002/spine-labeling-app.git
-# (or, if the VM's SSH key is added to your GitHub account:)
-# git clone git@github.com:trungkien04102002/spine-labeling-app.git
+git clone https://github.com/trungkien04102002/spine-labeling-app.git
 ```
 
 ### Option B — rsync (no GitHub needed)

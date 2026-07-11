@@ -98,7 +98,7 @@ is ~10 min/volume; a CUDA GPU cuts it to ~1 min.
 See **[DEPLOY_VAST.md](DEPLOY_VAST.md)**. Short version:
 
 ```bash
-git clone https://<PAT>@github.com/trungkien04102002/spine-labeling-app.git
+git clone https://github.com/trungkien04102002/spine-labeling-app.git
 cd spine-labeling-app
 ./vast_setup.sh                # installs everything + downloads the model bundle
 ./run.sh                       # start both servers

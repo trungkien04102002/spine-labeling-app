@@ -2,7 +2,7 @@
 # Vast.ai GPU setup for spine-labeling-app.
 #
 # Run it from INSIDE the cloned repo:
-#   git clone https://<PAT>@github.com/trungkien04102002/spine-labeling-app.git
+#   git clone https://github.com/trungkien04102002/spine-labeling-app.git
 #   cd spine-labeling-app
 #   ./vast_setup.sh                       # auto-downloads the Drive bundle
 #   ./vast_setup.sh --gdrive-id <FILE_ID> # or point at a single checkpoint file
