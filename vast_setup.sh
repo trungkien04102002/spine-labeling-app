@@ -107,9 +107,12 @@ fi
 echo ">> [6/6] TotalSpineSeg (own venv + weights ~460MB)…"
 cd "$REPO_DIR"
 [ -d tss-venv ] || python3 -m venv tss-venv
-# nnunetv2 is a hard dep that pip sometimes doesn't pull; install it explicitly.
+# nnunetv2 is a hard dep pip sometimes skips; install it explicitly. Pin torch
+# <2.6: torch 2.6 flips torch.load(weights_only=True) by default, which breaks
+# loading nnU-Net's checkpoints ("Unsupported global numpy...scalar").
 if ./tss-venv/bin/pip install --upgrade pip \
-   && ./tss-venv/bin/pip install totalspineseg "nnunetv2==2.4.2"; then
+   && ./tss-venv/bin/pip install totalspineseg "nnunetv2==2.4.2" \
+        "torch==2.4.1" "torchvision==0.19.1" "torchaudio==2.4.1"; then
   if ./tss-venv/bin/totalspineseg_init; then
     echo "   TotalSpineSeg ready"
   else
