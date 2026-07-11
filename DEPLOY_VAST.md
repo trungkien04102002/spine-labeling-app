@@ -23,7 +23,21 @@ is excluded, so the VM starts with an empty worklist.
 
 ## 1. Get the code onto the VM (laptop)
 
-The repo has no git remote, so rsync it (excluding heavy/local dirs):
+### Option A — git clone (recommended)
+
+The code lives in a **private** GitHub repo:
+`git@github.com:trungkien04102002/spine-labeling-app.git`. On the VM you need
+credentials to clone it — the simplest is a GitHub Personal Access Token
+(Settings → Developer settings → Fine-grained token, read-only, this repo):
+
+```bash
+cd /workspace
+git clone https://<YOUR_PAT>@github.com/trungkien04102002/spine-labeling-app.git
+# (or, if the VM's SSH key is added to your GitHub account:)
+# git clone git@github.com:trungkien04102002/spine-labeling-app.git
+```
+
+### Option B — rsync (no GitHub needed)
 
 ```bash
 rsync -avz -e "ssh -p <PORT>" \
@@ -32,16 +46,16 @@ rsync -avz -e "ssh -p <PORT>" \
   /Users/kienha/spine-labeling-app/ root@<HOST>:/workspace/spine-labeling-app/
 ```
 
-Then copy the grading checkpoint (excluded above):
+### Then copy the grading checkpoint (both options)
+
+The checkpoint is gitignored, so it is **never** cloned/rsynced — copy it
+directly from the laptop:
 
 ```bash
 scp -P <PORT> \
   /Users/kienha/spine-labeling-app/backend/models/weights/phase2_cbam.pth \
   root@<HOST>:/workspace/spine-labeling-app/backend/models/weights/
 ```
-
-(Alternative: push the repo to GitHub and `git clone` on the VM — but you'd
-still scp the .pth separately.)
 
 ## 2. Install on the VM (over SSH)
 
