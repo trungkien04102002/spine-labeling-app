@@ -29,19 +29,29 @@ BE_PID="$RUN_DIR/backend.pid"; BE_LOG="$RUN_DIR/backend.log"
 FE_PID="$RUN_DIR/frontend.pid"; FE_LOG="$RUN_DIR/frontend.log"
 HOST="${HOST:-127.0.0.1}"; PORT="${PORT:-8000}"
 
-stop_one() {  # $1=pidfile $2=name
+stop_one() {  # $1=pidfile $2=name $3=port (kill by pid, then free the port)
   if [ -f "$1" ] && kill -0 "$(cat "$1")" 2>/dev/null; then
     kill "$(cat "$1")" 2>/dev/null || true
     echo "stopped $2 (pid $(cat "$1"))"
   fi
   rm -f "$1"
+  # Fallback: whatever still holds the port (vite/uvicorn spawn children).
+  if [ -n "$3" ]; then
+    local held; held=$(lsof -tiTCP:"$3" -sTCP:LISTEN 2>/dev/null || true)
+    if [ -n "$held" ]; then kill $held 2>/dev/null || true; fi
+  fi
 }
 
 MODE="${1:-both}"
 case "$MODE" in
   stop)
-    stop_one "$BE_PID" backend
-    stop_one "$FE_PID" frontend
+    # ./run.sh stop [backend|frontend]  — no target stops both.
+    case "${2:-}" in
+      backend)  stop_one "$BE_PID" backend "$PORT" ;;
+      frontend) stop_one "$FE_PID" frontend 5173 ;;
+      "")       stop_one "$BE_PID" backend "$PORT"; stop_one "$FE_PID" frontend 5173 ;;
+      *) echo "Usage: $0 stop [backend|frontend]"; exit 1 ;;
+    esac
     exit 0
     ;;
   logs)
@@ -49,14 +59,14 @@ case "$MODE" in
     exit 0
     ;;
   both|backend|frontend) ;;
-  *) echo "Usage: $0 [both|backend|frontend|stop|logs]"; exit 1 ;;
+  *) echo "Usage: $0 [both|backend|frontend|stop [backend|frontend]|logs]"; exit 1 ;;
 esac
 
 start_backend() {
   if [ ! -d "$REPO_DIR/backend/.venv" ]; then
     echo "ERROR: backend/.venv missing — run ./vast_setup.sh (VM) or create it first."; exit 1
   fi
-  stop_one "$BE_PID" backend
+  stop_one "$BE_PID" backend "$PORT"
   echo ">> Starting backend on http://$HOST:$PORT …"
   (
     cd "$REPO_DIR/backend"
@@ -67,7 +77,7 @@ start_backend() {
 }
 
 start_frontend() {
-  stop_one "$FE_PID" frontend
+  stop_one "$FE_PID" frontend 5173
   echo ">> Starting frontend on http://localhost:5173  (API: ${VITE_API_URL:-http://localhost:8000}) …"
   (
     cd "$REPO_DIR/frontend"
