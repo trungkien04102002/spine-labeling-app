@@ -8,3 +8,4 @@ node_modules/
 
 # Local sample volumes (licensed dataset copies) - do not commit
 sample_volumes/
+.run/
