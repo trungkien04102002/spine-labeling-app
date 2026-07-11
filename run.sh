@@ -78,11 +78,14 @@ start_backend() {
     echo "ERROR: backend/.venv missing — run ./vast_setup.sh (VM) or create it first."; exit 1
   fi
   stop_one "$BE_PID" backend "$PORT" "uvicorn app.main"
-  echo ">> Starting backend on http://$HOST:$PORT …"
+  # --reload only when RELOAD=1 (dev). It spawns a child worker that survives a
+  # plain kill and holds the port; a deploy box wants a single clean process.
+  local reload=""; [ "${RELOAD:-0}" = "1" ] && reload="--reload"
+  echo ">> Starting backend on http://$HOST:$PORT $reload…"
   (
     cd "$REPO_DIR/backend"
     source .venv/bin/activate
-    exec uvicorn app.main:app --host "$HOST" --port "$PORT" --reload
+    exec uvicorn app.main:app --host "$HOST" --port "$PORT" $reload
   ) > "$BE_LOG" 2>&1 &
   echo $! > "$BE_PID"
 }
