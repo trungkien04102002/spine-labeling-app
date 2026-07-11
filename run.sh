@@ -29,17 +29,28 @@ BE_PID="$RUN_DIR/backend.pid"; BE_LOG="$RUN_DIR/backend.log"
 FE_PID="$RUN_DIR/frontend.pid"; FE_LOG="$RUN_DIR/frontend.log"
 HOST="${HOST:-127.0.0.1}"; PORT="${PORT:-8000}"
 
-stop_one() {  # $1=pidfile $2=name $3=port (kill by pid, then free the port)
+free_port() {  # $1=port — kill whatever still LISTENs on it (lsof|fuser|ss)
+  [ -z "$1" ] && return 0
+  local held=""
+  if command -v lsof >/dev/null 2>&1; then
+    held=$(lsof -tiTCP:"$1" -sTCP:LISTEN 2>/dev/null || true)
+  elif command -v fuser >/dev/null 2>&1; then
+    fuser -k "$1"/tcp 2>/dev/null || true; return 0
+  elif command -v ss >/dev/null 2>&1; then
+    held=$(ss -ltnpH "sport = :$1" 2>/dev/null | grep -oE 'pid=[0-9]+' | cut -d= -f2 | sort -u)
+  fi
+  [ -n "$held" ] && kill $held 2>/dev/null || true
+}
+
+stop_one() {  # $1=pidfile $2=name $3=port $4=process-pattern
   if [ -f "$1" ] && kill -0 "$(cat "$1")" 2>/dev/null; then
     kill "$(cat "$1")" 2>/dev/null || true
     echo "stopped $2 (pid $(cat "$1"))"
   fi
   rm -f "$1"
-  # Fallback: whatever still holds the port (vite/uvicorn spawn children).
-  if [ -n "$3" ]; then
-    local held; held=$(lsof -tiTCP:"$3" -sTCP:LISTEN 2>/dev/null || true)
-    if [ -n "$held" ]; then kill $held 2>/dev/null || true; fi
-  fi
+  free_port "$3"
+  # Last resort (no lsof/fuser/ss, or orphaned children): pattern kill.
+  [ -n "$4" ] && pkill -f "$4" 2>/dev/null || true
 }
 
 MODE="${1:-both}"
@@ -47,9 +58,9 @@ case "$MODE" in
   stop)
     # ./run.sh stop [backend|frontend]  — no target stops both.
     case "${2:-}" in
-      backend)  stop_one "$BE_PID" backend "$PORT" ;;
-      frontend) stop_one "$FE_PID" frontend 5173 ;;
-      "")       stop_one "$BE_PID" backend "$PORT"; stop_one "$FE_PID" frontend 5173 ;;
+      backend)  stop_one "$BE_PID" backend "$PORT" "uvicorn app.main" ;;
+      frontend) stop_one "$FE_PID" frontend 5173 "vite" ;;
+      "")       stop_one "$BE_PID" backend "$PORT" "uvicorn app.main"; stop_one "$FE_PID" frontend 5173 "vite" ;;
       *) echo "Usage: $0 stop [backend|frontend]"; exit 1 ;;
     esac
     exit 0
@@ -66,7 +77,7 @@ start_backend() {
   if [ ! -d "$REPO_DIR/backend/.venv" ]; then
     echo "ERROR: backend/.venv missing — run ./vast_setup.sh (VM) or create it first."; exit 1
   fi
-  stop_one "$BE_PID" backend "$PORT"
+  stop_one "$BE_PID" backend "$PORT" "uvicorn app.main"
   echo ">> Starting backend on http://$HOST:$PORT …"
   (
     cd "$REPO_DIR/backend"
@@ -77,7 +88,7 @@ start_backend() {
 }
 
 start_frontend() {
-  stop_one "$FE_PID" frontend 5173
+  stop_one "$FE_PID" frontend 5173 "vite"
   echo ">> Starting frontend on http://localhost:5173  (API: ${VITE_API_URL:-http://localhost:8000}) …"
   (
     cd "$REPO_DIR/frontend"
