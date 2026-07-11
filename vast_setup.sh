@@ -8,12 +8,14 @@
 #   ./vast_setup.sh --gdrive-id <FILE_ID> # or point at a single checkpoint file
 #   ./vast_setup.sh --skip-download       # checkpoint already placed by hand
 #
-# It installs backend deps, TotalSpineSeg (own venv) + weights, frontend deps,
-# writes backend/.env (SQLite + CUDA seg), and verifies the grading checkpoint.
-# See DEPLOY_VAST.md for the full picture + how to run/tunnel afterwards.
-set -e
+# Installs backend deps, writes backend/.env (SQLite + CUDA seg), frontend deps,
+# the grading checkpoint, and TotalSpineSeg (own venv). It is RESILIENT: a
+# failure in one step (e.g. the heavy TotalSpineSeg install) does NOT abort the
+# rest, and it is safe to re-run. A summary at the end lists what's OK/missing.
+#
+# NOTE: no `set -e` on purpose — steps are checked individually so the app can
+# still boot even if the optional segmentation engine isn't ready yet.
 
-# Default Google Drive bundle (spine-vm-upload/: weights/ + sample_volumes/).
 GDRIVE_FOLDER_ID="1tBgdwA4f_1Ns4KWCf91Qi4zAB7PV0ixi"
 GDRIVE_ID=""
 SKIP_DOWNLOAD=0
@@ -29,6 +31,8 @@ done
 REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
 CKPT="$REPO_DIR/backend/models/weights/phase2_cbam.pth"
 CKPT_MD5="50101203903b1aa3bcf3d6103daa650e"
+TSS_BIN="$REPO_DIR/tss-venv/bin/totalspineseg"
+WARN=()   # collected warnings for the final summary
 
 if [ ! -d "$REPO_DIR/backend" ]; then
   echo "ERROR: run this from the repo root (backend/ not found)."; exit 1
@@ -39,105 +43,109 @@ echo "Repo: $REPO_DIR"
 echo ""
 
 # --- System packages -------------------------------------------------------
-echo ">> Installing system packages…"
-apt-get update
-apt-get install -y git wget python3-venv nodejs npm
+echo ">> [1/6] System packages…"
+apt-get update -y && apt-get install -y git wget python3-venv nodejs npm \
+  || WARN+=("apt-get failed — install git/python3-venv/nodejs/npm manually")
 
 # --- Backend venv ----------------------------------------------------------
-echo ">> Backend virtualenv + deps…"
+echo ">> [2/6] Backend virtualenv + deps…"
 cd "$REPO_DIR/backend"
 [ -d .venv ] || python3 -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
-pip install gdown            # for optional checkpoint download
-
-# --- Download Drive bundle (checkpoint + sample volumes) -------------------
-mkdir -p "$REPO_DIR/backend/models/weights"
-if [ ! -f "$CKPT" ] && [ "$SKIP_DOWNLOAD" -eq 0 ]; then
-  if [ -n "$GDRIVE_ID" ]; then
-    echo ">> Downloading checkpoint (single file) from Google Drive…"
-    gdown "$GDRIVE_ID" -O "$CKPT"
-  elif [ -n "$GDRIVE_FOLDER_ID" ]; then
-    echo ">> Downloading Drive bundle folder…"
-    rm -rf /tmp/spine_bundle && mkdir -p /tmp/spine_bundle
-    gdown --folder "https://drive.google.com/drive/folders/$GDRIVE_FOLDER_ID" \
-      -O /tmp/spine_bundle || echo "   (folder download had issues — see fallback below)"
-    # Place the checkpoint.
-    FOUND=$(find /tmp/spine_bundle -name phase2_cbam.pth | head -1)
-    [ -n "$FOUND" ] && cp "$FOUND" "$CKPT"
-    # Stage sample volumes so they can be uploaded via the UI.
-    mkdir -p "$REPO_DIR/sample_volumes"
-    find /tmp/spine_bundle -name '*.mha' -exec cp {} "$REPO_DIR/sample_volumes/" \; 2>/dev/null || true
-  fi
-fi
-if [ ! -f "$CKPT" ]; then
-  echo ""
-  echo "!! Grading checkpoint missing: $CKPT"
-  echo "   The 243MB file may need Drive's virus-scan confirmation, which the"
-  echo "   folder downloader can skip. Fix: share phase2_cbam.pth as its own file,"
-  echo "   copy its FILE_ID, and re-run:  ./vast_setup.sh --gdrive-id <FILE_ID>"
-  echo "   (setup continues; grading is disabled until the file is present.)"
+if ./.venv/bin/pip install --upgrade pip \
+   && ./.venv/bin/pip install -r requirements.txt \
+   && ./.venv/bin/pip install gdown; then
+  echo "   backend deps OK"
 else
-  GOT=$(md5sum "$CKPT" | awk '{print $1}')
-  if [ "$GOT" = "$CKPT_MD5" ]; then
-    echo ">> Checkpoint OK (md5 verified)."
-  else
-    echo "!! Checkpoint md5 mismatch: got $GOT, expected $CKPT_MD5 (re-download)."
-  fi
+  WARN+=("backend deps failed — the API will not start; check pip output above")
 fi
-deactivate
 
-# --- TotalSpineSeg (own venv, pins numpy<2) --------------------------------
-echo ">> TotalSpineSeg in its own venv + weights (~460MB)…"
-cd "$REPO_DIR"
-[ -d tss-venv ] || python3 -m venv tss-venv
-source tss-venv/bin/activate
-pip install --upgrade pip
-pip install totalspineseg
-totalspineseg_init
-TSS_BIN="$REPO_DIR/tss-venv/bin/totalspineseg"
-deactivate
-
-# --- Frontend deps ---------------------------------------------------------
-echo ">> Frontend deps…"
-cd "$REPO_DIR/frontend"
-npm install
-
-# --- backend/.env ----------------------------------------------------------
-echo ">> Writing backend/.env (SQLite + CUDA segmentation)…"
+# --- backend/.env (write EARLY so the app can boot regardless) -------------
+echo ">> [3/6] Writing backend/.env (SQLite — no MySQL needed)…"
 cat > "$REPO_DIR/backend/.env" <<EOF
 MYSQL_DSN=sqlite:///./spine.db
 TOTALSPINESEG_BIN=$TSS_BIN
 SEG_DEVICE=cuda
 EOF
+echo "   wrote $REPO_DIR/backend/.env"
+
+# --- Frontend deps ---------------------------------------------------------
+echo ">> [4/6] Frontend deps…"
+if (cd "$REPO_DIR/frontend" && npm install); then
+  echo "   frontend deps OK"
+else
+  WARN+=("npm install failed — the frontend will not start")
+fi
+
+# --- Grading checkpoint ----------------------------------------------------
+echo ">> [5/6] Grading checkpoint…"
+mkdir -p "$REPO_DIR/backend/models/weights"
+if [ ! -f "$CKPT" ] && [ "$SKIP_DOWNLOAD" -eq 0 ]; then
+  GD="$REPO_DIR/backend/.venv/bin/gdown"
+  [ -x "$GD" ] || GD="gdown"
+  if [ -n "$GDRIVE_ID" ]; then
+    echo "   downloading checkpoint (single file)…"
+    "$GD" "$GDRIVE_ID" -O "$CKPT" || true
+  elif [ -n "$GDRIVE_FOLDER_ID" ]; then
+    echo "   downloading Drive bundle folder…"
+    rm -rf /tmp/spine_bundle && mkdir -p /tmp/spine_bundle
+    "$GD" --folder "https://drive.google.com/drive/folders/$GDRIVE_FOLDER_ID" -O /tmp/spine_bundle || true
+    FOUND=$(find /tmp/spine_bundle -name phase2_cbam.pth | head -1)
+    [ -n "$FOUND" ] && cp "$FOUND" "$CKPT"
+    mkdir -p "$REPO_DIR/sample_volumes"
+    find /tmp/spine_bundle -name '*.mha' -exec cp {} "$REPO_DIR/sample_volumes/" \; 2>/dev/null || true
+  fi
+fi
+if [ ! -f "$CKPT" ]; then
+  WARN+=("checkpoint missing ($CKPT) — grading disabled until placed; the 243MB file often needs Drive virus-scan confirmation, so re-run: ./vast_setup.sh --gdrive-id <FILE_ID>")
+else
+  GOT=$(md5sum "$CKPT" | awk '{print $1}')
+  if [ "$GOT" = "$CKPT_MD5" ]; then echo "   checkpoint OK (md5 verified)"; \
+  else WARN+=("checkpoint md5 mismatch: $GOT != $CKPT_MD5 (re-download)"); fi
+fi
+
+# --- TotalSpineSeg (own venv; optional, only needed for Run AI) ------------
+echo ">> [6/6] TotalSpineSeg (own venv + weights ~460MB)…"
+cd "$REPO_DIR"
+[ -d tss-venv ] || python3 -m venv tss-venv
+# nnunetv2 is a hard dep that pip sometimes doesn't pull; install it explicitly.
+if ./tss-venv/bin/pip install --upgrade pip \
+   && ./tss-venv/bin/pip install totalspineseg "nnunetv2==2.4.2"; then
+  if ./tss-venv/bin/totalspineseg_init; then
+    echo "   TotalSpineSeg ready"
+  else
+    WARN+=("totalspineseg_init failed — run it later: ./tss-venv/bin/totalspineseg_init")
+  fi
+else
+  WARN+=("TotalSpineSeg install failed — segmentation (Run AI) won't work until fixed")
+fi
 
 # --- CUDA check ------------------------------------------------------------
 echo ""
 echo "=== CUDA check ==="
-cd "$REPO_DIR/backend"; source .venv/bin/activate
-python3 - <<EOF
+"$REPO_DIR/backend/.venv/bin/python" - <<'EOF' 2>/dev/null || echo "(torch not importable yet)"
 import torch
 print("torch", torch.__version__, "| CUDA available:", torch.cuda.is_available())
-if torch.cuda.is_available():
-    print("GPU:", torch.cuda.get_device_name(0))
-else:
-    print("WARNING: no CUDA — seg will fall back slow; set SEG_DEVICE=cpu in backend/.env")
+print("GPU:", torch.cuda.get_device_name(0) if torch.cuda.is_available() else "none — set SEG_DEVICE=cpu in backend/.env")
 EOF
-deactivate
 
-# --- Done ------------------------------------------------------------------
+# --- Summary ---------------------------------------------------------------
+echo ""
+echo "=== Setup summary ==="
+if [ ${#WARN[@]} -eq 0 ]; then
+  echo "  ✓ everything installed"
+else
+  echo "  Some steps need attention:"
+  for w in "${WARN[@]}"; do echo "   - $w"; done
+fi
 cat <<EOF
 
-=== Setup complete ===
+Run it:
+  ./run.sh both          # backend :8000 + frontend :5173
+  ./run.sh stop          # stop
 
-Run (two shells on the VM):
-  cd $REPO_DIR/backend && source .venv/bin/activate && uvicorn app.main:app --host 127.0.0.1 --port 8000
-  cd $REPO_DIR/frontend && npm run dev
-
-From your laptop, tunnel the ports and open http://localhost:5173 :
+From your laptop, tunnel both ports and open http://localhost:5173 :
   ssh -p <PORT> -L 5173:localhost:5173 -L 8000:localhost:8000 root@<HOST>
 
-Worklist starts empty — use "+ New study" then Upload an .mha/.nii.gz
-(sample volumes were staged in $REPO_DIR/sample_volumes/ if the bundle downloaded).
+Worklist starts empty — "+ New study" then Upload an .mha/.nii.gz
+(sample volumes staged in $REPO_DIR/sample_volumes/ if the bundle downloaded).
 EOF
