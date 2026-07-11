@@ -4,19 +4,25 @@
 # Run it from INSIDE the cloned repo:
 #   git clone https://<PAT>@github.com/trungkien04102002/spine-labeling-app.git
 #   cd spine-labeling-app
-#   ./vast_setup.sh                       # expects the checkpoint already placed
-#   ./vast_setup.sh --gdrive-id <FILE_ID> # or auto-download it from Google Drive
+#   ./vast_setup.sh                       # auto-downloads the Drive bundle
+#   ./vast_setup.sh --gdrive-id <FILE_ID> # or point at a single checkpoint file
+#   ./vast_setup.sh --skip-download       # checkpoint already placed by hand
 #
 # It installs backend deps, TotalSpineSeg (own venv) + weights, frontend deps,
 # writes backend/.env (SQLite + CUDA seg), and verifies the grading checkpoint.
 # See DEPLOY_VAST.md for the full picture + how to run/tunnel afterwards.
 set -e
 
+# Default Google Drive bundle (spine-vm-upload/: weights/ + sample_volumes/).
+GDRIVE_FOLDER_ID="1tBgdwA4f_1Ns4KWCf91Qi4zAB7PV0ixi"
 GDRIVE_ID=""
+SKIP_DOWNLOAD=0
 while [[ $# -gt 0 ]]; do
   case $1 in
     --gdrive-id) GDRIVE_ID="$2"; shift 2 ;;
-    *) echo "Unknown option: $1"; echo "Usage: $0 [--gdrive-id <checkpoint file id>]"; exit 1 ;;
+    --gdrive-folder-id) GDRIVE_FOLDER_ID="$2"; shift 2 ;;
+    --skip-download) SKIP_DOWNLOAD=1; shift ;;
+    *) echo "Unknown option: $1"; echo "Usage: $0 [--gdrive-id <file id>] [--gdrive-folder-id <id>] [--skip-download]"; exit 1 ;;
   esac
 done
 
@@ -46,24 +52,38 @@ pip install --upgrade pip
 pip install -r requirements.txt
 pip install gdown            # for optional checkpoint download
 
-# --- Grading checkpoint ----------------------------------------------------
+# --- Download Drive bundle (checkpoint + sample volumes) -------------------
 mkdir -p "$REPO_DIR/backend/models/weights"
-if [ ! -f "$CKPT" ] && [ -n "$GDRIVE_ID" ]; then
-  echo ">> Downloading grading checkpoint from Google Drive…"
-  gdown "$GDRIVE_ID" -O "$CKPT"
+if [ ! -f "$CKPT" ] && [ "$SKIP_DOWNLOAD" -eq 0 ]; then
+  if [ -n "$GDRIVE_ID" ]; then
+    echo ">> Downloading checkpoint (single file) from Google Drive…"
+    gdown "$GDRIVE_ID" -O "$CKPT"
+  elif [ -n "$GDRIVE_FOLDER_ID" ]; then
+    echo ">> Downloading Drive bundle folder…"
+    rm -rf /tmp/spine_bundle && mkdir -p /tmp/spine_bundle
+    gdown --folder "https://drive.google.com/drive/folders/$GDRIVE_FOLDER_ID" \
+      -O /tmp/spine_bundle || echo "   (folder download had issues — see fallback below)"
+    # Place the checkpoint.
+    FOUND=$(find /tmp/spine_bundle -name phase2_cbam.pth | head -1)
+    [ -n "$FOUND" ] && cp "$FOUND" "$CKPT"
+    # Stage sample volumes so they can be uploaded via the UI.
+    mkdir -p "$REPO_DIR/sample_volumes"
+    find /tmp/spine_bundle -name '*.mha' -exec cp {} "$REPO_DIR/sample_volumes/" \; 2>/dev/null || true
+  fi
 fi
 if [ ! -f "$CKPT" ]; then
   echo ""
   echo "!! Grading checkpoint missing: $CKPT"
-  echo "   Download phase2_cbam.pth (243MB) from your Drive and place it there,"
-  echo "   or re-run:  ./vast_setup.sh --gdrive-id <FILE_ID>"
-  echo "   (setup will continue; the app won't grade until the file is present.)"
+  echo "   The 243MB file may need Drive's virus-scan confirmation, which the"
+  echo "   folder downloader can skip. Fix: share phase2_cbam.pth as its own file,"
+  echo "   copy its FILE_ID, and re-run:  ./vast_setup.sh --gdrive-id <FILE_ID>"
+  echo "   (setup continues; grading is disabled until the file is present.)"
 else
   GOT=$(md5sum "$CKPT" | awk '{print $1}')
   if [ "$GOT" = "$CKPT_MD5" ]; then
     echo ">> Checkpoint OK (md5 verified)."
   else
-    echo "!! Checkpoint md5 mismatch: got $GOT, expected $CKPT_MD5 (re-copy the file)."
+    echo "!! Checkpoint md5 mismatch: got $GOT, expected $CKPT_MD5 (re-download)."
   fi
 fi
 deactivate
@@ -118,5 +138,6 @@ Run (two shells on the VM):
 From your laptop, tunnel the ports and open http://localhost:5173 :
   ssh -p <PORT> -L 5173:localhost:5173 -L 8000:localhost:8000 root@<HOST>
 
-Worklist starts empty — use "+ New study" then Upload an .mha/.nii.gz.
+Worklist starts empty — use "+ New study" then Upload an .mha/.nii.gz
+(sample volumes were staged in $REPO_DIR/sample_volumes/ if the bundle downloaded).
 EOF
