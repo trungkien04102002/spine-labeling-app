@@ -224,7 +224,7 @@ export default function Viewer() {
             disabled={running}
             className="rounded-lg bg-white px-4 py-1.5 text-sm font-semibold text-teal-700 shadow-sm transition hover:bg-teal-50 disabled:opacity-60"
           >
-            {running ? "Running AI… (~10 min)" : "✨ Run AI"}
+            {running ? "Running…" : "✨ Run AI"}
           </button>
         </div>
       </header>
