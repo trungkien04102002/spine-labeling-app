@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     totalspineseg_bin: str = "totalspineseg"  # CLI name or absolute path
     totalspineseg_data: str = ""  # weights dir; "" -> CLI's packaged default
     seg_device: str = "cpu"  # "cpu" | "cuda" (CLI does not accept "mps")
+    # nnU-Net spawns worker processes/threads; on constrained containers (e.g.
+    # Vast) the default (= all cores) hits the process/thread limit and dies
+    # ("libgomp: Thread creation failed" / "Background workers died"). Cap low.
+    seg_max_workers: int = 1
+    seg_max_workers_nnunet: int = 1
 
 
 def get_settings() -> Settings:

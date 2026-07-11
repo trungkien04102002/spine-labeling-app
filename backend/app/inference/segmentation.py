@@ -163,12 +163,25 @@ def run_segmentation(
         str(output_path),
         "--device",
         settings.seg_device,
+        "--max-workers",
+        str(settings.seg_max_workers),
+        "--max-workers-nnunet",
+        str(settings.seg_max_workers_nnunet),
         "--quiet",
     ]
     if settings.totalspineseg_data:
         cmd += ["--data-dir", settings.totalspineseg_data]
 
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    # Also cap the numeric libs' thread pools — on constrained containers
+    # OpenMP/BLAS spawning one thread per core trips the thread limit
+    # ("libgomp: Thread creation failed: Resource temporarily unavailable").
+    import os
+
+    env = os.environ.copy()
+    for var in ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS", "NUMEXPR_NUM_THREADS"):
+        env.setdefault(var, "1")
+
+    result = subprocess.run(cmd, capture_output=True, text=True, env=env)
     if result.returncode != 0:
         raise RuntimeError(
             "TotalSpineSeg failed "
