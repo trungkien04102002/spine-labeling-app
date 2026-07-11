@@ -111,7 +111,7 @@ cd "$REPO_DIR"
 # <2.6: torch 2.6 flips torch.load(weights_only=True) by default, which breaks
 # loading nnU-Net's checkpoints ("Unsupported global numpy...scalar").
 if ./tss-venv/bin/pip install --upgrade pip \
-   && ./tss-venv/bin/pip install totalspineseg "nnunetv2==2.4.2" \
+   && ./tss-venv/bin/pip install "totalspineseg==20250416" "nnunetv2==2.4.2" \
         "torch==2.4.1" "torchvision==0.19.1" "torchaudio==2.4.1"; then
   if ./tss-venv/bin/totalspineseg_init; then
     echo "   TotalSpineSeg ready"
