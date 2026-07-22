@@ -143,6 +143,44 @@ export function exportUrl(studyId: string): string {
   return `${API_BASE_URL}/studies/${studyId}/export`;
 }
 
+/**
+ * The full 11-label radiological grading table (Oxford-SpineNet-demo style):
+ * `canal_stenosis` / `left_foraminal` / `right_foraminal` come from the app's
+ * fine-tuned CBAM model, the other 8 conditions (pfirrmann, disc_narrowing,
+ * spondylolisthesis, upper/lower_endplate_defect, upper/lower_marrow,
+ * disc_herniation) come from the vendored upstream SpineNet pipeline.
+ */
+export interface FullGradingResult {
+  study_id: string;
+  grading: GradingItem[];
+  slice_image_uri: string;
+  model_version: string;
+}
+
+/** Run the full grading pipeline (SpineNet + CBAM) and cache the result. */
+export function runFullGrading(studyId: string): Promise<FullGradingResult> {
+  return apiFetch<FullGradingResult>(`/studies/${studyId}/grade_full`, {
+    method: "POST",
+  });
+}
+
+/** Most recently computed full grading (rejects with 404 if never run). */
+export function getFullGrading(studyId: string): Promise<FullGradingResult> {
+  return apiFetch<FullGradingResult>(`/studies/${studyId}/grade_full`);
+}
+
+export function fullGradingCsvUrl(studyId: string): string {
+  return `${API_BASE_URL}/studies/${studyId}/grade_full.csv`;
+}
+
+export function fullGradingJsonUrl(studyId: string): string {
+  return `${API_BASE_URL}/studies/${studyId}/grade_full.json`;
+}
+
+export function fullGradingSliceUrl(studyId: string): string {
+  return `${API_BASE_URL}/studies/${studyId}/grade_full/slice.png`;
+}
+
 export function uploadStudy(studyId: string, file: File): Promise<UploadResponse> {
   const form = new FormData();
   form.append("file", file);

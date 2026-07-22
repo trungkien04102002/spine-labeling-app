@@ -16,3 +16,19 @@ SimpleITK
 # external CLI (see app/inference/segmentation.py + Settings.totalspineseg_bin);
 # install it in its own env: `pip install totalspineseg` then
 # `totalspineseg_init`.
+
+# Vendored upstream SpineNet pipeline (backend/spinenet/, see
+# app/inference/spinenet_grading.py) -- CPU-friendly, used for the 8
+# non-canal/foraminal gradings (Pfirrmann, disc narrowing, spondylolisthesis,
+# endplate defects, marrow changes, disc herniation).
+pydicom
+scipy
+shapely
+scikit-learn
+scikit-image
+tqdm
+opencv-python-headless
+matplotlib
+pandas
+torchvision
+requests

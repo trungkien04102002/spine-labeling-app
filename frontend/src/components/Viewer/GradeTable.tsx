@@ -10,15 +10,33 @@ const LEVEL_ORDER = [
   "L4-L5",
   "L5-S1",
 ];
+// The 3 CBAM-sourced conditions first, then the 8 SpineNet-sourced ones, in
+// roughly the order the Oxford SpineNet demo presents them.
 const CONDITION_ORDER = [
   "canal_stenosis",
   "left_foraminal",
   "right_foraminal",
+  "pfirrmann",
+  "disc_narrowing",
+  "disc_herniation",
+  "spondylolisthesis",
+  "upper_endplate_defect",
+  "lower_endplate_defect",
+  "upper_marrow",
+  "lower_marrow",
 ];
 const CONDITION_LABELS: Record<string, string> = {
   canal_stenosis: "Canal",
   left_foraminal: "L. foraminal",
   right_foraminal: "R. foraminal",
+  pfirrmann: "Pfirrmann",
+  disc_narrowing: "Disc narrowing",
+  disc_herniation: "Disc herniation",
+  spondylolisthesis: "Spondylolisthesis",
+  upper_endplate_defect: "Upper endplate defect",
+  lower_endplate_defect: "Lower endplate defect",
+  upper_marrow: "Upper marrow",
+  lower_marrow: "Lower marrow",
 };
 const SEVERITIES = ["Normal/Mild", "Moderate", "Severe"];
 const LOW_CONFIDENCE = 0.5;
@@ -33,10 +51,15 @@ function conditionLabel(key: string): string {
 
 /** Cell tint for a severity label (light theme; neutral for unknown scales). */
 function severityColor(severity: string): string {
-  if (severity === "Severe") return "#fde2e2";
-  if (severity === "Moderate") return "#fdefc7";
-  if (severity === "Normal/Mild") return "#e3f2e3";
-  return "#f1f3f5"; // unknown severity scale (e.g. a Pfirrmann grade)
+  if (severity === "Severe" || severity === "Present") return "#fde2e2";
+  if (severity === "Moderate" || severity === "Grade II" || severity === "Grade 3") {
+    return "#fdefc7";
+  }
+  if (severity === "Grade 4" || severity === "Grade 5") return "#fde2e2";
+  if (severity === "Normal/Mild" || severity === "Absent" || severity === "None") {
+    return "#e3f2e3";
+  }
+  return "#f1f3f5"; // unknown severity scale (e.g. a bare Pfirrmann/narrowing grade)
 }
 
 /** Order values by a hint list first, then append the rest (natural sort). */

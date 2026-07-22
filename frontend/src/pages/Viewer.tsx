@@ -10,11 +10,17 @@ import { useHistory } from "../lib/history";
 import {
   API_BASE_URL,
   exportUrl,
+  fullGradingCsvUrl,
+  fullGradingJsonUrl,
+  fullGradingSliceUrl,
   getAnnotation,
+  getFullGrading,
   getStudyDetail,
+  runFullGrading,
   runInference,
   saveAnnotation,
   saveMask,
+  type FullGradingResult,
   type InferResult,
   type StudyDetail,
 } from "../lib/api";
@@ -103,6 +109,14 @@ export default function Viewer() {
   const [legend, setLegend] = useState<LegendEntry[]>([]);
   const editApiRef = useRef<MaskEditApi | null>(null);
 
+  // Full 11-label grading (SpineNet + CBAM), Oxford-demo-style: separate from
+  // the editable CBAM-only `result` above, and not undo/redo-tracked.
+  const [fullResult, setFullResult] = useState<FullGradingResult | null>(null);
+  const [runningFull, setRunningFull] = useState(false);
+  const [fullError, setFullError] = useState<string | null>(null);
+  // Cache-busts the slice image <img> src (the URL itself never changes).
+  const [sliceNonce, setSliceNonce] = useState(0);
+
   useEffect(() => {
     if (!studyId) return;
     getStudyDetail(studyId)
@@ -114,9 +128,30 @@ export default function Viewer() {
         setDirty(false);
       })
       .catch(() => gradeHistory.reset(null)); // 404 = inference not run yet
+    getFullGrading(studyId)
+      .then((r) => {
+        setFullResult(r);
+        setSliceNonce((n) => n + 1);
+      })
+      .catch(() => setFullResult(null)); // 404 = full grading not run yet
     // gradeHistory identity is stable; only re-run when the study changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studyId]);
+
+  async function handleRunFullGrading() {
+    if (!studyId) return;
+    setRunningFull(true);
+    setFullError(null);
+    try {
+      const res = await runFullGrading(studyId);
+      setFullResult(res);
+      setSliceNonce((n) => n + 1);
+    } catch (err) {
+      setFullError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setRunningFull(false);
+    }
+  }
 
   async function handleRunAI() {
     if (!studyId) return;
@@ -335,6 +370,65 @@ export default function Viewer() {
               !running && (
                 <p className="text-sm text-slate-500">
                   No AI results yet — click “Run AI”.
+                </p>
+              )
+            )}
+          </div>
+
+          {/* Full 11-label radiological grading (SpineNet + fine-tuned CBAM) */}
+          <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <h2 className="flex items-center gap-2 text-base font-bold text-slate-800">
+                <span className="h-4 w-1 rounded bg-gradient-to-b from-indigo-500 to-violet-500" />
+                Full grading (SpineNet + CBAM)
+              </h2>
+              <button
+                onClick={handleRunFullGrading}
+                disabled={runningFull}
+                className="rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100 disabled:opacity-50"
+              >
+                {runningFull ? "Running…" : "Run full grading"}
+              </button>
+            </div>
+            {fullError && (
+              <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                {fullError}
+              </div>
+            )}
+            {fullResult ? (
+              <>
+                <GradeTable grading={fullResult.grading} onJump={setTargetSlice} />
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <a
+                    href={fullGradingCsvUrl(studyId!)}
+                    className={btn}
+                    style={{ textDecoration: "none" }}
+                  >
+                    ⬇ Download CSV
+                  </a>
+                  <a
+                    href={fullGradingJsonUrl(studyId!)}
+                    className={btn}
+                    style={{ textDecoration: "none" }}
+                  >
+                    ⬇ Download JSON
+                  </a>
+                </div>
+                <p className="mt-2 text-xs text-slate-400">
+                  Model: {fullResult.model_version}. Canal + foraminal columns
+                  are the fine-tuned CBAM model's predictions; the other 8
+                  columns come from upstream SpineNet.
+                </p>
+                <img
+                  src={`${fullGradingSliceUrl(studyId!)}?v=${sliceNonce}`}
+                  alt="SpineNet-labelled mid-sagittal slice"
+                  className="mt-3 w-full rounded-lg border border-slate-200"
+                />
+              </>
+            ) : (
+              !runningFull && (
+                <p className="text-sm text-slate-500">
+                  No full grading yet — click "Run full grading".
                 </p>
               )
             )}

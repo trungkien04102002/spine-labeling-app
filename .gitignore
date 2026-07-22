@@ -9,3 +9,11 @@ node_modules/
 # Local sample volumes (licensed dataset copies) - do not commit
 sample_volumes/
 .run/
+
+# Vendored upstream SpineNet weights (~784MB, downloaded from robots.ox.ac.uk;
+# see backend/spinenet/README or CLAUDE.md) - too large for git, not ours.
+backend/spinenet/weights/
+*.pt
+
+.DS_Store
+**/.DS_Store

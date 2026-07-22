@@ -64,3 +64,22 @@ class InferResult(BaseModel):
     segmentation: SegmentationResult
     grading: list[GradingItem]
     model_version: str
+
+
+class FullGradingResult(BaseModel):
+    """The Oxford-demo-style 11-label grading table.
+
+    ``grading`` mixes two sources: ``canal_stenosis`` / ``left_foraminal`` /
+    ``right_foraminal`` always come from the app's fine-tuned CBAM model
+    (`app/inference/grading.py`); the other 8 conditions (``pfirrmann``,
+    ``disc_narrowing``, ``spondylolisthesis``, ``upper_endplate_defect``,
+    ``lower_endplate_defect``, ``upper_marrow``, ``lower_marrow``,
+    ``disc_herniation``) come from the vendored upstream SpineNet pipeline
+    (`app/inference/spinenet_grading.py`). See
+    `app/inference/full_grading.py::merge_gradings`.
+    """
+
+    study_id: str
+    grading: list[GradingItem]
+    slice_image_uri: str
+    model_version: str
