@@ -17,7 +17,6 @@ import {
   getFullGrading,
   getStudyDetail,
   runFullGrading,
-  runInference,
   saveAnnotation,
   saveMask,
   type FullGradingResult,
@@ -93,6 +92,20 @@ function InfoOverlay({ detail }: { detail: StudyDetail }) {
   );
 }
 
+// What each predicted grade means, shown in the "About this tool" panel so a
+// reader knows what the model outputs (wording follows the Oxford SpineNet demo
+// + standard lumbar-MRI radiology). `src` marks which model produces the column.
+const PREDICTION_GUIDE: { name: string; scale: string; meaning: string; src: "SpineNet" | "CBAM" }[] = [
+  { name: "Pfirrmann", scale: "5 grades (I–V)", meaning: "Disc degeneration, from healthy (I) to severely degenerated (V).", src: "SpineNet" },
+  { name: "Disc narrowing", scale: "4 grades", meaning: "Loss of intervertebral disc height.", src: "SpineNet" },
+  { name: "Central canal stenosis", scale: "4 grades", meaning: "Narrowing of the central spinal canal.", src: "CBAM" },
+  { name: "Foraminal stenosis (L/R)", scale: "binary", meaning: "Narrowing of the left/right nerve-exit foramen.", src: "CBAM" },
+  { name: "Spondylolisthesis", scale: "binary", meaning: "Forward slippage of one vertebra over another.", src: "SpineNet" },
+  { name: "Endplate defects (upper/lower)", scale: "binary", meaning: "Damage to the vertebral endplate.", src: "SpineNet" },
+  { name: "Marrow changes (upper/lower)", scale: "binary", meaning: "Modic vertebral bone-marrow signal changes.", src: "SpineNet" },
+  { name: "Disc herniation", scale: "binary", meaning: "Protrusion/extrusion of disc material.", src: "SpineNet" },
+];
+
 export default function Viewer() {
   const { studyId } = useParams<{ studyId: string }>();
   const [detail, setDetail] = useState<StudyDetail | null>(null);
@@ -109,11 +122,11 @@ export default function Viewer() {
   const [legend, setLegend] = useState<LegendEntry[]>([]);
   const editApiRef = useRef<MaskEditApi | null>(null);
 
-  // Full 11-label grading (SpineNet + CBAM), Oxford-demo-style: separate from
-  // the editable CBAM-only `result` above, and not undo/redo-tracked.
+  // "Run AI" produces the full 11-label grading (SpineNet + CBAM) AND persists a
+  // v0 annotation, so the editable `result` above IS the 11-label table. We keep
+  // `fullResult` only for the extras the annotation doesn't carry: the labelled
+  // slice image and the CSV/JSON download URLs.
   const [fullResult, setFullResult] = useState<FullGradingResult | null>(null);
-  const [runningFull, setRunningFull] = useState(false);
-  const [fullError, setFullError] = useState<string | null>(null);
   // Cache-busts the slice image <img> src (the URL itself never changes).
   const [sliceNonce, setSliceNonce] = useState(0);
 
@@ -138,29 +151,21 @@ export default function Viewer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studyId]);
 
-  async function handleRunFullGrading() {
-    if (!studyId) return;
-    setRunningFull(true);
-    setFullError(null);
-    try {
-      const res = await runFullGrading(studyId);
-      setFullResult(res);
-      setSliceNonce((n) => n + 1);
-    } catch (err) {
-      setFullError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setRunningFull(false);
-    }
-  }
-
+  // Single entry point: run the full 11-label pipeline (segments once, grades
+  // with SpineNet + CBAM, persists the mask + a v0 annotation + the labelled
+  // slice), then reload the editable annotation, the slice/export extras, and
+  // the study detail (so the viewer picks up the fresh mask).
   async function handleRunAI() {
     if (!studyId) return;
     setRunning(true);
     setRunError(null);
     try {
-      const res = await runInference(studyId);
-      gradeHistory.reset(res);
+      const full = await runFullGrading(studyId);
+      setFullResult(full);
+      const ann = await getAnnotation(studyId);
+      gradeHistory.reset(ann);
       setDirty(false);
+      setSliceNonce((n) => n + 1);
       getStudyDetail(studyId).then(setDetail).catch(() => {});
     } catch (err) {
       setRunError(err instanceof Error ? err.message : String(err));
@@ -292,6 +297,47 @@ export default function Viewer() {
 
         {/* Side panel */}
         <aside className="flex min-w-[260px] flex-[1_1_280px] flex-col gap-5">
+          {/* About this tool — what it predicts + disclaimer (collapsible) */}
+          <details className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+            <summary className="flex cursor-pointer items-center gap-2 text-base font-bold text-slate-800">
+              <span className="h-4 w-1 rounded bg-gradient-to-b from-teal-500 to-cyan-500" />
+              About this tool
+            </summary>
+            <div className="mt-3 space-y-3 text-xs text-slate-600">
+              <p>
+                This tool automatically reads a lumbar spine MRI and produces
+                radiological grades for each intervertebral disc level (T12–L1
+                down to L5–S1). Click a level in the table to jump to its slice;
+                you can correct any grade and save it.
+              </p>
+              <div>
+                <p className="mb-1 font-semibold text-slate-700">
+                  What it predicts
+                </p>
+                <ul className="space-y-1.5">
+                  {PREDICTION_GUIDE.map((g) => (
+                    <li key={g.name}>
+                      <span className="font-medium text-slate-700">
+                        {g.name}
+                      </span>{" "}
+                      <span className="text-slate-400">({g.scale})</span> —{" "}
+                      {g.meaning}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <p className="text-slate-500">
+                Central canal + left/right foraminal stenosis come from the
+                project's fine-tuned <strong>CBAM</strong> model; the other 8
+                grades come from the upstream <strong>SpineNet</strong> pipeline.
+              </p>
+              <p className="rounded-md bg-amber-50 px-2.5 py-1.5 text-amber-700">
+                ⚠ Research use only — this is not a diagnostic tool or a medical
+                device.
+              </p>
+            </div>
+          </details>
+
           {legend.length > 0 && (
             <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
               <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-slate-800">
@@ -302,6 +348,7 @@ export default function Viewer() {
             </div>
           )}
 
+          {/* Abnormality grades — the single 11-label editable table */}
           <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
             <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-slate-800">
               <span className="h-4 w-1 rounded bg-gradient-to-b from-teal-500 to-cyan-500" />
@@ -350,6 +397,24 @@ export default function Viewer() {
                   <a href={exportUrl(studyId!)} target="_blank" rel="noreferrer">
                     <span className={btn}>⬇ Export</span>
                   </a>
+                  {fullResult && (
+                    <>
+                      <a
+                        href={fullGradingCsvUrl(studyId!)}
+                        className={btn}
+                        style={{ textDecoration: "none" }}
+                      >
+                        ⬇ CSV
+                      </a>
+                      <a
+                        href={fullGradingJsonUrl(studyId!)}
+                        className={btn}
+                        style={{ textDecoration: "none" }}
+                      >
+                        ⬇ JSON
+                      </a>
+                    </>
+                  )}
                   {(dirty || maskDirty) && (
                     <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
                       unsaved
@@ -365,73 +430,42 @@ export default function Viewer() {
                   Model: {result.model_version}. Click a level to jump; change a
                   severity, then Save.
                 </p>
+                {fullResult && (
+                  <img
+                    src={`${fullGradingSliceUrl(studyId!)}?v=${sliceNonce}`}
+                    alt="SpineNet-labelled mid-sagittal slice"
+                    className="mt-3 w-full rounded-lg border border-slate-200"
+                  />
+                )}
               </>
             ) : (
               !running && (
                 <p className="text-sm text-slate-500">
-                  No AI results yet — click “Run AI”.
+                  No AI results yet — click “✨ Run AI” (top right).
                 </p>
               )
             )}
           </div>
 
-          {/* Full 11-label radiological grading (SpineNet + fine-tuned CBAM) */}
+          {/* Doctor feedback — corrections feed the model over time */}
           <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <h2 className="flex items-center gap-2 text-base font-bold text-slate-800">
-                <span className="h-4 w-1 rounded bg-gradient-to-b from-indigo-500 to-violet-500" />
-                Full grading (SpineNet + CBAM)
-              </h2>
-              <button
-                onClick={handleRunFullGrading}
-                disabled={runningFull}
-                className="rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100 disabled:opacity-50"
-              >
-                {runningFull ? "Running…" : "Run full grading"}
-              </button>
-            </div>
-            {fullError && (
-              <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
-                {fullError}
-              </div>
-            )}
-            {fullResult ? (
-              <>
-                <GradeTable grading={fullResult.grading} onJump={setTargetSlice} />
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <a
-                    href={fullGradingCsvUrl(studyId!)}
-                    className={btn}
-                    style={{ textDecoration: "none" }}
-                  >
-                    ⬇ Download CSV
-                  </a>
-                  <a
-                    href={fullGradingJsonUrl(studyId!)}
-                    className={btn}
-                    style={{ textDecoration: "none" }}
-                  >
-                    ⬇ Download JSON
-                  </a>
-                </div>
-                <p className="mt-2 text-xs text-slate-400">
-                  Model: {fullResult.model_version}. Canal + foraminal columns
-                  are the fine-tuned CBAM model's predictions; the other 8
-                  columns come from upstream SpineNet.
-                </p>
-                <img
-                  src={`${fullGradingSliceUrl(studyId!)}?v=${sliceNonce}`}
-                  alt="SpineNet-labelled mid-sagittal slice"
-                  className="mt-3 w-full rounded-lg border border-slate-200"
-                />
-              </>
-            ) : (
-              !runningFull && (
-                <p className="text-sm text-slate-500">
-                  No full grading yet — click "Run full grading".
-                </p>
-              )
-            )}
+            <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-slate-800">
+              <span className="h-4 w-1 rounded bg-gradient-to-b from-indigo-500 to-violet-500" />
+              Doctor feedback
+            </h2>
+            <p className="text-xs text-slate-600">
+              When you fix a grade in the table above and press{" "}
+              <span className="font-medium text-slate-700">
+                “Save corrections”
+              </span>
+              , the change is recorded as expert feedback. These corrections are
+              collected and used to periodically re-train the model, so its
+              predictions gradually improve with use.
+            </p>
+            <p className="mt-2 text-xs text-slate-400">
+              Re-training runs offline in batches — you don't need to do anything
+              beyond reviewing and saving.
+            </p>
           </div>
         </aside>
       </main>

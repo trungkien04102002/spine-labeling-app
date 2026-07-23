@@ -70,10 +70,23 @@ def client(tmp_path, monkeypatch):
             slice_image_uri=f"/studies/{study_id}/grade_full/slice.png",
             model_version="spinenet-upstream + phase2-cbam",
         )
-        return result, b"\x89PNG\r\n\x1a\nfake-png-bytes"
+        # (result, png, raw_mask_path, labels) -- the router reorients the mask.
+        return (
+            result,
+            b"\x89PNG\r\n\x1a\nfake-png-bytes",
+            "raw_mask.nii.gz",
+            {2: "spinal_canal"},
+        )
 
     monkeypatch.setattr(
         full_grading_router, "build_full_grading", fake_build_full_grading
+    )
+    # to_web_mask reorients a real NIfTI into the study dir; stub it (no file I/O)
+    # so these wiring tests don't need a real labelmap on disk.
+    monkeypatch.setattr(
+        full_grading_router,
+        "to_web_mask",
+        lambda mask_path, out_dir: str(Path(out_dir) / "mask.nii.gz"),
     )
 
     yield TestClient(app), tmp_path
@@ -90,9 +103,24 @@ def test_grade_full_returns_merged_table_and_persists_files(client):
     assert body["study_id"] == "s1"
     assert len(body["grading"]) == 2
     assert body["slice_image_uri"] == "/studies/s1/grade_full/slice.png"
+    # The run now also persists the segmentation mask + a v0 AI annotation so the
+    # editable panel / correction pipeline can load the 11-label grading.
+    assert body["segmentation"]["mask_uri"] == "/studies/s1/mask.nii.gz"
 
     assert (tmp_path / "s1" / "grade_full.json").is_file()
     assert (tmp_path / "s1" / "spinenet_slice.png").is_file()
+
+
+def test_grade_full_saves_editable_annotation(client):
+    test_client, _ = client
+    test_client.post("/studies/s1/grade_full")
+
+    # getAnnotation must now return the full 11-label grading (editable panel).
+    resp = test_client.get("/studies/s1/annotation")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert {g["condition"] for g in body["grading"]} == {"canal_stenosis", "pfirrmann"}
+    assert body["segmentation"]["mask_uri"] == "/studies/s1/mask.nii.gz"
 
 
 def test_grade_full_unknown_study_404(client):

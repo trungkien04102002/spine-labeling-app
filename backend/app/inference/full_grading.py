@@ -45,25 +45,35 @@ def merge_gradings(
     return kept_spinenet + list(cbam_items)
 
 
-def run_cbam_grading(volume_path: str) -> list[GradingItem]:
+def run_cbam_grading(
+    volume_path: str,
+) -> tuple[list[GradingItem], str, dict[int, str]]:
     """Run the existing seg -> crop -> CBAM grading path (unchanged; see
-    `app/inference/local.py::LocalBackend`) to get canal/foraminal items."""
-    mask_path, _labels = run_segmentation(volume_path)
+    `app/inference/local.py::LocalBackend`) to get canal/foraminal items.
+
+    Returns ``(cbam_items, mask_path, labels)`` -- the raw labelmap path and its
+    present-label map are threaded back out so the caller can persist the mask
+    for the viewer instead of discarding the segmentation this already ran.
+    """
+    mask_path, labels = run_segmentation(volume_path)
     vol_arr = sitk.GetArrayFromImage(_orient_slices_last(_read_image(volume_path)))
     mask_arr = sitk.GetArrayFromImage(_orient_slices_last(_read_image(mask_path)))
     crops = extract_disc_crops(vol_arr, mask_arr)
-    return grade_crops(crops)
+    return grade_crops(crops), mask_path, labels
 
 
 def build_full_grading(
     study_id: str, volume_path: str
-) -> tuple[FullGradingResult, bytes]:
+) -> tuple[FullGradingResult, bytes, str, dict[int, str]]:
     """Run SpineNet + the CBAM path, merge them, and render the labelled slice.
 
     Returns:
-        ``(result, slice_png_bytes)`` -- the caller persists both to disk.
+        ``(result, slice_png_bytes, mask_path, labels)`` -- the caller persists
+        the JSON, the PNG, and the segmentation mask (``mask_path`` is the raw
+        labelmap the CBAM path already produced; the caller reorients it into the
+        study dir and fills ``result.segmentation``).
     """
-    cbam_items = run_cbam_grading(volume_path)
+    cbam_items, mask_path, labels = run_cbam_grading(volume_path)
     spinenet_result = run_spinenet_grading_on_study_volume(volume_path)
     merged = merge_gradings(spinenet_result.items, cbam_items)
     png = render_labelled_slice_png(spinenet_result)
@@ -73,7 +83,7 @@ def build_full_grading(
         slice_image_uri=f"/studies/{study_id}/grade_full/slice.png",
         model_version="spinenet-upstream + phase2-cbam",
     )
-    return result, png
+    return result, png, mask_path, labels
 
 
 def grading_to_csv(grading: list[GradingItem]) -> str:

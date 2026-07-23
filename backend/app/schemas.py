@@ -83,3 +83,6 @@ class FullGradingResult(BaseModel):
     grading: list[GradingItem]
     slice_image_uri: str
     model_version: str
+    # Segmentation mask produced by the same run (persisted so the viewer can
+    # overlay it and the doctor can edit/save it via the /annotations flow).
+    segmentation: SegmentationResult | None = None

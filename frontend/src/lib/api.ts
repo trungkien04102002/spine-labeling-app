@@ -155,6 +155,7 @@ export interface FullGradingResult {
   grading: GradingItem[];
   slice_image_uri: string;
   model_version: string;
+  segmentation?: { mask_uri: string; labels: Record<string, string> } | null;
 }
 
 /** Run the full grading pipeline (SpineNet + CBAM) and cache the result. */
