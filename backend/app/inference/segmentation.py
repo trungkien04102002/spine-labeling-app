@@ -15,6 +15,7 @@ anatomical name.
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -153,12 +154,29 @@ def run_segmentation(
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
 
+    # The CLI lives in its own venv and is usually NOT on the backend's PATH
+    # (see module docstring). Resolve it up front so a misconfiguration surfaces
+    # as an actionable message instead of a bare ``FileNotFoundError`` from
+    # ``subprocess`` deep in the request.
+    seg_bin = shutil.which(settings.totalspineseg_bin) or (
+        settings.totalspineseg_bin
+        if Path(settings.totalspineseg_bin).is_file()
+        else None
+    )
+    if seg_bin is None:
+        raise RuntimeError(
+            f"TotalSpineSeg CLI not found: {settings.totalspineseg_bin!r}. "
+            "It runs in its own environment and is likely not on PATH. Set "
+            "TOTALSPINESEG_BIN to the absolute path of the CLI (e.g. "
+            "'<tss-venv>/bin/totalspineseg') in backend/.env or the environment."
+        )
+
     # The TotalSpineSeg CLI only accepts NIfTI. Convert other inputs (e.g. the
     # SPIDER .mha, a DICOM series dir) to a temp .nii.gz first.
     nifti_input = _ensure_nifti(volume_path, output_path)
 
     cmd = [
-        settings.totalspineseg_bin,
+        seg_bin,
         str(nifti_input),
         str(output_path),
         "--device",

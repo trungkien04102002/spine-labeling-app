@@ -147,7 +147,7 @@ def _grade_ivds_with_confidence(spnt, ivd_dicts: list[dict]) -> list[GradingItem
     return items
 
 
-def _load_volume_for_spinenet(volume_path: str) -> tuple[np.ndarray, tuple[float, float]]:
+def _load_volume_for_spinenet(volume_path: str) -> tuple[np.ndarray, float]:
     """Load an app study volume into SpineNet's expected (H, W, S) + spacing.
 
     Best-effort general path for arbitrary uploaded volumes (DICOM/MHA/NIfTI
@@ -161,7 +161,12 @@ def _load_volume_for_spinenet(volume_path: str) -> tuple[np.ndarray, tuple[float
     arr = sitk.GetArrayFromImage(image).astype(np.float32)  # (S, H, W)
     volume_hws = np.transpose(arr, (1, 2, 0))  # (H, W, S)
     sx, sy, _sz = image.GetSpacing()
-    pixel_spacing = (sy, sx)  # (height spacing, width spacing)
+    # Upstream expects a single in-plane spacing scalar (it does
+    # ``patch_edge_len * 10 / pixel_spacing``); it computes the same via
+    # ``np.mean(PixelSpacing)`` in ``dicom_io``. Match that: mean of the two
+    # in-plane axes. Passing the (sy, sx) tuple raises TypeError deep in
+    # ``split_into_patches_exhaustive``.
+    pixel_spacing = float(np.mean([sy, sx]))
     return volume_hws, pixel_spacing
 
 
