@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import shutil
+import zipfile
 from pathlib import Path
 
 import numpy as np
@@ -15,7 +16,12 @@ from sqlalchemy.orm import Session
 from app.config import Settings, get_settings
 from app.db import get_db
 from app.export import build_export_zip
-from app.inference.volume_io import read_dicom_tags, read_metadata, to_web_form
+from app.inference.volume_io import (
+    extract_dicom_zip,
+    read_dicom_tags,
+    read_metadata,
+    to_web_form,
+)
 from app.models_db import Annotation, CorrectionLog, Patient, Study
 from app.schemas import StudyCreate, StudyDetail, StudyUpdate
 
@@ -137,13 +143,35 @@ def upload_study(
     study_dir.mkdir(parents=True, exist_ok=True)
 
     filename = Path(file.filename or "volume").name
+    # Accepted: DICOM series as a .zip, or a single MHA / NIfTI volume file.
+    # (A bare DICOM series is a directory of slices, which HTTP upload can't
+    # carry file-by-file -- zip it, that's what the .zip path is for.)
+    suffixes = "".join(Path(filename).suffixes).lower()
+    accepted = (".zip", ".mha", ".nii", ".nii.gz")
+    if not (suffixes.endswith(accepted) or filename.lower().endswith(".dcm")):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Unsupported file type. Upload a .zip of a DICOM series, or a "
+                ".mha / .nii / .nii.gz volume."
+            ),
+        )
+
     dest = study_dir / filename
     with dest.open("wb") as out:
         shutil.copyfileobj(file.file, out)
 
-    display_path = to_web_form(str(dest), out_dir=str(study_dir))
+    if dest.suffix.lower() == ".zip":
+        try:
+            volume_path = extract_dicom_zip(str(dest), str(study_dir))
+        except (ValueError, zipfile.BadZipFile) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    else:
+        volume_path = str(dest.resolve())
 
-    study.volume_path = str(dest.resolve())
+    display_path = to_web_form(volume_path, out_dir=str(study_dir))
+
+    study.volume_path = str(Path(volume_path).resolve())
     study.display_path = display_path
     db.commit()
 

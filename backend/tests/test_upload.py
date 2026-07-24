@@ -141,3 +141,59 @@ def test_upload_unknown_study_404(client):
         files={"file": ("vol.nii.gz", payload, "application/octet-stream")},
     )
     assert resp.status_code == 404
+
+
+def test_upload_rejects_unsupported_type(client):
+    test_client, _, _ = client
+    resp = test_client.post(
+        "/studies/s1/upload",
+        files={"file": ("notes.txt", b"hello", "text/plain")},
+    )
+    assert resp.status_code == 400
+    assert "Unsupported file type" in resp.json()["detail"]
+
+
+def test_upload_rejects_non_dicom_zip(client):
+    import io
+    import zipfile
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("readme.txt", "not a dicom")
+
+    test_client, _, _ = client
+    resp = test_client.post(
+        "/studies/s1/upload",
+        files={"file": ("series.zip", buf.getvalue(), "application/zip")},
+    )
+    assert resp.status_code == 400
+    assert "DICOM" in resp.json()["detail"]
+
+
+_SAMPLE_DICOM_ZIP = Path(
+    "/Users/kienha/spine-labeling-app/sample_volumes/sample_dicom.zip"
+)
+
+
+@pytest.mark.skipif(
+    not _SAMPLE_DICOM_ZIP.is_file(),
+    reason="sample DICOM zip not present (sample_volumes is gitignored)",
+)
+def test_upload_dicom_zip(client):
+    test_client, TestingSession, _ = client
+    resp = test_client.post(
+        "/studies/s1/upload",
+        files={
+            "file": (
+                "series.zip",
+                _SAMPLE_DICOM_ZIP.read_bytes(),
+                "application/zip",
+            )
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    # A DICOM zip becomes a directory of slices; the display volume is NIfTI.
+    assert Path(body["volume_path"]).is_dir()
+    assert body["display_path"].endswith(".nii.gz")
+    assert Path(body["display_path"]).exists()

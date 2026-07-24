@@ -1,7 +1,8 @@
 """Volume I/O + web conversion.
 
 Reads the volume formats this app ingests -- a DICOM series (a directory of
-``.dcm`` slices, e.g. RSNA), a MetaImage ``.mha`` (SPIDER), or a NIfTI
+``.dcm`` slices, e.g. RSNA, uploaded as a ``.zip`` and unpacked by
+``extract_dicom_zip``), a MetaImage ``.mha`` (SPIDER), or a NIfTI
 (``.nii`` / ``.nii.gz``) -- via SimpleITK, and standardizes them to NIfTI for
 the frontend.
 
@@ -11,12 +12,49 @@ Cornerstone3D renders volumes through its NIfTI volume loader, so
 
 from __future__ import annotations
 
+import shutil
+import zipfile
 from pathlib import Path
 
 import numpy as np
 import SimpleITK as sitk
 
 _NIFTI_SUFFIXES = (".nii", ".nii.gz")
+
+
+def extract_dicom_zip(zip_path: str, out_dir: str) -> str:
+    """Extract a ``.zip`` of DICOM files and return the dir holding the series.
+
+    Accepts both flat zips (``*.dcm`` at the archive root, Oxford-demo style)
+    and zips with the slices nested one folder deep. Guards against zip-slip
+    (entries whose path escapes ``out_dir``). Raises ``ValueError`` if the
+    archive contains no DICOM files.
+    """
+    dest = Path(out_dir) / "dicom"
+    if dest.exists():
+        shutil.rmtree(dest)
+    dest.mkdir(parents=True, exist_ok=True)
+    dest_root = dest.resolve()
+
+    with zipfile.ZipFile(zip_path) as zf:
+        for member in zf.infolist():
+            if member.is_dir():
+                continue
+            name = Path(member.filename).name  # flatten; also neutralizes paths
+            if not name or name.startswith("."):
+                continue  # skip __MACOSX/.DS_Store cruft
+            target = (dest / name).resolve()
+            if not str(target).startswith(str(dest_root)):
+                raise ValueError(f"Unsafe zip entry: {member.filename}")
+            with zf.open(member) as src, open(target, "wb") as out:
+                shutil.copyfileobj(src, out)
+
+    if not any(p.is_file() for p in dest.iterdir()):
+        raise ValueError("Zip archive contains no readable files.")
+    # Confirm SimpleITK can find a DICOM series here (reads by content, not ext).
+    if not sitk.ImageSeriesReader().GetGDCMSeriesFileNames(str(dest)):
+        raise ValueError("Zip archive contains no DICOM series.")
+    return str(dest)
 
 
 def _read_image(path: str) -> sitk.Image:

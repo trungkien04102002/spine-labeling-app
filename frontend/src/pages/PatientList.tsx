@@ -382,7 +382,8 @@ export default function PatientList() {
                             fileInputs.current[study.id] = el;
                           }}
                           type="file"
-                          accept=".mha,.nii,.nii.gz,.dcm"
+                          accept=".zip,.mha,.nii,.nii.gz,.dcm"
+                          title="DICOM series (.zip), or .mha / .nii / .nii.gz volume"
                           className="hidden"
                           disabled={uploading === study.id}
                           onChange={(e) => {
