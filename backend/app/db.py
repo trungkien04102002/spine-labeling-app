@@ -30,3 +30,30 @@ def init_db(bind: Engine = engine) -> None:
     import app.models_db  # noqa: F401
 
     Base.metadata.create_all(bind=bind)
+    _add_missing_columns(bind)
+
+
+# Columns added to tables that already exist in deployed databases. create_all
+# only ever creates missing *tables*, so a new column on an existing table is
+# invisible to it and the app fails at query time. There is no Alembic setup
+# here, so this runs the additive DDL itself: idempotent, additive only, and
+# it never drops or rewrites anything.
+_ADDED_COLUMNS: list[tuple[str, str, str]] = [
+    # (table, column, type) -- nullable so existing rows need no backfill.
+    ("studies", "analyzed_series_id", "INTEGER NULL"),
+]
+
+
+def _add_missing_columns(bind: Engine) -> None:
+    from sqlalchemy import inspect, text
+
+    inspector = inspect(bind)
+    existing_tables = set(inspector.get_table_names())
+    for table, column, ddl_type in _ADDED_COLUMNS:
+        if table not in existing_tables:
+            continue  # create_all just made it, with the column already there
+        columns = {c["name"] for c in inspector.get_columns(table)}
+        if column in columns:
+            continue
+        with bind.begin() as conn:
+            conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl_type}"))

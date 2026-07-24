@@ -14,7 +14,7 @@ from app.config import Settings, get_settings
 from app.db import Base, get_db
 from app.inference.base import InferenceBackend, get_backend
 from app.main import app
-from app.models_db import Annotation, Patient, Study
+from app.models_db import Annotation, Patient, Series, Study
 from app.schemas import GradingItem, InferResult, SegmentationResult
 
 
@@ -165,3 +165,39 @@ def test_local_backend_runs_both_models(monkeypatch, tmp_path):
     assert result.segmentation.labels == {2: "spinal_canal"}
     assert result.grading[0].severity == "Severe"
     assert result.grading[0].bbox == [1, 2, 3, 4, 5]
+
+
+def test_infer_marks_the_series_it_read(client):
+    """The AI reads one acquisition; the viewer must be able to say which.
+
+    A study can hold sagittal T1/T2 and axial series. Only the active one is
+    fed to the models, so `/series` flags exactly that row -- the picker must
+    never imply the model read every plane.
+    """
+    test_client, TestingSession = client
+
+    db = TestingSession()
+    study = db.get(Study, "s1")
+    read = Series(
+        study_id="s1",
+        series_uid="uid-sag",
+        orientation="sagittal",
+        volume_path=study.volume_path,  # the active series
+    )
+    unread = Series(
+        study_id="s1",
+        series_uid="uid-ax",
+        orientation="axial",
+        volume_path="/nowhere/axial",
+    )
+    db.add_all([read, unread])
+    db.commit()
+    read_id, unread_id = read.id, unread.id
+    db.close()
+
+    assert test_client.post("/studies/s1/infer").status_code == 200
+
+    body = test_client.get("/studies/s1/series").json()
+    flags = {s["id"]: s["analyzed_by_ai"] for s in body}
+    assert flags[read_id] is True
+    assert flags[unread_id] is False

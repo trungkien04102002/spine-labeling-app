@@ -118,10 +118,26 @@ def extract_dicom_zip(zip_path: str, out_dir: str) -> list[SeriesInfo]:
     shutil.rmtree(staging, ignore_errors=True)
     if not found:
         raise ValueError("Zip archive contains no DICOM series.")
-    # Sagittal first: it is what the grading models read and what a radiologist
-    # opens first, so it becomes the default active series.
-    found.sort(key=lambda s: (s.orientation != "sagittal", s.series_uid))
+    found.sort(key=_reading_order)
     return found
+
+
+def _reading_order(info: SeriesInfo) -> tuple[int, str]:
+    """Sort key putting the series the models read first.
+
+    Sagittal T2 leads: it is the sequence the grading models were trained on
+    (and the one a radiologist opens first), so it becomes the default active
+    series. Grading a study on sagittal T1 by accident would silently feed the
+    models the wrong sequence.
+    """
+    description = (info.description or "").upper()
+    if info.orientation == "sagittal":
+        rank = 0 if "T2" in description or "STIR" in description else 1
+    elif info.orientation == "axial":
+        rank = 2
+    else:
+        rank = 3
+    return (rank, info.series_uid)
 
 
 def _safe_name(uid: str) -> str:

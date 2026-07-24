@@ -144,6 +144,26 @@ def test_extract_detects_orientation_and_sorts_sagittal_first(tmp_path):
     assert found[1].description == "T2 AX"
 
 
+def test_sagittal_t2_outranks_sagittal_t1(tmp_path):
+    """The models read sagittal T2; T1 must never become active by accident."""
+    staging = tmp_path / "staging"
+    # Written T1-first so ordering cannot pass by luck of insertion order.
+    _write_dicom_series(staging / "a", "1.2.3.4.5.100", _SAGITTAL, "SAG T1")
+    _write_dicom_series(staging / "b", "1.2.3.4.5.200", _SAGITTAL, "SAG T2")
+    _write_dicom_series(staging / "c", "1.2.3.4.5.300", _AXIAL, "AX T2")
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        for path in sorted(staging.rglob("*.dcm")):
+            zf.write(path, arcname=str(path.relative_to(staging)))
+    zip_path = tmp_path / "three.zip"
+    zip_path.write_bytes(buf.getvalue())
+
+    found = extract_dicom_zip(str(zip_path), str(tmp_path / "out"))
+
+    assert [s.description for s in found] == ["SAG T2", "SAG T1", "AX T2"]
+
+
 def test_upload_registers_both_series(client):
     test_client, TestingSession, tmp_path = client
     payload = _two_series_zip(tmp_path)
