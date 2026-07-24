@@ -158,15 +158,13 @@ function SeriesPicker({
             }
           >
             {PLANE_LABEL[s.orientation] ?? "Series"}
+            {/* Spaces are real text, not just margins: they keep the button's
+                accessible name readable ("Sagittal T2 (15)"). */}
             {s.description ? (
-              <span className="ml-1 font-normal opacity-80">
-                {s.description}
-              </span>
+              <span className="font-normal opacity-80"> {s.description}</span>
             ) : null}
             {s.num_slices ? (
-              <span className="ml-1 font-normal opacity-60">
-                ({s.num_slices})
-              </span>
+              <span className="font-normal opacity-60"> ({s.num_slices})</span>
             ) : null}
             {s.analyzed_by_ai ? (
               <span
