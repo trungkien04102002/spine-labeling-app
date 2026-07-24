@@ -12,7 +12,13 @@ from app.config import Settings, get_settings
 from app.db import get_db
 from app.inference.base import InferenceBackend, get_backend
 from app.inference.volume_io import to_web_mask
-from app.models_db import Annotation, CorrectionLog, Study, mark_analyzed
+from app.models_db import (
+    Annotation,
+    CorrectionLog,
+    Study,
+    mark_analyzed,
+    grading_volume_path,
+)
 from app.schemas import InferResult
 
 router = APIRouter(tags=["infer"])
@@ -32,8 +38,8 @@ def infer_study(
         raise HTTPException(
             status_code=400, detail="Study has no uploaded volume; upload first."
         )
-
-    result = backend.infer(study_id, study.volume_path)
+    # Always infer on the sagittal series, whichever one the doctor is viewing.
+    result = backend.infer(study_id, grading_volume_path(db, study))
     mark_analyzed(db, study)
 
     # Reorient the raw labelmap into the study dir so it aligns with the viewer

@@ -6,18 +6,48 @@ from sqlalchemy.orm import Mapped, Session, mapped_column
 from app.db import Base
 
 
-def mark_analyzed(db: Session, study: "Study") -> None:
-    """Record which series the AI just ran on (the active one).
+def active_series(db: Session, study: "Study") -> "Series | None":
+    """The series row the study currently points at, if it has one.
 
-    Inference reads a single acquisition, so the viewer can state plainly which
-    one that was instead of letting a multi-series study imply the model read
-    every plane.
+    Returns ``None`` for studies uploaded before series tracking existed (their
+    volume still works; we just cannot say which plane it is).
     """
-    row = (
+    return (
         db.query(Series)
         .filter_by(study_id=study.id, volume_path=study.volume_path)
         .first()
     )
+
+
+def grading_series(db: Session, study: "Study") -> "Series | None":
+    """The series the grading models read: the study's sagittal one.
+
+    The models take (9, 112, 224) sagittal crops -- the RSNA preprocessing
+    convention they were trained on -- so an axial stack would yield confident
+    but meaningless grades. Inference therefore always reads the sagittal
+    series, independently of which one the doctor happens to be viewing; rows
+    are stored in reading order, so sagittal T2 comes first.
+    """
+    rows = db.query(Series).filter_by(study_id=study.id).order_by(Series.id).all()
+    for row in rows:
+        if row.orientation == "sagittal":
+            return row
+    return None
+
+
+def grading_volume_path(db: Session, study: "Study") -> str:
+    """Volume path inference should run on (falls back to the study's own)."""
+    row = grading_series(db, study)
+    return row.volume_path if row is not None else study.volume_path
+
+
+def mark_analyzed(db: Session, study: "Study") -> None:
+    """Record which series the AI just read, so the viewer can name it.
+
+    Inference reads one acquisition, not every plane in the study; flagging the
+    exact row keeps the series picker from implying otherwise.
+    """
+    row = grading_series(db, study) or active_series(db, study)
     if row is not None:
         study.analyzed_series_id = row.id
 

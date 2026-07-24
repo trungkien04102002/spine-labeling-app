@@ -190,13 +190,13 @@ function SeriesPicker({
         {analyzed ? (
           <>
             The AI graded the series marked <strong>AI</strong> (
-            {PLANE_LABEL[analyzed.orientation] ?? "series"}). Other series are
-            for viewing; the model does not read them yet.
+            {PLANE_LABEL[analyzed.orientation] ?? "series"}). Browse any series
+            freely — switching does not change the grades.
           </>
         ) : (
           <>
-            All planes are viewable. &ldquo;Run AI&rdquo; grades the selected
-            series only — the model reads one acquisition, not all of them.
+            Browse any plane freely. &ldquo;Run AI&rdquo; always grades the
+            sagittal series, whichever one you are viewing.
           </>
         )}
       </p>

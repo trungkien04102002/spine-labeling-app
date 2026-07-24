@@ -23,8 +23,11 @@ class FakeBackend(InferenceBackend):
 
     def __init__(self, mask_path: str):
         self.mask_path = mask_path
+        # Records what the endpoint chose to run on, so tests can assert it.
+        self.last_volume_path: str | None = None
 
     def infer(self, study_id, volume_path, grading_dir=None) -> InferResult:
+        self.last_volume_path = volume_path
         return InferResult(
             study_id=study_id,
             segmentation=SegmentationResult(
@@ -79,13 +82,14 @@ def client(tmp_path):
 
     app.dependency_overrides[get_db] = override_db
     app.dependency_overrides[get_settings] = lambda: Settings(data_dir=str(tmp_path))
-    app.dependency_overrides[get_backend] = lambda: FakeBackend(str(raw_mask))
-    yield TestClient(app), TestingSession
+    fake_backend = FakeBackend(str(raw_mask))
+    app.dependency_overrides[get_backend] = lambda: fake_backend
+    yield TestClient(app), TestingSession, fake_backend
     app.dependency_overrides.clear()
 
 
 def test_infer_returns_contract_and_persists_v0(client):
-    test_client, TestingSession = client
+    test_client, TestingSession, _ = client
 
     resp = test_client.post("/studies/s1/infer")
 
@@ -109,7 +113,7 @@ def test_infer_returns_contract_and_persists_v0(client):
 
 
 def test_get_annotation_after_infer(client):
-    test_client, _ = client
+    test_client, _, _ = client
     assert test_client.get("/studies/s1/annotation").status_code == 404  # none yet
 
     test_client.post("/studies/s1/infer")
@@ -123,12 +127,12 @@ def test_get_annotation_after_infer(client):
 
 
 def test_infer_unknown_study_404(client):
-    test_client, _ = client
+    test_client, _, _ = client
     assert test_client.post("/studies/nope/infer").status_code == 404
 
 
 def test_infer_without_volume_400(client):
-    test_client, _ = client
+    test_client, _, _ = client
     assert test_client.post("/studies/no_vol/infer").status_code == 400
 
 
@@ -167,6 +171,47 @@ def test_local_backend_runs_both_models(monkeypatch, tmp_path):
     assert result.grading[0].bbox == [1, 2, 3, 4, 5]
 
 
+def test_infer_reads_sagittal_even_while_viewing_axial(client):
+    """Run AI always grades the sagittal series, whatever the doctor is viewing.
+
+    The models take sagittal crops, so inferring on whichever series happens to
+    be on screen would silently produce meaningless grades for an axial stack.
+    """
+    test_client, TestingSession, backend = client
+
+    db = TestingSession()
+    study = db.get(Study, "s1")
+    sagittal_path = study.volume_path
+    axial_path = "/nowhere/axial.mha"
+    db.add_all(
+        [
+            Series(
+                study_id="s1",
+                series_uid="uid-sag",
+                orientation="sagittal",
+                volume_path=sagittal_path,
+            ),
+            Series(
+                study_id="s1",
+                series_uid="uid-ax",
+                orientation="axial",
+                volume_path=axial_path,
+            ),
+        ]
+    )
+    # The doctor is currently looking at the axial series.
+    study.volume_path = axial_path
+    db.commit()
+    db.close()
+
+    assert test_client.post("/studies/s1/infer").status_code == 200
+
+    # The backend records the path it was handed: the sagittal series, not the
+    # axial volume on screen.
+    assert backend.last_volume_path == sagittal_path
+    assert backend.last_volume_path != axial_path
+
+
 def test_infer_marks_the_series_it_read(client):
     """The AI reads one acquisition; the viewer must be able to say which.
 
@@ -174,7 +219,7 @@ def test_infer_marks_the_series_it_read(client):
     fed to the models, so `/series` flags exactly that row -- the picker must
     never imply the model read every plane.
     """
-    test_client, TestingSession = client
+    test_client, TestingSession, _ = client
 
     db = TestingSession()
     study = db.get(Study, "s1")
