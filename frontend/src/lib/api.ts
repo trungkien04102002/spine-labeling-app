@@ -24,6 +24,19 @@ export interface UploadResponse {
   study_id: string;
   volume_path: string;
   display_path: string;
+  series_count: number;
+}
+
+/** One acquisition (sagittal T1 / sagittal T2 / axial T2 ...) inside a study. */
+export interface SeriesOut {
+  id: number;
+  series_uid: string;
+  description: string | null;
+  orientation: string;
+  num_slices: number | null;
+  is_active: boolean;
+  /** The models read one acquisition, not all of them -- the UI says which. */
+  analyzed_by_ai: boolean;
 }
 
 export interface StudyDetail {
@@ -180,6 +193,21 @@ export function fullGradingJsonUrl(studyId: string): string {
 
 export function fullGradingSliceUrl(studyId: string): string {
   return `${API_BASE_URL}/studies/${studyId}/grade_full/slice.png`;
+}
+
+export function getSeries(studyId: string): Promise<SeriesOut[]> {
+  return apiFetch<SeriesOut[]>(`/studies/${studyId}/series`);
+}
+
+export function setActiveSeries(
+  studyId: string,
+  seriesId: number,
+): Promise<SeriesOut[]> {
+  return apiFetch<SeriesOut[]>(`/studies/${studyId}/active_series`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ series_id: seriesId }),
+  });
 }
 
 export function uploadStudy(studyId: string, file: File): Promise<UploadResponse> {

@@ -18,7 +18,7 @@ from app.config import Settings, get_settings
 from app.db import get_db
 from app.inference.full_grading import build_full_grading, grading_to_csv
 from app.inference.volume_io import to_web_mask
-from app.models_db import Annotation, Study
+from app.models_db import Annotation, Study, mark_analyzed
 from app.schemas import FullGradingResult, InferResult, SegmentationResult
 
 router = APIRouter(tags=["grade_full"])
@@ -59,6 +59,7 @@ def grade_full(
     result, png_bytes, mask_path, labels = build_full_grading(
         study_id, study.volume_path
     )
+    mark_analyzed(db, study)
 
     study_dir = Path(settings.data_dir) / study_id
     study_dir.mkdir(parents=True, exist_ok=True)

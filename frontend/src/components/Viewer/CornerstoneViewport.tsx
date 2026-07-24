@@ -51,6 +51,13 @@ export interface LegendEntry {
 interface Props {
   studyId: string;
   apiBaseUrl: string;
+  /**
+   * Identifies which series is being shown. `display.nii.gz` serves whichever
+   * series is active, so switching series keeps the URL but changes the bytes;
+   * this value is appended as a query param to give the new volume its own
+   * cache key (Cornerstone caches volumes by URL) and to re-run the loader.
+   */
+  seriesKey?: string | number | null;
   /** Optional overlay pinned inside the image box (e.g. a PACS-style header). */
   overlay?: ReactNode;
   /** When set, scroll the stack to this slice index (jump-to-disc). */
@@ -74,6 +81,7 @@ interface Props {
 export default function CornerstoneViewport({
   studyId,
   apiBaseUrl,
+  seriesKey,
   overlay,
   targetSlice,
   segLabels,
@@ -107,7 +115,9 @@ export default function CornerstoneViewport({
     (async () => {
       await ensureCornerstoneInitialized();
 
-      const url = `${apiBaseUrl}/studies/${studyId}/display.nii.gz`;
+      const url =
+        `${apiBaseUrl}/studies/${studyId}/display.nii.gz` +
+        (seriesKey == null ? "" : `?series=${seriesKey}`);
       const imageIds = await createNiftiImageIdsAndCacheMetadata({ url });
       if (cancelled || !elementRef.current) return;
 
@@ -224,7 +234,7 @@ export default function CornerstoneViewport({
       ToolGroupManager.destroyToolGroup(toolGroupId);
       engine?.destroy();
     };
-  }, [studyId, apiBaseUrl, viewportId, segmentationId, toolGroupId]);
+  }, [studyId, apiBaseUrl, seriesKey, viewportId, segmentationId, toolGroupId]);
 
   // Re-fit the image whenever the viewport box resizes (window resize, layout
   // reflow when the grade panel wraps below on narrow screens, etc.).

@@ -12,7 +12,7 @@ from app.config import Settings, get_settings
 from app.db import get_db
 from app.inference.base import InferenceBackend, get_backend
 from app.inference.volume_io import to_web_mask
-from app.models_db import Annotation, CorrectionLog, Study
+from app.models_db import Annotation, CorrectionLog, Study, mark_analyzed
 from app.schemas import InferResult
 
 router = APIRouter(tags=["infer"])
@@ -34,6 +34,7 @@ def infer_study(
         )
 
     result = backend.infer(study_id, study.volume_path)
+    mark_analyzed(db, study)
 
     # Reorient the raw labelmap into the study dir so it aligns with the viewer
     # volume, then expose it via the API path (the on-disk path stays internal).

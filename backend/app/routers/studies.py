@@ -17,13 +17,21 @@ from app.config import Settings, get_settings
 from app.db import get_db
 from app.export import build_export_zip
 from app.inference.volume_io import (
+    _read_image,
     extract_dicom_zip,
+    orientation_of,
     read_dicom_tags,
     read_metadata,
     to_web_form,
 )
-from app.models_db import Annotation, CorrectionLog, Patient, Study
-from app.schemas import StudyCreate, StudyDetail, StudyUpdate
+from app.models_db import Annotation, CorrectionLog, Patient, Series, Study
+from app.schemas import (
+    ActiveSeriesUpdate,
+    SeriesOut,
+    StudyCreate,
+    StudyDetail,
+    StudyUpdate,
+)
 
 router = APIRouter(tags=["studies"])
 
@@ -85,6 +93,7 @@ def delete_study(
         raise HTTPException(status_code=404, detail=f"Unknown study: {study_id}")
     db.query(Annotation).filter_by(study_id=study_id).delete()
     db.query(CorrectionLog).filter_by(study_id=study_id).delete()
+    db.query(Series).filter_by(study_id=study_id).delete()
     db.delete(study)
     db.commit()
     shutil.rmtree(Path(settings.data_dir) / study_id, ignore_errors=True)
@@ -130,7 +139,7 @@ def upload_study(
     file: UploadFile,
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
-) -> dict[str, str]:
+) -> dict[str, object]:
     """Store an uploaded volume, convert it to a viewer NIfTI, record paths.
 
     The study row must already exist (created via demo import / patient flow).
@@ -161,25 +170,118 @@ def upload_study(
     with dest.open("wb") as out:
         shutil.copyfileobj(file.file, out)
 
+    # Replace any previous upload's series rows for this study.
+    db.query(Series).filter_by(study_id=study_id).delete()
+    study.analyzed_series_id = None
+
     if dest.suffix.lower() == ".zip":
         try:
-            volume_path = extract_dicom_zip(str(dest), str(study_dir))
+            found = extract_dicom_zip(str(dest), str(study_dir))
         except (ValueError, zipfile.BadZipFile) as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        rows = [
+            Series(
+                study_id=study_id,
+                series_uid=info.series_uid,
+                description=info.description,
+                orientation=info.orientation,
+                volume_path=str(Path(info.path).resolve()),
+                num_slices=info.num_slices,
+            )
+            for info in found
+        ]
     else:
+        # MHA/NIfTI carry no series concept: the file is the one "series".
         volume_path = str(dest.resolve())
+        rows = [
+            Series(
+                study_id=study_id,
+                series_uid=f"file:{filename}",
+                description=filename,
+                orientation=_orientation_of_file(volume_path),
+                volume_path=volume_path,
+            )
+        ]
 
-    display_path = to_web_form(volume_path, out_dir=str(study_dir))
+    for row in rows:
+        db.add(row)
+    db.flush()  # assign row ids
 
-    study.volume_path = str(Path(volume_path).resolve())
-    study.display_path = display_path
+    # The first row is the default active series (sagittal first, see
+    # extract_dicom_zip) -- only it needs a display volume built up front;
+    # the others are converted lazily when the user switches to them.
+    active = rows[0]
+    active.display_path = to_web_form(active.volume_path, out_dir=str(study_dir))
+    study.volume_path = active.volume_path
+    study.display_path = active.display_path
     db.commit()
 
     return {
         "study_id": study_id,
         "volume_path": study.volume_path,
         "display_path": study.display_path,
+        "series_count": len(rows),
     }
+
+
+def _orientation_of_file(path: str) -> str:
+    """Best-effort acquisition plane for a single-file volume (MHA/NIfTI)."""
+    try:
+        return orientation_of(_read_image(path))
+    except Exception:  # noqa: BLE001 - orientation is cosmetic, never fatal
+        return "unknown"
+
+
+@router.get("/studies/{study_id}/series", response_model=list[SeriesOut])
+def list_series(
+    study_id: str,
+    db: Session = Depends(get_db),
+) -> list[SeriesOut]:
+    """List every acquisition in the study, for the viewer's series picker."""
+    study = db.get(Study, study_id)
+    if study is None:
+        raise HTTPException(status_code=404, detail=f"Unknown study: {study_id}")
+    rows = db.query(Series).filter_by(study_id=study_id).order_by(Series.id).all()
+    return [
+        SeriesOut(
+            id=row.id,
+            series_uid=row.series_uid,
+            description=row.description,
+            orientation=row.orientation,
+            num_slices=row.num_slices,
+            is_active=row.volume_path == study.volume_path,
+            analyzed_by_ai=row.id == study.analyzed_series_id,
+        )
+        for row in rows
+    ]
+
+
+@router.put("/studies/{study_id}/active_series", response_model=list[SeriesOut])
+def set_active_series(
+    study_id: str,
+    payload: ActiveSeriesUpdate,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+) -> list[SeriesOut]:
+    """Switch which acquisition the viewer (and the next AI run) works on."""
+    study = db.get(Study, study_id)
+    if study is None:
+        raise HTTPException(status_code=404, detail=f"Unknown study: {study_id}")
+    row = db.get(Series, payload.series_id)
+    if row is None or row.study_id != study_id:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Series {payload.series_id} does not belong to study {study_id}.",
+        )
+
+    if not row.display_path or not Path(row.display_path).is_file():
+        study_dir = Path(settings.data_dir) / study_id
+        row.display_path = to_web_form(row.volume_path, out_dir=str(study_dir))
+
+    study.volume_path = row.volume_path
+    study.display_path = row.display_path
+    db.commit()
+    return list_series(study_id, db)
 
 
 # The `.nii.gz` suffix is load-bearing: the Cornerstone NIfTI loader decides

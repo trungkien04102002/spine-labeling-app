@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import shutil
 import zipfile
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
@@ -22,19 +23,57 @@ import SimpleITK as sitk
 _NIFTI_SUFFIXES = (".nii", ".nii.gz")
 
 
-def extract_dicom_zip(zip_path: str, out_dir: str) -> str:
-    """Extract a ``.zip`` of DICOM files and return the dir holding the series.
+@dataclass(frozen=True)
+class SeriesInfo:
+    """One DICOM series found inside an uploaded archive."""
 
-    Accepts both flat zips (``*.dcm`` at the archive root, Oxford-demo style)
-    and zips with the slices nested one folder deep. Guards against zip-slip
-    (entries whose path escapes ``out_dir``). Raises ``ValueError`` if the
-    archive contains no DICOM files.
+    series_uid: str
+    path: str  # directory holding exactly this series' slices
+    description: str | None
+    orientation: str  # "sagittal" | "axial" | "coronal" | "unknown"
+    num_slices: int
+
+
+def orientation_of(image: sitk.Image) -> str:
+    """Classify an acquisition plane from the image's direction cosines.
+
+    The slice normal is the third column of the direction matrix (the axis we
+    scroll along). Its dominant patient axis names the plane: x = left-right
+    normal = sagittal, y = anterior-posterior = coronal, z = superior-inferior
+    = axial. Oblique acquisitions (very common for axial lumbar stacks angled
+    to each disc) still classify by their dominant component, which is what a
+    radiologist would call them.
+    """
+    direction = image.GetDirection()
+    if len(direction) != 9:
+        return "unknown"
+    # GetDirection() is row-major; its third column is the slice normal.
+    normal = (direction[2], direction[5], direction[8])
+    axis = max(range(3), key=lambda i: abs(normal[i]))
+    return ("sagittal", "coronal", "axial")[axis]
+
+
+def extract_dicom_zip(zip_path: str, out_dir: str) -> list[SeriesInfo]:
+    """Extract a ``.zip`` of DICOM files, split it per series, describe each.
+
+    A study archive may hold several acquisitions (sagittal T1, sagittal T2,
+    axial T2 ...). Series membership is decided by ``SeriesInstanceUID`` in the
+    file headers, not by folder layout, so every file is unpacked first and
+    then grouped. Each series lands in its own ``dicom/<n>_<uid>/`` directory,
+    which keeps every downstream reader (which expects "a directory holding one
+    series") working unchanged.
+
+    Accepts flat zips (``*.dcm`` at the archive root, Oxford-demo style) and
+    nested ones. Filenames are flattened, but collisions between series (both
+    holding ``1.dcm``) are de-duplicated rather than silently overwritten.
+    Guards against zip-slip. Raises ``ValueError`` if no DICOM series is found.
     """
     dest = Path(out_dir) / "dicom"
     if dest.exists():
         shutil.rmtree(dest)
-    dest.mkdir(parents=True, exist_ok=True)
-    dest_root = dest.resolve()
+    staging = dest / "_all"
+    staging.mkdir(parents=True, exist_ok=True)
+    staging_root = staging.resolve()
 
     with zipfile.ZipFile(zip_path) as zf:
         for member in zf.infolist():
@@ -43,18 +82,71 @@ def extract_dicom_zip(zip_path: str, out_dir: str) -> str:
             name = Path(member.filename).name  # flatten; also neutralizes paths
             if not name or name.startswith("."):
                 continue  # skip __MACOSX/.DS_Store cruft
-            target = (dest / name).resolve()
-            if not str(target).startswith(str(dest_root)):
+            target = (staging / name).resolve()
+            if not str(target).startswith(str(staging_root)):
                 raise ValueError(f"Unsafe zip entry: {member.filename}")
+            # Two series can both carry "1.dcm" -- keep both.
+            if target.exists():
+                stem, suffix = Path(name).stem, "".join(Path(name).suffixes)
+                n = 1
+                while target.exists():
+                    target = staging / f"{stem}__{n}{suffix}"
+                    n += 1
             with zf.open(member) as src, open(target, "wb") as out:
                 shutil.copyfileobj(src, out)
 
-    if not any(p.is_file() for p in dest.iterdir()):
+    if not any(p.is_file() for p in staging.iterdir()):
         raise ValueError("Zip archive contains no readable files.")
-    # Confirm SimpleITK can find a DICOM series here (reads by content, not ext).
-    if not sitk.ImageSeriesReader().GetGDCMSeriesFileNames(str(dest)):
+
+    # Group by SeriesInstanceUID (read from headers, not filenames/extensions).
+    series_ids = sitk.ImageSeriesReader.GetGDCMSeriesIDs(str(staging))
+    if not series_ids:
         raise ValueError("Zip archive contains no DICOM series.")
-    return str(dest)
+
+    found: list[SeriesInfo] = []
+    for index, uid in enumerate(series_ids):
+        files = sitk.ImageSeriesReader.GetGDCMSeriesFileNames(str(staging), uid)
+        if not files:
+            continue
+        # Directory name stays filesystem-safe; the real UID lives in the DB.
+        series_dir = dest / f"{index}_{_safe_name(uid)}"
+        series_dir.mkdir(parents=True, exist_ok=True)
+        for path in files:
+            shutil.move(path, series_dir / Path(path).name)
+        found.append(_describe_series(uid, series_dir))
+
+    shutil.rmtree(staging, ignore_errors=True)
+    if not found:
+        raise ValueError("Zip archive contains no DICOM series.")
+    # Sagittal first: it is what the grading models read and what a radiologist
+    # opens first, so it becomes the default active series.
+    found.sort(key=lambda s: (s.orientation != "sagittal", s.series_uid))
+    return found
+
+
+def _safe_name(uid: str) -> str:
+    """Shorten a DICOM UID into a filesystem-safe directory name."""
+    cleaned = "".join(ch if ch.isalnum() else "_" for ch in uid)
+    return cleaned[-40:] or "series"
+
+
+def _describe_series(uid: str, series_dir: Path) -> SeriesInfo:
+    """Read one series' header/geometry to label it for the viewer."""
+    reader = sitk.ImageSeriesReader()
+    files = reader.GetGDCMSeriesFileNames(str(series_dir))
+    reader.SetFileNames(files)
+    reader.MetaDataDictionaryArrayUpdateOn()
+    image = reader.Execute()
+    description = None
+    if reader.HasMetaDataKey(0, "0008|103e"):  # SeriesDescription
+        description = reader.GetMetaData(0, "0008|103e").strip() or None
+    return SeriesInfo(
+        series_uid=uid,
+        path=str(series_dir),
+        description=description,
+        orientation=orientation_of(image),
+        num_slices=len(files),
+    )
 
 
 def _read_image(path: str) -> sitk.Image:

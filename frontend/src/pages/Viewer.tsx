@@ -15,12 +15,15 @@ import {
   fullGradingSliceUrl,
   getAnnotation,
   getFullGrading,
+  getSeries,
   getStudyDetail,
   runFullGrading,
   saveAnnotation,
   saveMask,
+  setActiveSeries,
   type FullGradingResult,
   type InferResult,
+  type SeriesOut,
   type StudyDetail,
 } from "../lib/api";
 
@@ -106,9 +109,106 @@ const PREDICTION_GUIDE: { name: string; scale: string; meaning: string; src: "Sp
   { name: "Disc herniation", scale: "binary", meaning: "Protrusion/extrusion of disc material.", src: "SpineNet" },
 ];
 
+const PLANE_LABEL: Record<string, string> = {
+  sagittal: "Sagittal",
+  axial: "Axial",
+  coronal: "Coronal",
+  unknown: "Series",
+};
+
+/**
+ * Series picker: one tab per acquisition in the study (sagittal T1, sagittal
+ * T2, axial T2 ...), so a doctor can read across every plane the way they do
+ * on a PACS.
+ *
+ * The models read ONE acquisition, so the tab the AI actually ran on is marked
+ * and the rest are labelled view-only. Stating that plainly is deliberate: a
+ * multi-plane picker would otherwise imply the model fuses all views, which it
+ * does not (yet).
+ */
+function SeriesPicker({
+  series,
+  busy,
+  onSelect,
+}: {
+  series: SeriesOut[];
+  busy: boolean;
+  onSelect: (id: number) => void;
+}) {
+  if (series.length < 2) return null;
+  const analyzed = series.find((s) => s.analyzed_by_ai);
+  return (
+    <div className="border-b border-slate-200 bg-slate-50 px-3 py-2">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="mr-1 text-xs font-semibold text-slate-500">
+          Series
+        </span>
+        {series.map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            disabled={busy || s.is_active}
+            onClick={() => onSelect(s.id)}
+            title={s.description ?? s.series_uid}
+            className={
+              "rounded-md border px-2.5 py-1 text-xs font-medium transition " +
+              (s.is_active
+                ? "border-teal-500 bg-teal-600 text-white shadow-sm"
+                : "border-slate-300 bg-white text-slate-600 hover:border-teal-400 hover:text-teal-700 disabled:opacity-50")
+            }
+          >
+            {PLANE_LABEL[s.orientation] ?? "Series"}
+            {s.description ? (
+              <span className="ml-1 font-normal opacity-80">
+                {s.description}
+              </span>
+            ) : null}
+            {s.num_slices ? (
+              <span className="ml-1 font-normal opacity-60">
+                ({s.num_slices})
+              </span>
+            ) : null}
+            {s.analyzed_by_ai ? (
+              <span
+                className={
+                  "ml-1.5 rounded px-1 py-px text-[10px] font-bold " +
+                  (s.is_active
+                    ? "bg-white/25 text-white"
+                    : "bg-teal-100 text-teal-700")
+                }
+              >
+                AI
+              </span>
+            ) : null}
+          </button>
+        ))}
+        {busy ? (
+          <span className="ml-1 text-xs text-slate-500">Loading…</span>
+        ) : null}
+      </div>
+      <p className="mt-1.5 text-[11px] leading-snug text-slate-500">
+        {analyzed ? (
+          <>
+            The AI graded the series marked <strong>AI</strong> (
+            {PLANE_LABEL[analyzed.orientation] ?? "series"}). Other series are
+            for viewing; the model does not read them yet.
+          </>
+        ) : (
+          <>
+            All planes are viewable. &ldquo;Run AI&rdquo; grades the selected
+            series only — the model reads one acquisition, not all of them.
+          </>
+        )}
+      </p>
+    </div>
+  );
+}
+
 export default function Viewer() {
   const { studyId } = useParams<{ studyId: string }>();
   const [detail, setDetail] = useState<StudyDetail | null>(null);
+  const [series, setSeries] = useState<SeriesOut[]>([]);
+  const [seriesBusy, setSeriesBusy] = useState(false);
   // Grade edits flow through an undo/redo history; `result` is its cursor.
   const gradeHistory = useHistory<InferResult | null>(null);
   const result = gradeHistory.state;
@@ -135,6 +235,9 @@ export default function Viewer() {
     getStudyDetail(studyId)
       .then(setDetail)
       .catch(() => setDetail(null));
+    getSeries(studyId)
+      .then(setSeries)
+      .catch(() => setSeries([]));
     getAnnotation(studyId)
       .then((r) => {
         gradeHistory.reset(r);
@@ -150,6 +253,21 @@ export default function Viewer() {
     // gradeHistory identity is stable; only re-run when the study changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studyId]);
+
+  // Switching series repoints the study's display volume, so the viewer and the
+  // header metadata both have to be reloaded.
+  async function handleSelectSeries(seriesId: number) {
+    if (!studyId) return;
+    setSeriesBusy(true);
+    try {
+      setSeries(await setActiveSeries(studyId, seriesId));
+      setDetail(await getStudyDetail(studyId));
+    } catch {
+      setRunError("Could not switch series.");
+    } finally {
+      setSeriesBusy(false);
+    }
+  }
 
   // Single entry point: run the full 11-label pipeline (segments once, grades
   // with SpineNet + CBAM, persists the mask + a v0 annotation + the labelled
@@ -273,10 +391,16 @@ export default function Viewer() {
         {/* Viewer */}
         <section className="min-w-0 flex-[3_1_400px]">
           <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+            <SeriesPicker
+              series={series}
+              busy={seriesBusy}
+              onSelect={handleSelectSeries}
+            />
             {studyId && (
               <CornerstoneViewport
                 studyId={studyId}
                 apiBaseUrl={API_BASE_URL}
+                seriesKey={series.find((s) => s.is_active)?.id ?? null}
                 overlay={detail ? <InfoOverlay detail={detail} /> : null}
                 targetSlice={targetSlice}
                 segLabels={result?.segmentation.labels}

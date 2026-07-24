@@ -44,8 +44,23 @@ free_port() {  # $1=port — kill whatever still LISTENs on it (lsof|fuser|ss)
 
 stop_one() {  # $1=pidfile $2=name $3=port $4=process-pattern
   if [ -f "$1" ] && kill -0 "$(cat "$1")" 2>/dev/null; then
-    kill "$(cat "$1")" 2>/dev/null || true
-    echo "stopped $2 (pid $(cat "$1"))"
+    pid=$(cat "$1")
+    kill "$pid" 2>/dev/null || true
+    # SIGTERM is a request: wait for it to take, then escalate. Reporting
+    # "stopped" without checking is how a live server gets left behind.
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+      kill -0 "$pid" 2>/dev/null || break
+      sleep 0.5
+    done
+    if kill -0 "$pid" 2>/dev/null; then
+      kill -9 "$pid" 2>/dev/null || true
+      sleep 0.5
+    fi
+    if kill -0 "$pid" 2>/dev/null; then
+      echo "WARNING: $2 (pid $pid) would not die -- kill it manually" >&2
+    else
+      echo "stopped $2 (pid $pid)"
+    fi
   fi
   rm -f "$1"
   free_port "$3"

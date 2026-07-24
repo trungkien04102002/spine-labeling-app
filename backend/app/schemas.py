@@ -45,6 +45,25 @@ class StudyDetail(BaseModel):
     dicom_tags: dict[str, str] = {}
 
 
+class SeriesOut(BaseModel):
+    """One acquisition inside a study, as listed in the viewer's series picker."""
+
+    id: int
+    series_uid: str
+    description: str | None = None
+    orientation: str
+    num_slices: int | None = None
+    is_active: bool
+    # True for the series inference last ran on. The app's models read a
+    # sagittal series; other planes are viewable but not fed to the model, and
+    # the UI says so rather than implying multi-view inference.
+    analyzed_by_ai: bool = False
+
+
+class ActiveSeriesUpdate(BaseModel):
+    series_id: int
+
+
 class SegmentationResult(BaseModel):
     mask_uri: str
     labels: dict[int, str]
