@@ -33,6 +33,19 @@ def db():
     session.close()
 
 
+def _submitted(**kwargs) -> CorrectionLog:
+    """A correction the doctor has already submitted for training.
+
+    `build_finetune_dataset` only sees submitted corrections -- unsubmitted
+    rows are edits still in progress. These tests exercise what the builder
+    does with its input, so their corrections start out handed over; the gate
+    itself is covered in test_feedback_flow.py.
+    """
+    kwargs.setdefault("submitted_at", datetime.datetime(2024, 1, 1))
+    kwargs.setdefault("batch_id", "batch-test")
+    return CorrectionLog(**kwargs)
+
+
 def _seed_study_with_annotation(
     db, study_id="s1", volume_path="/fake/data/s1/vol.mha", mask_path="/fake/data/s1/mask.nii.gz"
 ):
@@ -72,12 +85,12 @@ def _read_metadata(metadata_csv):
 def test_build_dataset_writes_crops_and_metadata_from_corrections(db, tmp_path):
     _seed_study_with_annotation(db)
     db.add(
-        CorrectionLog(
+        _submitted(
             study_id="s1", field="L4-L5/canal_stenosis", old="Normal/Mild", new="Severe"
         )
     )
     db.add(
-        CorrectionLog(
+        _submitted(
             study_id="s1", field="L4-L5/left_foraminal", old="Normal/Mild", new="Moderate"
         )
     )
@@ -111,7 +124,7 @@ def test_build_dataset_writes_crops_and_metadata_from_corrections(db, tmp_path):
 def test_keeps_only_latest_correction_for_same_field(db, tmp_path):
     _seed_study_with_annotation(db)
     db.add(
-        CorrectionLog(
+        _submitted(
             study_id="s1",
             field="L4-L5/canal_stenosis",
             old="Normal/Mild",
@@ -120,7 +133,7 @@ def test_keeps_only_latest_correction_for_same_field(db, tmp_path):
         )
     )
     db.add(
-        CorrectionLog(
+        _submitted(
             study_id="s1",
             field="L4-L5/canal_stenosis",
             old="Moderate",
@@ -153,7 +166,7 @@ def test_missing_volume_is_skipped(db, tmp_path):
             mask_path="/fake/mask.nii.gz",
         )
     )
-    db.add(CorrectionLog(study_id="no_vol", field="L4-L5/canal_stenosis", new="Severe"))
+    db.add(_submitted(study_id="no_vol", field="L4-L5/canal_stenosis", new="Severe"))
     db.commit()
 
     result = build_finetune_dataset(db, str(tmp_path / "out"), crop_fn=_stub_crop_fn())
@@ -169,7 +182,7 @@ def test_missing_mask_is_skipped(db, tmp_path):
     db.refresh(patient)
     # Study has a volume but no annotation at all yet -> no mask on record.
     db.add(Study(id="no_mask", patient_id=patient.id, volume_path="/fake/v.mha"))
-    db.add(CorrectionLog(study_id="no_mask", field="L4-L5/canal_stenosis", new="Severe"))
+    db.add(_submitted(study_id="no_mask", field="L4-L5/canal_stenosis", new="Severe"))
     db.commit()
 
     result = build_finetune_dataset(db, str(tmp_path / "out"), crop_fn=_stub_crop_fn())
@@ -180,7 +193,7 @@ def test_missing_mask_is_skipped(db, tmp_path):
 
 def test_disc_not_found_in_mask_is_skipped(db, tmp_path):
     _seed_study_with_annotation(db)
-    db.add(CorrectionLog(study_id="s1", field="L4-L5/canal_stenosis", new="Severe"))
+    db.add(_submitted(study_id="s1", field="L4-L5/canal_stenosis", new="Severe"))
     db.commit()
 
     result = build_finetune_dataset(
@@ -194,7 +207,7 @@ def test_disc_not_found_in_mask_is_skipped(db, tmp_path):
 def test_unknown_severity_is_skipped_but_does_not_crash(db, tmp_path):
     _seed_study_with_annotation(db)
     db.add(
-        CorrectionLog(study_id="s1", field="L4-L5/canal_stenosis", new="Not A Real Severity")
+        _submitted(study_id="s1", field="L4-L5/canal_stenosis", new="Not A Real Severity")
     )
     db.commit()
 
@@ -202,3 +215,98 @@ def test_unknown_severity_is_skipped_but_does_not_crash(db, tmp_path):
 
     assert result.num_rows == 0  # the only condition on this disc was unrecognized
     assert any("unknown condition or severity" in s for s in result.skipped)
+
+
+# --- The submit gate -------------------------------------------------------
+
+
+def test_unsubmitted_corrections_are_not_training_data(db, tmp_path):
+    """A doctor still working through their edits must not be training on them."""
+    _seed_study_with_annotation(db)
+    db.add(
+        CorrectionLog(  # deliberately NOT submitted
+            study_id="s1", field="L4-L5/canal_stenosis", old="Normal/Mild", new="Severe"
+        )
+    )
+    db.commit()
+
+    result = build_finetune_dataset(db, str(tmp_path / "out"), crop_fn=_stub_crop_fn())
+
+    assert result.num_rows == 0
+    assert result.num_corrections_used == 0
+
+
+def test_include_unsubmitted_is_available_as_an_escape_hatch(db, tmp_path):
+    _seed_study_with_annotation(db)
+    db.add(
+        CorrectionLog(
+            study_id="s1", field="L4-L5/canal_stenosis", old="Normal/Mild", new="Severe"
+        )
+    )
+    db.commit()
+
+    result = build_finetune_dataset(
+        db, str(tmp_path / "out"), crop_fn=_stub_crop_fn(), submitted_only=False
+    )
+
+    assert result.num_rows == 1
+
+
+def test_batch_id_selects_exactly_one_batch(db, tmp_path):
+    """Rebuilding a past run must see the corrections that run saw, no more."""
+    _seed_study_with_annotation(db)
+    db.add(
+        _submitted(
+            study_id="s1",
+            field="L4-L5/canal_stenosis",
+            new="Severe",
+            batch_id="batch-one",
+        )
+    )
+    db.add(
+        _submitted(
+            study_id="s1",
+            field="L5-S1/canal_stenosis",
+            new="Moderate",
+            batch_id="batch-two",
+        )
+    )
+    db.commit()
+
+    first = build_finetune_dataset(
+        db, str(tmp_path / "one"), crop_fn=_stub_crop_fn(), batch_id="batch-one"
+    )
+    both = build_finetune_dataset(db, str(tmp_path / "both"), crop_fn=_stub_crop_fn())
+
+    assert first.num_rows == 1
+    assert both.num_rows == 2, "no batch filter means every submitted correction"
+
+
+def test_a_later_correction_supersedes_an_earlier_submitted_one(db, tmp_path):
+    """Re-correcting the same disc must not train on both answers."""
+    _seed_study_with_annotation(db)
+    db.add(
+        _submitted(
+            study_id="s1",
+            field="L4-L5/canal_stenosis",
+            new="Moderate",
+            at=datetime.datetime(2024, 1, 1),
+            batch_id="batch-one",
+        )
+    )
+    db.add(
+        _submitted(
+            study_id="s1",
+            field="L4-L5/canal_stenosis",
+            new="Severe",
+            at=datetime.datetime(2024, 2, 1),
+            batch_id="batch-two",
+        )
+    )
+    db.commit()
+
+    result = build_finetune_dataset(db, str(tmp_path / "out"), crop_fn=_stub_crop_fn())
+
+    assert result.num_rows == 1
+    rows = _read_metadata(result.metadata_csv)
+    assert rows[0]["spinal_canal"] == "2", "the later correction (Severe) wins"

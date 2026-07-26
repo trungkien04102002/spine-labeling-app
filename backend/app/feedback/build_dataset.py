@@ -64,17 +64,32 @@ def default_crop_fn(volume_path: str, mask_path: str, level: str) -> np.ndarray 
     return data["crop"] if data else None  # type: ignore[return-value]
 
 
-def _latest_corrections(db: Session) -> list[CorrectionLog]:
+def _latest_corrections(
+    db: Session,
+    batch_id: str | None = None,
+    submitted_only: bool = True,
+) -> list[CorrectionLog]:
     """One `CorrectionLog` row per (study_id, field): the most recent by `at`.
 
     Handles "multiple corrections on the same disc" -- a doctor can correct the
     same field more than once; only the latest edit should feed training.
+
+    Args:
+        batch_id: restrict to a single submitted batch. Use this to rebuild
+            exactly what a past training run saw.
+        submitted_only: default. A correction is training material only once
+            the doctor has submitted it (`POST /corrections/submit`); pulling
+            unsubmitted rows would train on edits they are still working
+            through and defeat the point of having a hand-off at all. Set
+            False only for local experiments.
     """
-    rows = (
-        db.query(CorrectionLog)
-        .order_by(CorrectionLog.at, CorrectionLog.id)
-        .all()
-    )
+    query = db.query(CorrectionLog)
+    if batch_id is not None:
+        query = query.filter(CorrectionLog.batch_id == batch_id)
+    elif submitted_only:
+        query = query.filter(CorrectionLog.submitted_at.isnot(None))
+
+    rows = query.order_by(CorrectionLog.at, CorrectionLog.id).all()
     latest: dict[tuple[str, str], CorrectionLog] = {}
     for row in rows:  # later rows in `at`/id order overwrite -> latest wins
         latest[(row.study_id, row.field)] = row
@@ -106,8 +121,10 @@ def build_finetune_dataset(
     db: Session,
     out_dir: str,
     crop_fn: CropFn | None = None,
+    batch_id: str | None = None,
+    submitted_only: bool = True,
 ) -> BuildResult:
-    """Turn logged doctor corrections into a small fine-tune dataset on disk.
+    """Turn submitted doctor corrections into a small fine-tune dataset on disk.
 
     Args:
         db: an active SQLAlchemy session (queries `CorrectionLog`, `Study`,
@@ -117,6 +134,10 @@ def build_finetune_dataset(
         crop_fn: how to regenerate a disc crop; defaults to
             :func:`default_crop_fn` (real volume/mask -> `extract_disc_crops`).
             Tests can inject a stub here instead of writing real volumes/masks.
+        batch_id: build from one submitted batch only, so a training run can be
+            reproduced from exactly the corrections it originally saw.
+        submitted_only: default. Only corrections the doctor has handed over
+            become training data; see :func:`_latest_corrections`.
 
     Returns:
         A `BuildResult` summarizing what was written and what was skipped
@@ -128,7 +149,9 @@ def build_finetune_dataset(
     volumes_dir = out_path / "volumes"
     volumes_dir.mkdir(parents=True, exist_ok=True)
 
-    corrections = _latest_corrections(db)
+    corrections = _latest_corrections(
+        db, batch_id=batch_id, submitted_only=submitted_only
+    )
 
     # Group per-condition corrections onto their shared disc: the grading
     # model outputs all three heads per crop, so one dataset row per
@@ -223,16 +246,37 @@ def _cli() -> None:
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out-dir", required=True, help="Output dataset directory")
+    parser.add_argument(
+        "--batch-id",
+        default=None,
+        help="Build from one submitted batch only (see POST /corrections/submit)",
+    )
+    parser.add_argument(
+        "--include-unsubmitted",
+        action="store_true",
+        help="Also use corrections the doctor has not submitted. For local "
+        "experiments only -- it trains on edits they may still be working on.",
+    )
     args = parser.parse_args()
 
     db = SessionLocal()
     try:
-        result = build_finetune_dataset(db, args.out_dir)
+        result = build_finetune_dataset(
+            db,
+            args.out_dir,
+            batch_id=args.batch_id,
+            submitted_only=not args.include_unsubmitted,
+        )
     finally:
         db.close()
 
     print(f"Wrote {result.num_rows} row(s) to {result.metadata_csv}")
     print(f"Used {result.num_corrections_used} correction(s); skipped {len(result.skipped)}")
+    if result.num_rows == 0 and not args.include_unsubmitted:
+        print(
+            "\nNothing to build. Corrections only become training data once a "
+            "doctor submits them (POST /corrections/submit)."
+        )
     for reason in result.skipped:
         print(f"  skipped: {reason}")
 
