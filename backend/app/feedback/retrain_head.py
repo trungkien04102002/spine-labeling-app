@@ -11,8 +11,20 @@ held-out set before vs. after, and only keep the new checkpoint if it helps.
 No LR schedule, no focal/uncertainty loss, no augmentation -- just
 `CrossEntropyLoss(ignore_index=-1)` for a handful of epochs with early
 stopping. This module only defines the fine-tune function + a CLI; nothing in
-this repo calls it automatically, and it is not exercised by the test suite
-(no GPU / real doctor-correction data available at scaffold time).
+this repo calls it automatically.
+
+Three guards make the "simple" version safe rather than merely small, because
+each covers a failure mode that is invisible in the output unless you look for
+it (see `spinet-v2/docs/LVTN_phase3/FEEDBACK_LOOP_METHODS.md`):
+
+1. **BatchNorm is frozen during training.** `freeze_backbone()` only clears
+   `requires_grad`; without `_freeze_batchnorm` the BN running statistics get
+   overwritten by a handful of samples.
+2. **A replay buffer of original discs is mixed in** (`--replay-dir`).
+   Training on corrections alone is the standard way to induce forgetting.
+3. **The keep/discard gate is macro-F1, not accuracy.** `Severe` is rare
+   enough that a model can collapse to predicting `Normal/Mild`, lose all
+   clinical value, and still post a higher mean accuracy.
 """
 
 from __future__ import annotations
@@ -25,11 +37,59 @@ from pathlib import Path
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import ConcatDataset, DataLoader, Dataset, Subset
 
 from models.grading_attention import GradingModelWithCBAM
 
 _HEADS = ("spinal_canal", "left_foraminal", "right_foraminal")
+_NUM_CLASSES = 3  # 0 = Normal/Mild, 1 = Moderate, 2 = Severe
+_SEVERE = 2
+
+
+def _freeze_batchnorm(model: nn.Module) -> int:
+    """Put every BatchNorm module in eval() so its running stats stop moving.
+
+    `freeze_backbone()` only clears `requires_grad`; BatchNorm layers keep
+    overwriting `running_mean` / `running_var` from whatever mini-batch they
+    see while the model is in `train()` mode. With a few dozen corrections at
+    `batch_size=4` those statistics are noise, and replacing the RSNA-scale
+    statistics with them is a documented cause of catastrophic forgetting when
+    adapting medical models on tiny local sets (arXiv:2011.08096, which also
+    found that touching only the BN affine terms matches full fine-tuning
+    across 7 medical datasets). Returns how many modules were frozen so the
+    caller can assert the guard actually bit.
+    """
+    frozen = 0
+    for module in model.modules():
+        if isinstance(module, nn.modules.batchnorm._BatchNorm):
+            module.eval()
+            frozen += 1
+    return frozen
+
+
+def _f1_per_class(confusion: np.ndarray) -> np.ndarray:
+    """Per-class F1 from a `[true][pred]` confusion matrix.
+
+    Classes with no support in the held-out set come back as NaN rather than 0
+    so they can be excluded from the macro average -- on a held-out set this
+    small, `Severe` may legitimately be absent, and scoring it 0 would drag the
+    gate metric down for a reason that has nothing to do with the model.
+    """
+    tp = np.diag(confusion).astype(float)
+    support = confusion.sum(axis=1).astype(float)
+    denom = 2 * tp + (confusion.sum(axis=0) - tp) + (support - tp)
+    f1 = np.full(_NUM_CLASSES, np.nan)
+    present = support > 0
+    f1[present] = np.divide(
+        2 * tp, denom, out=np.zeros_like(tp), where=denom > 0
+    )[present]
+    return f1
+
+
+def _nanmean(values) -> float:
+    """Mean over non-NaN entries; NaN when there is nothing to average."""
+    finite = [v for v in values if not np.isnan(v)]
+    return float(np.mean(finite)) if finite else float("nan")
 
 
 class CorrectionDataset(Dataset):
@@ -89,11 +149,21 @@ def evaluate(
     device: str,
     criteria: dict[str, nn.Module],
 ) -> dict[str, float]:
-    """Mean loss + per-head accuracy over labeled (non -1) examples."""
+    """Mean loss + per-head accuracy *and* per-class F1 over labeled examples.
+
+    Accuracy on its own is actively misleading here: `Severe` is the rare
+    class, so a model that collapses to predicting `Normal/Mild` everywhere
+    still posts a high mean accuracy while being useless for the one class
+    this work exists to improve. `macro_f1` is therefore what the retrain gate
+    keys off, and `severe_f1` is reported separately so a collapse is visible
+    at a glance.
+    """
     model.eval()
     total_loss, num_batches = 0.0, 0
-    correct = {h: 0 for h in _HEADS}
-    total = {h: 0 for h in _HEADS}
+    # confusion[head][true][pred]
+    confusion = {
+        h: np.zeros((_NUM_CLASSES, _NUM_CLASSES), dtype=np.int64) for h in _HEADS
+    }
 
     for volumes, labels in loader:
         volumes = volumes.to(device)
@@ -105,19 +175,56 @@ def evaluate(
             mask = target != -1
             if mask.any():
                 preds = outputs[h].argmax(dim=1)
-                correct[h] += int((preds[mask] == target[mask]).sum().item())
-                total[h] += int(mask.sum().item())
+                for true_c, pred_c in zip(
+                    target[mask].cpu().numpy(), preds[mask].cpu().numpy()
+                ):
+                    confusion[h][int(true_c)][int(pred_c)] += 1
         total_loss += float(batch_loss.item())
         num_batches += 1
 
-    acc = {h: (correct[h] / total[h] if total[h] else float("nan")) for h in _HEADS}
-    labeled_accs = [v for v in acc.values() if not np.isnan(v)]
-    mean_acc = float(np.mean(labeled_accs)) if labeled_accs else float("nan")
+    acc: dict[str, float] = {}
+    f1_macro: dict[str, float] = {}
+    f1_severe: dict[str, float] = {}
+    for h in _HEADS:
+        cm = confusion[h]
+        n_labeled = int(cm.sum())
+        acc[h] = float(np.diag(cm).sum() / n_labeled) if n_labeled else float("nan")
+        per_class = _f1_per_class(cm)
+        f1_macro[h] = _nanmean(per_class)
+        f1_severe[h] = float(per_class[_SEVERE])
+
     return {
         "loss": total_loss / num_batches if num_batches else float("nan"),
         **{f"acc_{h}": acc[h] for h in _HEADS},
-        "mean_acc": mean_acc,
+        **{f"f1_{h}": f1_macro[h] for h in _HEADS},
+        "mean_acc": _nanmean(acc.values()),
+        "macro_f1": _nanmean(f1_macro.values()),
+        "severe_f1": _nanmean(f1_severe.values()),
     }
+
+
+def build_train_dataset(
+    dataset_dir: str,
+    replay_dir: str | None = None,
+    replay_size: int = 200,
+    seed: int = 42,
+) -> Dataset:
+    """Corrections, optionally mixed with a capped sample of original discs.
+
+    The replay half is what keeps the heads anchored to the distribution the
+    deployed checkpoint was trained on; without it, a few dozen corrections
+    pull the heads wherever those corrections happen to point.
+    """
+    corrections: Dataset = CorrectionDataset(dataset_dir)
+    if not replay_dir:
+        return corrections
+
+    replay: Dataset = CorrectionDataset(replay_dir)
+    if len(replay) > replay_size:  # type: ignore[arg-type]
+        generator = torch.Generator().manual_seed(seed)
+        picks = torch.randperm(len(replay), generator=generator)  # type: ignore[arg-type]
+        replay = Subset(replay, picks[:replay_size].tolist())
+    return ConcatDataset([corrections, replay])
 
 
 @dataclass
@@ -138,6 +245,9 @@ def retrain_head(
     batch_size: int = 4,
     patience: int = 2,
     device: str = "cpu",
+    replay_dir: str | None = None,
+    replay_size: int = 200,
+    seed: int = 42,
 ) -> RetrainResult:
     """Head-only fine-tune on doctor corrections; keep the result only if it helps.
 
@@ -147,17 +257,30 @@ def retrain_head(
         dataset_dir: a `build_finetune_dataset()` output (corrections to train on).
         holdout_dir: a second such directory used ONLY for before/after eval
             (a separate held-out set of corrected/known-good discs -- never
-            trained on).
+            trained on). Freeze this set BEFORE collecting any corrections;
+            carving it out afterwards makes the before/after numbers
+            meaningless.
         out_checkpoint: where to write the improved checkpoint, if any.
         epochs, lr, batch_size, patience: kept small/simple by design.
         device: "cpu" or "cuda" (GPU is optional; nothing here requires it).
+        replay_dir: optional `build_finetune_dataset()` output holding original
+            training discs. Up to `replay_size` of them are mixed into each
+            epoch so the heads keep seeing the old distribution. Training on
+            corrections alone is what makes a model forget; in medical imaging
+            a small replay buffer has repeatedly beaten regularisation-based
+            schemes such as EWC, so this is the cheap guard worth having.
+        replay_size: cap on replayed samples (200 is plenty next to ~20-50
+            corrections and still runs on CPU).
+        seed: fixes which replay samples get drawn, so a rerun is comparable.
 
     Returns:
         A `RetrainResult` with before/after held-out metrics and whether a new
-        checkpoint was written (only when held-out `mean_acc` improves).
+        checkpoint was written (only when held-out `macro_f1` improves).
     """
+    train_dataset = build_train_dataset(dataset_dir, replay_dir, replay_size, seed)
+
     train_loader = DataLoader(
-        CorrectionDataset(dataset_dir),
+        train_dataset,
         batch_size=batch_size,
         shuffle=True,
         collate_fn=_collate,
@@ -181,12 +304,15 @@ def retrain_head(
     )
 
     before = evaluate(model, holdout_loader, device, criteria)
-    best_mean_acc = before["mean_acc"] if not np.isnan(before["mean_acc"]) else -1.0
+    best_macro_f1 = before["macro_f1"] if not np.isnan(before["macro_f1"]) else -1.0
     best_state = copy.deepcopy(model.state_dict())
     epochs_without_improvement = 0
 
     for _epoch in range(epochs):
         model.train()
+        # MUST come after train(): train() walks the whole module tree and puts
+        # every BatchNorm back into training mode, undoing the guard.
+        _freeze_batchnorm(model)
         for volumes, labels in train_loader:
             volumes = volumes.to(device)
             optimizer.zero_grad()
@@ -199,10 +325,10 @@ def retrain_head(
 
         metrics = evaluate(model, holdout_loader, device, criteria)
         improved_this_epoch = (
-            not np.isnan(metrics["mean_acc"]) and metrics["mean_acc"] > best_mean_acc
+            not np.isnan(metrics["macro_f1"]) and metrics["macro_f1"] > best_macro_f1
         )
         if improved_this_epoch:
-            best_mean_acc = metrics["mean_acc"]
+            best_macro_f1 = metrics["macro_f1"]
             best_state = copy.deepcopy(model.state_dict())
             epochs_without_improvement = 0
         else:
@@ -212,8 +338,8 @@ def retrain_head(
 
     model.load_state_dict(best_state)
     after = evaluate(model, holdout_loader, device, criteria)
-    improved = (not np.isnan(after["mean_acc"])) and (
-        np.isnan(before["mean_acc"]) or after["mean_acc"] > before["mean_acc"]
+    improved = (not np.isnan(after["macro_f1"])) and (
+        np.isnan(before["macro_f1"]) or after["macro_f1"] > before["macro_f1"]
     )
 
     checkpoint_written = None
@@ -248,7 +374,22 @@ def _cli() -> None:
     parser.add_argument("--batch-size", type=int, default=4)
     parser.add_argument("--patience", type=int, default=2)
     parser.add_argument("--device", default="cpu")
+    parser.add_argument(
+        "--replay-dir",
+        default=None,
+        help="build_dataset.py output holding ORIGINAL training discs; mixed in "
+        "so the heads do not forget. Strongly recommended.",
+    )
+    parser.add_argument("--replay-size", type=int, default=200)
+    parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
+
+    if not args.replay_dir:
+        print(
+            "WARNING: no --replay-dir. Training on corrections alone is the "
+            "single most likely way to make the model forget. Pass a replay "
+            "set unless you are deliberately measuring that effect."
+        )
 
     result = retrain_head(
         checkpoint_path=args.checkpoint,
@@ -260,14 +401,28 @@ def _cli() -> None:
         batch_size=args.batch_size,
         patience=args.patience,
         device=args.device,
+        replay_dir=args.replay_dir,
+        replay_size=args.replay_size,
+        seed=args.seed,
     )
 
-    print(f"Before: {result.before}")
-    print(f"After:  {result.after}")
+    def _fmt(metrics: dict[str, float]) -> str:
+        return (
+            f"macro_f1={metrics['macro_f1']:.4f}  "
+            f"severe_f1={metrics['severe_f1']:.4f}  "
+            f"mean_acc={metrics['mean_acc']:.4f}"
+        )
+
+    print(f"Before: {_fmt(result.before)}")
+    print(f"After:  {_fmt(result.after)}")
+    print(
+        f"Delta:  macro_f1={result.after['macro_f1'] - result.before['macro_f1']:+.4f}  "
+        f"severe_f1={result.after['severe_f1'] - result.before['severe_f1']:+.4f}"
+    )
     if result.improved:
-        print(f"Improved -- saved {result.checkpoint_path}")
+        print(f"Improved (macro-F1) -- saved {result.checkpoint_path}")
     else:
-        print("No improvement -- checkpoint NOT saved")
+        print("No macro-F1 improvement -- checkpoint NOT saved")
 
 
 if __name__ == "__main__":
