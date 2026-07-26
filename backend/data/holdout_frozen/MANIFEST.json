@@ -1,0 +1,32 @@
+{
+  "frozen_at": "2026-07-26T22:46:19",
+  "source_dir": "/Users/kienha/spinet-v2/rsna_preprocessed",
+  "n_rows": 200,
+  "seed": 42,
+  "sha256": "62ab6df1422054c6910649640d5a3e0ff48dcc5f8f4266f55810a07b3b33cef1",
+  "label_counts": {
+    "spinal_canal": {
+      "0": 89,
+      "1": 53,
+      "2": 58
+    },
+    "left_foraminal": {
+      "0": 73,
+      "1": 71,
+      "2": 56
+    },
+    "right_foraminal": {
+      "-1": 10,
+      "0": 71,
+      "1": 72,
+      "2": 47
+    }
+  },
+  "held_out_from": {
+    "split_seed": 42,
+    "val_split": 0.2,
+    "val_patients": 395,
+    "candidate_rows": 1953
+  },
+  "note": "Frozen evaluation set. Never train on these rows. Re-freezing invalidates every before/after comparison made against it."
+}

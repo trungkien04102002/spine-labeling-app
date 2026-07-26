@@ -62,17 +62,45 @@ def _stratify_key(row: dict) -> tuple:
     return tuple(row[h] for h in _HEADS)
 
 
+def _validation_patients(rows: list[dict], split_seed: int, val_split: float) -> set[str]:
+    """The patients a model trained with this seed never saw.
+
+    Reproduces `train_test_split(unique_patients, test_size=val_split,
+    random_state=split_seed)` -- the identical call every training script in
+    spinet-v2 makes -- so "held out" means held out from the model actually
+    being evaluated, not merely held out from this script.
+    """
+    from sklearn.model_selection import train_test_split
+
+    patients = sorted({row["study_id"] for row in rows})
+    # sorted() first: dict/CSV order must not change which patients land in val.
+    _, val_patients = train_test_split(
+        np.array(patients), test_size=val_split, random_state=split_seed
+    )
+    return set(val_patients.tolist())
+
+
 def freeze_holdout(
     source_dir: str,
     out_dir: str,
     n: int = 150,
     seed: int = 42,
+    split_seed: int | None = None,
+    val_split: float = 0.2,
 ) -> dict:
     """Sample `n` rows, copy their crops, and write a tamper-evident manifest.
 
     Sampling is stratified over the label combination: `Severe` is rare enough
     that a uniform draw can miss it entirely, which would leave the evaluation
     blind to the exact class the work is about.
+
+    Args:
+        split_seed: restrict the draw to the validation patients of
+            `train_test_split(..., random_state=split_seed)`. Pass the seed the
+            deployed model was trained with (42 for the shipped checkpoint).
+            Without it, most of the source is data the model already fit, and a
+            before/after comparison on it measures memorisation rather than
+            improvement. Requires a `study_id` column.
 
     Raises:
         FileExistsError: if `out_dir` already holds a manifest. Re-freezing
@@ -90,6 +118,26 @@ def freeze_holdout(
         )
 
     rows = _read_metadata(source)
+    held_out_from = None
+    if split_seed is not None:
+        if "study_id" not in rows[0]:
+            raise ValueError(
+                "--split-seed needs a study_id column to reproduce the "
+                "patient-level train/val split."
+            )
+        val_patients = _validation_patients(rows, split_seed, val_split)
+        rows = [row for row in rows if row["study_id"] in val_patients]
+        held_out_from = {
+            "split_seed": split_seed,
+            "val_split": val_split,
+            "val_patients": len(val_patients),
+            "candidate_rows": len(rows),
+        }
+        if not rows:
+            raise ValueError(
+                f"No rows left after restricting to the seed-{split_seed} "
+                "validation patients."
+            )
     if n >= len(rows):
         raise ValueError(
             f"Asked for {n} held-out rows but the source only has {len(rows)}. "
@@ -147,6 +195,7 @@ def freeze_holdout(
         "seed": seed,
         "sha256": _digest(selected),
         "label_counts": label_counts,
+        "held_out_from": held_out_from,
         "note": (
             "Frozen evaluation set. Never train on these rows. Re-freezing "
             "invalidates every before/after comparison made against it."
@@ -197,7 +246,17 @@ def _cli() -> None:
     parser.add_argument("--source-dir", help="build_dataset-shaped directory to draw from")
     parser.add_argument("--out-dir", help="Where to write the frozen set")
     parser.add_argument("--n", type=int, default=150, help="Rows to hold out (default: 150)")
-    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--seed", type=int, default=42, help="Sampling seed")
+    parser.add_argument(
+        "--split-seed",
+        type=int,
+        default=None,
+        help="Draw only from the validation patients of this train/val split. "
+        "Pass the seed the deployed model was trained with (42). Without it, "
+        "most rows are data the model already fit and before/after numbers "
+        "measure memorisation.",
+    )
+    parser.add_argument("--val-split", type=float, default=0.2)
     args = parser.parse_args()
 
     if args.verify:
@@ -205,12 +264,32 @@ def _cli() -> None:
         print(message)
         sys.exit(0 if ok else 1)
 
+    if args.split_seed is None:
+        print(
+            "WARNING: no --split-seed. The held-out set may include rows the "
+            "model was trained on, which makes a before/after comparison "
+            "meaningless. Pass --split-seed 42 for the shipped checkpoint.\n"
+        )
+
     if not args.source_dir or not args.out_dir:
         parser.error("--source-dir and --out-dir are required unless --verify is used")
 
-    manifest = freeze_holdout(args.source_dir, args.out_dir, n=args.n, seed=args.seed)
+    manifest = freeze_holdout(
+        args.source_dir,
+        args.out_dir,
+        n=args.n,
+        seed=args.seed,
+        split_seed=args.split_seed,
+        val_split=args.val_split,
+    )
     print(f"Froze {manifest['n_rows']} rows -> {args.out_dir}")
     print(f"  sha256: {manifest['sha256']}")
+    if manifest["held_out_from"]:
+        held = manifest["held_out_from"]
+        print(
+            f"  drawn from {held['candidate_rows']} rows across "
+            f"{held['val_patients']} seed-{held['split_seed']} validation patients"
+        )
     for head, counts in manifest["label_counts"].items():
         print(f"  {head}: {counts}")
     print("\nNever train on this set. Pass it as --holdout-dir to retrain_head.")

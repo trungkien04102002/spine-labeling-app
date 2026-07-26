@@ -274,3 +274,72 @@ def test_verify_reports_an_unfrozen_directory(tmp_path):
 
     assert not ok
     assert "never frozen" in message
+
+
+def _write_source_with_patients(root, n_patients=50, discs_per_patient=5):
+    volumes = root / "volumes"
+    volumes.mkdir(parents=True)
+    rows = []
+    for p in range(n_patients):
+        for d in range(discs_per_patient):
+            filename = f"p{p}_d{d}.npy"
+            np.save(volumes / filename, np.zeros((9, 112, 224), dtype=np.float32))
+            rows.append(
+                {
+                    "filepath": filename,
+                    "study_id": f"study{p}",
+                    **{h: "2" if d == 0 else "0" for h in _HEADS},
+                }
+            )
+    with open(root / "train_metadata.csv", "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=["filepath", "study_id", *_HEADS])
+        writer.writeheader()
+        writer.writerows(rows)
+    return root
+
+
+def test_split_seed_restricts_the_holdout_to_unseen_patients(tmp_path):
+    """Rows the model trained on would measure memorisation, not improvement."""
+    source = _write_source_with_patients(tmp_path / "source", n_patients=50)
+    out = tmp_path / "holdout"
+
+    freeze_holdout.freeze_holdout(str(source), str(out), n=20, split_seed=42)
+
+    manifest = json.loads((out / freeze_holdout._MANIFEST).read_text())
+    held = manifest["held_out_from"]
+    assert held["split_seed"] == 42
+    assert held["val_patients"] == 10, "20% of 50 patients"
+
+    # Every chosen row must belong to a validation patient.
+    with open(source / "train_metadata.csv", newline="") as f:
+        all_rows = list(csv.DictReader(f))
+    val_patients = freeze_holdout._validation_patients(all_rows, 42, 0.2)
+    with open(out / "train_metadata.csv", newline="") as f:
+        chosen = {r["filepath"] for r in csv.DictReader(f)}
+    by_file = {r["filepath"]: r["study_id"] for r in all_rows}
+    assert all(by_file[f] in val_patients for f in chosen)
+
+
+def test_the_split_matches_the_training_scripts(tmp_path):
+    """Same call, same patients -- otherwise 'held out' means nothing."""
+    from sklearn.model_selection import train_test_split
+
+    source = _write_source_with_patients(tmp_path / "source", n_patients=50)
+    with open(source / "train_metadata.csv", newline="") as f:
+        rows = list(csv.DictReader(f))
+
+    ours = freeze_holdout._validation_patients(rows, 42, 0.2)
+    _, theirs = train_test_split(
+        np.array(sorted({r["study_id"] for r in rows})), test_size=0.2, random_state=42
+    )
+
+    assert ours == set(theirs.tolist())
+
+
+def test_split_seed_without_a_study_id_column_is_refused(tmp_path):
+    source = _write_source(tmp_path / "source", 60)  # no study_id column
+
+    with pytest.raises(ValueError, match="study_id"):
+        freeze_holdout.freeze_holdout(
+            str(source), str(tmp_path / "holdout"), n=10, split_seed=42
+        )
