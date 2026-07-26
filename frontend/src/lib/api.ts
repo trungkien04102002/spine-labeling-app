@@ -285,3 +285,31 @@ export function activateModel(checkpoint: string): Promise<CheckpointOut> {
 export function revertModel(): Promise<CheckpointOut> {
   return apiFetch<CheckpointOut>("/model/revert", { method: "POST" });
 }
+
+// --- Long-running grading as a polled job ---------------------------------
+
+export interface JobOut {
+  id: string;
+  status: "running" | "done" | "error";
+  stage: string;
+  percent: number;
+  elapsed_seconds: number;
+  error: string | null;
+}
+
+/**
+ * Start full grading in the background.
+ *
+ * The synchronous `runFullGrading` holds a request open for the 8-15 minutes
+ * the pipeline takes, which any reverse proxy in front of the app will cut
+ * off. This returns as soon as the job is queued; poll `getJob` for progress.
+ */
+export function startFullGrading(studyId: string): Promise<JobOut> {
+  return apiFetch<JobOut>(`/studies/${studyId}/grade_full/start`, {
+    method: "POST",
+  });
+}
+
+export function getJob(jobId: string): Promise<JobOut> {
+  return apiFetch<JobOut>(`/jobs/${jobId}`);
+}

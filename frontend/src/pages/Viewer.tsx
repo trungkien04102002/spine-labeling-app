@@ -18,12 +18,14 @@ import {
   getFullGrading,
   getSeries,
   getStudyDetail,
-  runFullGrading,
+  getJob,
+  startFullGrading,
   saveAnnotation,
   saveMask,
   setActiveSeries,
   submitCorrections,
   type CorrectionQueue,
+  type JobOut,
   type FullGradingResult,
   type InferResult,
   type SeriesOut,
@@ -111,6 +113,13 @@ const PREDICTION_GUIDE: { name: string; scale: string; meaning: string; src: "Sp
   { name: "Marrow changes (upper/lower)", scale: "binary", meaning: "Modic vertebral bone-marrow signal changes.", src: "SpineNet" },
   { name: "Disc herniation", scale: "binary", meaning: "Protrusion/extrusion of disc material.", src: "SpineNet" },
 ];
+
+/** "7m 12s" — mm:ss reads as a duration; a raw second count does not. */
+function formatElapsed(seconds: number): string {
+  const total = Math.floor(seconds);
+  const minutes = Math.floor(total / 60);
+  return minutes > 0 ? `${minutes}m ${total % 60}s` : `${total}s`;
+}
 
 const PLANE_LABEL: Record<string, string> = {
   sagittal: "Sagittal",
@@ -231,6 +240,7 @@ export default function Viewer() {
   const [corrections, setCorrections] = useState<CorrectionQueue | null>(null);
   const [submittingCorrections, setSubmittingCorrections] = useState(false);
   const [submitMessage, setSubmitMessage] = useState<string | null>(null);
+  const [job, setJob] = useState<JobOut | null>(null);
   // Cache-busts the slice image <img> src (the URL itself never changes).
   const [sliceNonce, setSliceNonce] = useState(0);
 
@@ -284,13 +294,32 @@ export default function Viewer() {
   // with SpineNet + CBAM, persists the mask + a v0 annotation + the labelled
   // slice), then reload the editable annotation, the slice/export extras, and
   // the study detail (so the viewer picks up the fresh mask).
+  //
+  // Grading takes 8-15 minutes on CPU, so this starts a background job and
+  // polls it rather than holding one request open the whole time: a proxy in
+  // front of the app would cut a request that long, and a bare spinner gives
+  // the doctor no way to tell work from a hang.
   async function handleRunAI() {
     if (!studyId) return;
     setRunning(true);
     setRunError(null);
+    setJob(null);
     try {
-      const full = await runFullGrading(studyId);
-      setFullResult(full);
+      let current = await startFullGrading(studyId);
+      setJob(current);
+
+      while (current.status === "running") {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        current = await getJob(current.id);
+        setJob(current);
+      }
+
+      if (current.status === "error") {
+        throw new Error(current.error ?? "Grading failed");
+      }
+
+      // The job persisted the result; fetch it the same way a reload would.
+      setFullResult(await getFullGrading(studyId));
       const ann = await getAnnotation(studyId);
       gradeHistory.reset(ann);
       setDirty(false);
@@ -300,6 +329,7 @@ export default function Viewer() {
       setRunError(err instanceof Error ? err.message : String(err));
     } finally {
       setRunning(false);
+      setJob(null);
     }
   }
 
@@ -422,6 +452,37 @@ export default function Viewer() {
             {running ? "Running…" : "✨ Run AI"}
           </button>
         </div>
+
+        {/* Grading runs for 8-15 minutes on CPU. Showing the current stage and
+            elapsed time — rather than a bare spinner or a fake smooth bar —
+            is what lets a doctor tell steady progress from a stall. */}
+        {running && (
+          <div className="border-t border-white/20 bg-teal-700/40 px-6 py-2">
+            <div className="mx-auto flex max-w-7xl items-center gap-3">
+              <div
+                className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/25"
+                role="progressbar"
+                aria-valuenow={job?.percent ?? 0}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label="Grading progress"
+              >
+                <div
+                  className="h-full rounded-full bg-white transition-all duration-500"
+                  style={{ width: `${job?.percent ?? 5}%` }}
+                />
+              </div>
+              <span className="whitespace-nowrap text-xs font-medium text-white">
+                {job?.stage ?? "Starting"}
+                {job ? ` · ${formatElapsed(job.elapsed_seconds)}` : ""}
+              </span>
+            </div>
+            <p className="mx-auto mt-1 max-w-7xl text-[11px] text-teal-50/80">
+              Usually 8–15 minutes on CPU. You can leave this page — the run
+              continues on the server and the result is saved.
+            </p>
+          </div>
+        )}
       </header>
 
       <main className="mx-auto flex max-w-7xl flex-wrap items-start gap-5 px-6 py-6">

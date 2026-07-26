@@ -63,9 +63,17 @@ def run_cbam_grading(
 
 
 def build_full_grading(
-    study_id: str, volume_path: str
+    study_id: str, volume_path: str, progress=None
 ) -> tuple[FullGradingResult, bytes, str, dict[int, str]]:
     """Run SpineNet + the CBAM path, merge them, and render the labelled slice.
+
+    Args:
+        progress: optional ``(stage: str, percent: int) -> None`` callback. The
+            stage boundaries are reported honestly rather than interpolated:
+            segmentation is a shell-out to TotalSpineSeg with no progress of its
+            own, so the percentage sits still while it runs and the stage label
+            plus elapsed time carry the information. A smooth-looking fake bar
+            would only make a stall indistinguishable from progress.
 
     Returns:
         ``(result, slice_png_bytes, mask_path, labels)`` -- the caller persists
@@ -73,8 +81,18 @@ def build_full_grading(
         labelmap the CBAM path already produced; the caller reorients it into the
         study dir and fills ``result.segmentation``).
     """
+    def report(stage: str, percent: int) -> None:
+        if progress is not None:
+            progress(stage, percent)
+
+    # By far the longest step: TotalSpineSeg segmentation plus CBAM grading.
+    report("Segmenting vertebrae (TotalSpineSeg)", 10)
     cbam_items, mask_path, labels = run_cbam_grading(volume_path)
+
+    report("Detecting and grading discs (SpineNet)", 70)
     spinenet_result = run_spinenet_grading_on_study_volume(volume_path)
+
+    report("Merging results", 90)
     merged = merge_gradings(spinenet_result.items, cbam_items)
     png = render_labelled_slice_png(spinenet_result)
     result = FullGradingResult(

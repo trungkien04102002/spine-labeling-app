@@ -56,7 +56,9 @@ def client(tmp_path, monkeypatch):
 
     from app.routers import full_grading as full_grading_router
 
-    def fake_build_full_grading(study_id, volume_path):
+    def fake_build_full_grading(study_id, volume_path, progress=None):
+        if progress is not None:
+            progress("Fake stage", 50)
         result = FullGradingResult(
             study_id=study_id,
             grading=[
@@ -81,6 +83,10 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(
         full_grading_router, "build_full_grading", fake_build_full_grading
     )
+    # The background job opens its own session (the request's is closed once the
+    # response goes out), so dependency_overrides does not reach it -- without
+    # this it would talk to the real configured database.
+    monkeypatch.setattr(full_grading_router, "SessionLocal", TestingSession)
     # to_web_mask reorients a real NIfTI into the study dir; stub it (no file I/O)
     # so these wiring tests don't need a real labelmap on disk.
     monkeypatch.setattr(
@@ -184,3 +190,109 @@ def test_grade_full_downloads_404_before_post(client):
     assert test_client.get("/studies/s1/grade_full.csv").status_code == 404
     assert test_client.get("/studies/s1/grade_full.json").status_code == 404
     assert test_client.get("/studies/s1/grade_full/slice.png").status_code == 404
+
+
+# --- The background path -------------------------------------------------
+
+
+def _poll_until_done(test_client, job_id, timeout=5.0):
+    import time
+
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        body = test_client.get(f"/jobs/{job_id}").json()
+        if body["status"] != "running":
+            return body
+        time.sleep(0.02)
+    raise AssertionError(f"job {job_id} never finished")
+
+
+def test_start_returns_a_job_immediately_and_grades_in_the_background(client):
+    test_client, _ = client
+
+    start = test_client.post("/studies/s1/grade_full/start")
+
+    assert start.status_code == 202, "the work has not happened yet"
+    job = start.json()
+    assert job["status"] == "running"
+
+    finished = _poll_until_done(test_client, job["id"])
+    assert finished["status"] == "done"
+    assert finished["percent"] == 100
+
+    # The result is persisted, so a client that missed the end can still read it.
+    cached = test_client.get("/studies/s1/grade_full")
+    assert cached.status_code == 200
+    assert cached.json()["study_id"] == "s1"
+
+
+def test_starting_twice_returns_the_run_already_in_flight(client, monkeypatch):
+    """Two concurrent runs would race over the same result files."""
+    import threading
+
+    from app.routers import full_grading as full_grading_router
+
+    test_client, _ = client
+    release = threading.Event()
+    started = threading.Event()
+    real_fake = full_grading_router.build_full_grading
+
+    def slow(study_id, volume_path, progress=None):
+        # Hold the first run open so the second genuinely overlaps it; with an
+        # instant fake the first would finish and the second would be free to
+        # start, which is not the situation this test is about.
+        started.set()
+        release.wait(timeout=5)
+        return real_fake(study_id, volume_path, progress)
+
+    monkeypatch.setattr(full_grading_router, "build_full_grading", slow)
+
+    first = test_client.post("/studies/s1/grade_full/start").json()
+    assert started.wait(timeout=5)
+    second = test_client.post("/studies/s1/grade_full/start").json()
+
+    assert second["id"] == first["id"], (
+        "a second start must join the running job, not launch a rival one"
+    )
+
+    release.set()
+    assert _poll_until_done(test_client, first["id"])["status"] == "done"
+
+
+def test_start_rejects_an_unknown_study_up_front(client):
+    """Bad requests must fail now, not become a job that fails later."""
+    test_client, _ = client
+
+    response = test_client.post("/studies/nope/grade_full/start")
+
+    assert response.status_code == 404
+
+
+def test_start_rejects_a_study_with_no_volume_up_front(client):
+    test_client, _ = client
+
+    response = test_client.post("/studies/no_vol/grade_full/start")
+
+    assert response.status_code == 400
+
+
+def test_unknown_job_id_is_404(client):
+    test_client, _ = client
+    assert test_client.get("/jobs/deadbeef").status_code == 404
+
+
+def test_a_failing_run_surfaces_as_an_errored_job(client, monkeypatch):
+    """A crash must be visible, not an eternal spinner."""
+    from app.routers import full_grading as full_grading_router
+
+    def boom(study_id, volume_path, progress=None):
+        raise RuntimeError("TotalSpineSeg binary not found")
+
+    monkeypatch.setattr(full_grading_router, "build_full_grading", boom)
+
+    test_client, _ = client
+    job = test_client.post("/studies/s1/grade_full/start").json()
+    finished = _poll_until_done(test_client, job["id"])
+
+    assert finished["status"] == "error"
+    assert "TotalSpineSeg binary not found" in finished["error"]
