@@ -41,6 +41,8 @@ def init_db(bind: Engine = engine) -> None:
 _ADDED_COLUMNS: list[tuple[str, str, str]] = [
     # (table, column, type) -- nullable so existing rows need no backfill.
     ("studies", "analyzed_series_id", "INTEGER NULL"),
+    ("correction_log", "submitted_at", "DATETIME NULL"),
+    ("correction_log", "batch_id", "VARCHAR(64) NULL"),
 ]
 
 

@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import Settings
 from app.db import init_db
-from app.routers import full_grading, infer, patients, studies
+from app.routers import feedback, full_grading, infer, patients, studies
 
 
 @asynccontextmanager
@@ -36,6 +36,7 @@ app.include_router(patients.router)
 app.include_router(studies.router)
 app.include_router(infer.router)
 app.include_router(full_grading.router)
+app.include_router(feedback.router)
 
 
 @app.get("/health")

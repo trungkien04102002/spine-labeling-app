@@ -130,3 +130,13 @@ class CorrectionLog(Base):
     at: Mapped[datetime.datetime] = mapped_column(
         DateTime, default=datetime.datetime.utcnow
     )
+    # A correction is captured the moment a doctor saves, but it only enters a
+    # training batch once someone submits it. Keeping "captured" and
+    # "submitted" apart means the doctor gets an explicit hand-off ("these N
+    # went to the model") instead of silently feeding a training set, and it
+    # gives the retraining side a stable batch to reason about even when
+    # corrections keep arriving.
+    submitted_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime, nullable=True
+    )
+    batch_id: Mapped[str | None] = mapped_column(String(64), nullable=True)

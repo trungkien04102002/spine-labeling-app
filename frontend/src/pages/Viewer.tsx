@@ -14,6 +14,7 @@ import {
   fullGradingJsonUrl,
   fullGradingSliceUrl,
   getAnnotation,
+  getCorrections,
   getFullGrading,
   getSeries,
   getStudyDetail,
@@ -21,6 +22,8 @@ import {
   saveAnnotation,
   saveMask,
   setActiveSeries,
+  submitCorrections,
+  type CorrectionQueue,
   type FullGradingResult,
   type InferResult,
   type SeriesOut,
@@ -225,8 +228,18 @@ export default function Viewer() {
   // `fullResult` only for the extras the annotation doesn't carry: the labelled
   // slice image and the CSV/JSON download URLs.
   const [fullResult, setFullResult] = useState<FullGradingResult | null>(null);
+  const [corrections, setCorrections] = useState<CorrectionQueue | null>(null);
+  const [submittingCorrections, setSubmittingCorrections] = useState(false);
+  const [submitMessage, setSubmitMessage] = useState<string | null>(null);
   // Cache-busts the slice image <img> src (the URL itself never changes).
   const [sliceNonce, setSliceNonce] = useState(0);
+
+  // The correction queue spans every study, so it loads once, not per-study.
+  useEffect(() => {
+    getCorrections()
+      .then(setCorrections)
+      .catch(() => setCorrections(null));
+  }, []);
 
   useEffect(() => {
     if (!studyId) return;
@@ -346,10 +359,36 @@ export default function Viewer() {
       await saveAnnotation(studyId, result);
       setDirty(false);
       setSavedNote("Saved as a new corrected version.");
+      // Saving is what creates correction rows, so the queue just changed.
+      void refreshCorrections();
     } catch (err) {
       setRunError(err instanceof Error ? err.message : String(err));
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function refreshCorrections() {
+    try {
+      setCorrections(await getCorrections());
+    } catch {
+      // The queue is a side panel; failing to load it must not take down the
+      // viewer the doctor is actually here to use.
+      setCorrections(null);
+    }
+  }
+
+  async function handleSubmitCorrections() {
+    setSubmittingCorrections(true);
+    setSubmitMessage(null);
+    try {
+      const result = await submitCorrections();
+      setSubmitMessage(result.message);
+      await refreshCorrections();
+    } catch (err) {
+      setRunError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSubmittingCorrections(false);
     }
   }
 
@@ -580,13 +619,53 @@ export default function Viewer() {
               <span className="font-medium text-slate-700">
                 “Save corrections”
               </span>
-              , the change is recorded as expert feedback. These corrections are
-              collected and used to periodically re-train the model, so its
-              predictions gradually improve with use.
+              , the change is recorded as expert feedback. Send them to the
+              model when you are ready — nothing is used for training until you
+              do.
             </p>
+
+            {corrections && (
+              <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3">
+                <div className="flex items-baseline justify-between text-xs">
+                  <span className="text-slate-600">Waiting to be sent</span>
+                  <span className="text-lg font-bold text-indigo-600">
+                    {corrections.pending}
+                  </span>
+                </div>
+                <div className="mt-1 flex items-baseline justify-between text-xs text-slate-500">
+                  <span>Already sent</span>
+                  <span>
+                    {corrections.submitted}
+                    {corrections.batches > 0 &&
+                      ` (${corrections.batches} batch${
+                        corrections.batches === 1 ? "" : "es"
+                      })`}
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleSubmitCorrections}
+                  disabled={corrections.pending === 0 || submittingCorrections}
+                  className="mt-3 w-full rounded-md bg-indigo-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                >
+                  {submittingCorrections
+                    ? "Sending…"
+                    : `Send ${corrections.pending} correction${
+                        corrections.pending === 1 ? "" : "s"
+                      } to the model`}
+                </button>
+
+                {submitMessage && (
+                  <p className="mt-2 text-xs text-emerald-700">{submitMessage}</p>
+                )}
+              </div>
+            )}
+
             <p className="mt-2 text-xs text-slate-400">
-              Re-training runs offline in batches — you don't need to do anything
-              beyond reviewing and saving.
+              Sending only queues the corrections. Re-training runs offline, and
+              a new model version has to be reviewed and switched on before it
+              grades anyone — so this never changes the next patient's result.
             </p>
           </div>
         </aside>

@@ -218,3 +218,70 @@ export function uploadStudy(studyId: string, file: File): Promise<UploadResponse
     body: form,
   });
 }
+
+// --- Doctor corrections on their way to the model -------------------------
+
+export interface CorrectionOut {
+  id: number;
+  study_id: string;
+  field: string;
+  old: string | null;
+  new: string | null;
+  at: string;
+  submitted_at: string | null;
+  batch_id: string | null;
+}
+
+export interface CorrectionQueue {
+  pending: number;
+  submitted: number;
+  batches: number;
+  recent: CorrectionOut[];
+}
+
+export interface SubmitResult {
+  batch_id: string;
+  submitted: number;
+  message: string;
+}
+
+/** Corrections waiting to be handed over, plus what has already gone. */
+export function getCorrections(limit = 20): Promise<CorrectionQueue> {
+  return apiFetch<CorrectionQueue>(`/corrections?limit=${limit}`);
+}
+
+/**
+ * Hand every pending correction to the model as one batch.
+ *
+ * This queues only — re-training happens offline and a new checkpoint has to
+ * be activated deliberately, so pressing this can never change what the next
+ * patient is graded by.
+ */
+export function submitCorrections(): Promise<SubmitResult> {
+  return apiFetch<SubmitResult>("/corrections/submit", { method: "POST" });
+}
+
+export interface CheckpointOut {
+  name: string;
+  size_bytes: number;
+  modified_at: string;
+  is_active: boolean;
+  is_baseline: boolean;
+  metrics: Record<string, unknown> | null;
+}
+
+export function getModelVersions(): Promise<CheckpointOut[]> {
+  return apiFetch<CheckpointOut[]>("/model/versions");
+}
+
+export function activateModel(checkpoint: string): Promise<CheckpointOut> {
+  return apiFetch<CheckpointOut>("/model/activate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ checkpoint }),
+  });
+}
+
+export function revertModel(): Promise<CheckpointOut> {
+  return apiFetch<CheckpointOut>("/model/revert", { method: "POST" });
+}

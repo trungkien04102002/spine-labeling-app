@@ -31,6 +31,8 @@ from __future__ import annotations
 
 import copy
 import csv
+import datetime
+import json
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -353,6 +355,21 @@ def retrain_head(
                 "base_checkpoint": checkpoint_path,
             },
             out_checkpoint,
+        )
+        # Sidecar copy of the numbers so the model-version UI can show what
+        # this checkpoint changed without loading ~240MB of weights.
+        Path(f"{out_checkpoint}.json").write_text(
+            json.dumps(
+                {
+                    "before": before,
+                    "after": after,
+                    "base_checkpoint": checkpoint_path,
+                    "n_corrections": len(CorrectionDataset(dataset_dir)),
+                    "replay_dir": replay_dir,
+                    "trained_at": datetime.datetime.now().isoformat(timespec="seconds"),
+                },
+                indent=2,
+            )
         )
         checkpoint_written = out_checkpoint
 

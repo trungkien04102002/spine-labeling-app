@@ -28,10 +28,8 @@ import torch.nn.functional as F
 from app.schemas import GradingItem
 from models.grading_attention import GradingModelWithCBAM
 
-# backend/app/inference/grading.py -> parents[2] == backend/
-_WEIGHTS_PATH = (
-    Path(__file__).resolve().parents[2] / "models" / "weights" / "phase2_cbam.pth"
-)
+# Which checkpoint is served now lives in app.feedback.model_registry (see
+# _load_model); it defaults to models/weights/phase2_cbam.pth.
 
 # Model head name -> GradingItem.condition value.
 _HEAD_TO_CONDITION = {
@@ -51,11 +49,19 @@ _LEVEL_TOKEN_RE = re.compile(r"^[lsLS]\d+$")
 
 @lru_cache(maxsize=1)
 def _load_model() -> GradingModelWithCBAM:
-    """Load the CBAM grading model once and cache it for the process lifetime."""
+    """Load the active CBAM grading checkpoint once and cache it.
+
+    Which checkpoint that is comes from `app.feedback.model_registry`, so
+    activating a retrained version takes effect on the next request (the
+    registry clears this cache when it switches). The import is local to avoid
+    a cycle: the registry needs this function to invalidate the cache.
+    """
+    from app.feedback.model_registry import active_checkpoint_path
+
     model = GradingModelWithCBAM(format="rsna", use_cbam=True)
 
     checkpoint = torch.load(
-        str(_WEIGHTS_PATH), map_location="cpu", weights_only=False
+        str(active_checkpoint_path()), map_location="cpu", weights_only=False
     )
     if isinstance(checkpoint, dict) and "model_state_dict" in checkpoint:
         state_dict = checkpoint["model_state_dict"]
