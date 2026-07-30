@@ -114,6 +114,17 @@ const PREDICTION_GUIDE: { name: string; scale: string; meaning: string; src: "Sp
   { name: "Disc herniation", scale: "binary", meaning: "Protrusion/extrusion of disc material.", src: "SpineNet" },
 ];
 
+// The three columns the project's own model owns. Their absence is the visible
+// symptom of an upstream failure (no lumbar disc labels in the mask), and it
+// looks exactly like a normal result unless it is called out.
+const CBAM_CONDITIONS = ["canal_stenosis", "left_foraminal", "right_foraminal"];
+
+function missingCbamColumns(grading: { condition: string }[]): boolean {
+  if (grading.length === 0) return false;
+  const present = new Set(grading.map((g) => g.condition));
+  return CBAM_CONDITIONS.every((c) => !present.has(c));
+}
+
 /** "7m 12s" — mm:ss reads as a duration; a raw second count does not. */
 function formatElapsed(seconds: number): string {
   const total = Math.floor(seconds);
@@ -570,8 +581,71 @@ export default function Viewer() {
             </div>
           )}
 
-          {/* Abnormality grades — the single 11-label editable table */}
+
+          {/* Doctor feedback — corrections feed the model over time */}
           <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+            <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-slate-800">
+              <span className="h-4 w-1 rounded bg-gradient-to-b from-indigo-500 to-violet-500" />
+              Doctor feedback
+            </h2>
+            <p className="text-xs text-slate-600">
+              When you fix a grade in the table above and press{" "}
+              <span className="font-medium text-slate-700">
+                “Save corrections”
+              </span>
+              , the change is recorded as expert feedback. Send them to the
+              model when you are ready — nothing is used for training until you
+              do.
+            </p>
+
+            {corrections && (
+              <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3">
+                <div className="flex items-baseline justify-between text-xs">
+                  <span className="text-slate-600">Waiting to be sent</span>
+                  <span className="text-lg font-bold text-indigo-600">
+                    {corrections.pending}
+                  </span>
+                </div>
+                <div className="mt-1 flex items-baseline justify-between text-xs text-slate-500">
+                  <span>Already sent</span>
+                  <span>
+                    {corrections.submitted}
+                    {corrections.batches > 0 &&
+                      ` (${corrections.batches} batch${
+                        corrections.batches === 1 ? "" : "es"
+                      })`}
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleSubmitCorrections}
+                  disabled={corrections.pending === 0 || submittingCorrections}
+                  className="mt-3 w-full rounded-md bg-indigo-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                >
+                  {submittingCorrections
+                    ? "Sending…"
+                    : `Send ${corrections.pending} correction${
+                        corrections.pending === 1 ? "" : "s"
+                      } to the model`}
+                </button>
+
+                {submitMessage && (
+                  <p className="mt-2 text-xs text-emerald-700">{submitMessage}</p>
+                )}
+              </div>
+            )}
+
+            <p className="mt-2 text-xs text-slate-400">
+              Sending only queues the corrections. Re-training runs offline, and
+              a new model version has to be reviewed and switched on before it
+              grades anyone — so this never changes the next patient's result.
+            </p>
+          </div>
+        </aside>
+
+          {/* Abnormality grades — the single 11-label editable table */}
+          <div className="w-full basis-full rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
             <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-slate-800">
               <span className="h-4 w-1 rounded bg-gradient-to-b from-teal-500 to-cyan-500" />
               Abnormality grades
@@ -579,6 +653,17 @@ export default function Viewer() {
             {runError && (
               <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
                 {runError}
+              </div>
+            )}
+            {result && missingCbamColumns(result.grading) && (
+              <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                <strong>Canal and foraminal stenosis are missing.</strong> Those
+                three come from the fine-tuned CBAM model, which grades crops cut
+                from the lumbar disc labels in the segmentation. The mask for
+                this study has no lumbar discs, so there was nothing to grade —
+                only the 8 upstream SpineNet labels are shown. Re-upload the
+                study and run again; if it persists, the segmentation is wrong,
+                not the grading.
               </div>
             )}
             {result ? (
@@ -668,68 +753,6 @@ export default function Viewer() {
               )
             )}
           </div>
-
-          {/* Doctor feedback — corrections feed the model over time */}
-          <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-            <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-slate-800">
-              <span className="h-4 w-1 rounded bg-gradient-to-b from-indigo-500 to-violet-500" />
-              Doctor feedback
-            </h2>
-            <p className="text-xs text-slate-600">
-              When you fix a grade in the table above and press{" "}
-              <span className="font-medium text-slate-700">
-                “Save corrections”
-              </span>
-              , the change is recorded as expert feedback. Send them to the
-              model when you are ready — nothing is used for training until you
-              do.
-            </p>
-
-            {corrections && (
-              <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3">
-                <div className="flex items-baseline justify-between text-xs">
-                  <span className="text-slate-600">Waiting to be sent</span>
-                  <span className="text-lg font-bold text-indigo-600">
-                    {corrections.pending}
-                  </span>
-                </div>
-                <div className="mt-1 flex items-baseline justify-between text-xs text-slate-500">
-                  <span>Already sent</span>
-                  <span>
-                    {corrections.submitted}
-                    {corrections.batches > 0 &&
-                      ` (${corrections.batches} batch${
-                        corrections.batches === 1 ? "" : "es"
-                      })`}
-                  </span>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleSubmitCorrections}
-                  disabled={corrections.pending === 0 || submittingCorrections}
-                  className="mt-3 w-full rounded-md bg-indigo-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-                >
-                  {submittingCorrections
-                    ? "Sending…"
-                    : `Send ${corrections.pending} correction${
-                        corrections.pending === 1 ? "" : "s"
-                      } to the model`}
-                </button>
-
-                {submitMessage && (
-                  <p className="mt-2 text-xs text-emerald-700">{submitMessage}</p>
-                )}
-              </div>
-            )}
-
-            <p className="mt-2 text-xs text-slate-400">
-              Sending only queues the corrections. Re-training runs offline, and
-              a new model version has to be reviewed and switched on before it
-              grades anyone — so this never changes the next patient's result.
-            </p>
-          </div>
-        </aside>
       </main>
     </div>
   );

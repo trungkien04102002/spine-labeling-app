@@ -18,9 +18,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
+import pydicom
 import SimpleITK as sitk
 
 _NIFTI_SUFFIXES = (".nii", ".nii.gz")
+
+# What GDCM hands back when it cannot work out a series' real voxel size.
+_FALLBACK_SPACING = (1.0, 1.0, 1.0)
 
 
 @dataclass(frozen=True)
@@ -165,6 +169,65 @@ def _describe_series(uid: str, series_dir: Path) -> SeriesInfo:
     )
 
 
+def _slice_spacing(files: list[str], first: pydicom.Dataset) -> float | None:
+    """Through-plane spacing, preferring the distance the slices actually moved.
+
+    ``SliceThickness`` is the excited slab, not the sampling step -- the RSNA
+    lumbar series here are 4.0 mm thick but stepped 4.8 mm, a 20% error if the
+    tag is trusted. Projecting the position delta onto the slice normal gives
+    the real step, so that is tried first.
+    """
+    if len(files) > 1:
+        try:
+            second = pydicom.dcmread(files[1], stop_before_pixels=True)
+            start = np.asarray(first.ImagePositionPatient, dtype=float)
+            nxt = np.asarray(second.ImagePositionPatient, dtype=float)
+            orient = np.asarray(first.ImageOrientationPatient, dtype=float)
+            normal = np.cross(orient[:3], orient[3:])
+            step = abs(float(np.dot(nxt - start, normal)))
+            if step > 1e-3:
+                return step
+        except Exception:
+            pass  # fall through to the header tags
+    for tag in ("SpacingBetweenSlices", "SliceThickness"):
+        value = getattr(first, tag, None)
+        if value:
+            return float(value)
+    return None
+
+
+def _spacing_from_headers(files: list[str]) -> tuple[float, float, float] | None:
+    """Recover voxel spacing from the DICOM headers, or None if unavailable.
+
+    Only used when GDCM already gave up. The RSNA-2024 DICOMs are anonymised
+    re-exports that declare ``Enhanced MR Image Storage`` while holding ordinary
+    single-frame classic MR data. For Enhanced MR the standard keeps the voxel
+    size in ``SharedFunctionalGroupsSequence -> PixelMeasuresSequence``, so GDCM
+    correctly looks there, finds nothing, and returns 1x1x1 mm -- ignoring the
+    legacy ``(0028,0030) PixelSpacing`` that is right there in the file, and
+    that pydicom reads without complaint.
+
+    Nothing downstream notices on its own. The viewer merely looks a little
+    squashed, but TotalSpineSeg resamples by *physical* size: a lumbar scan that
+    claims to be isotropic 1 mm when it is really 0.47 x 0.47 x 4.8 mm arrives
+    at the network several times the wrong shape, and comes back with the
+    vertebrae labelled as cervical and thoracic.
+    """
+    try:
+        first = pydicom.dcmread(files[0], stop_before_pixels=True)
+    except Exception:
+        return None
+    pixel_spacing = getattr(first, "PixelSpacing", None)
+    if pixel_spacing is None or len(pixel_spacing) != 2:
+        return None
+    # DICOM PixelSpacing is (row, column) = (y, x); SimpleITK wants (x, y, z).
+    row, column = float(pixel_spacing[0]), float(pixel_spacing[1])
+    through_plane = _slice_spacing(files, first)
+    if through_plane is None:
+        return None
+    return (column, row, through_plane)
+
+
 def _read_image(path: str) -> sitk.Image:
     """Read a DICOM series (directory) or a single MHA/NIfTI file."""
     src = Path(path)
@@ -174,7 +237,13 @@ def _read_image(path: str) -> sitk.Image:
         if not series_files:
             raise FileNotFoundError(f"No DICOM series found in {src}")
         reader.SetFileNames(series_files)
-        return reader.Execute()
+        image = reader.Execute()
+        # Trust GDCM unless it returned its "I don't know" answer verbatim.
+        if tuple(round(s, 6) for s in image.GetSpacing()) == _FALLBACK_SPACING:
+            recovered = _spacing_from_headers(list(series_files))
+            if recovered is not None and recovered != _FALLBACK_SPACING:
+                image.SetSpacing(recovered)
+        return image
     if not src.is_file():
         raise FileNotFoundError(f"Volume path does not exist: {src}")
     return sitk.ReadImage(str(src))

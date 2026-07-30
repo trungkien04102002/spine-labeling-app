@@ -94,6 +94,9 @@ export default function CornerstoneViewport({
   const engineRef = useRef<RenderingEngine | null>(null);
   const labelmapIdsRef = useRef<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // Set when a mask exists but belongs to a different acquisition than the one
+  // on screen -- a fact worth stating, not an error.
+  const [segForeign, setSegForeign] = useState(false);
   const [segAvailable, setSegAvailable] = useState(false);
   const [segVisible, setSegVisible] = useState(true);
   const [segOpacity, setSegOpacity] = useState(0.5);
@@ -111,6 +114,12 @@ export default function CornerstoneViewport({
     let engine: RenderingEngine | undefined;
 
     const renderingEngineId = `engine-${studyId}`;
+
+    // Each series gets a fresh verdict: a failure on one must not be left on
+    // screen while a later, working one renders underneath it.
+    setError(null);
+    setSegForeign(false);
+    setSegAvailable(false);
 
     (async () => {
       await ensureCornerstoneInitialized();
@@ -186,29 +195,45 @@ export default function CornerstoneViewport({
         if (cancelled) return;
         const derivedImages =
           imageLoader.createAndCacheDerivedLabelmapImages(imageIds);
-        for (let i = 0; i < derivedImages.length; i++) {
-          derivedImages[i].getPixelData().set(maskImages[i].getPixelData());
-        }
-        const labelmapImageIds = derivedImages.map((img) => img.imageId);
-        labelmapIdsRef.current = labelmapImageIds;
-        segmentation.addSegmentations([
-          {
-            segmentationId,
-            representation: {
-              type: SegmentationRepresentations.Labelmap,
-              data: { imageIds: labelmapImageIds },
+        // The mask belongs to whichever series the AI ran on. Browsing a
+        // different acquisition (axial vs sagittal) hands us a labelmap of a
+        // different shape; copying it in would throw "offset is out of bounds"
+        // and, worse, a same-sized-but-different series would silently paint
+        // one acquisition's anatomy onto another's.
+        const fitsThisSeries =
+          maskImages.length === derivedImages.length &&
+          maskImages.every(
+            (img, i) =>
+              img.getPixelData().length ===
+              derivedImages[i].getPixelData().length,
+          );
+        if (!fitsThisSeries) {
+          setSegForeign(true);
+        } else {
+          for (let i = 0; i < derivedImages.length; i++) {
+            derivedImages[i].getPixelData().set(maskImages[i].getPixelData());
+          }
+          const labelmapImageIds = derivedImages.map((img) => img.imageId);
+          labelmapIdsRef.current = labelmapImageIds;
+          segmentation.addSegmentations([
+            {
+              segmentationId,
+              representation: {
+                type: SegmentationRepresentations.Labelmap,
+                data: { imageIds: labelmapImageIds },
+              },
             },
-          },
-        ]);
-        await segmentation.addLabelmapRepresentationToViewport(viewportId, [
-          { segmentationId, type: SegmentationRepresentations.Labelmap },
-        ]);
-        // The pixel data was written after the images were cached; tell the
-        // segmentation machinery so it (re)builds textures and repaints.
-        segmentation.triggerSegmentationEvents.triggerSegmentationDataModified(
-          segmentationId,
-        );
-        if (!cancelled) setSegAvailable(true);
+          ]);
+          await segmentation.addLabelmapRepresentationToViewport(viewportId, [
+            { segmentationId, type: SegmentationRepresentations.Labelmap },
+          ]);
+          // The pixel data was written after the images were cached; tell the
+          // segmentation machinery so it (re)builds textures and repaints.
+          segmentation.triggerSegmentationEvents.triggerSegmentationDataModified(
+            segmentationId,
+          );
+          if (!cancelled) setSegAvailable(true);
+        }
       }
 
       if (cancelled) return;
@@ -389,6 +414,21 @@ export default function CornerstoneViewport({
   return (
     <div>
       {error && <p style={{ color: "crimson" }}>Viewer error: {error}</p>}
+      {segForeign && (
+        <p
+          style={{
+            margin: 0,
+            padding: "8px 12px",
+            fontSize: "0.85rem",
+            color: "#92400e",
+            background: "#fffbeb",
+            borderBottom: "1px solid #fde68a",
+          }}
+        >
+          Segmentation belongs to the analysed series and is not shown here.
+          Switch back to the series marked <strong>AI</strong> to see or edit it.
+        </p>
+      )}
       {segAvailable && (
         <div
           style={{
