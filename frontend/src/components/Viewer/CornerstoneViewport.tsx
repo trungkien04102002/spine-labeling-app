@@ -396,9 +396,19 @@ export default function CornerstoneViewport({
       { segmentationId, type: SegmentationRepresentations.Labelmap },
       segVisible,
     );
+    // Visibility alone only drops the fill -- the per-segment outline is a
+    // separate style flag, so unchecking the box left every disc still traced.
+    segmentation.config.style.setStyle(
+      {
+        type: SegmentationRepresentations.Labelmap,
+        viewportId,
+        segmentationId,
+      },
+      { renderFill: segVisible, renderOutline: segVisible },
+    );
   }, [segAvailable, segVisible, viewportId, segmentationId]);
 
-  // Apply opacity (fillAlpha) whenever the slider changes.
+  // Apply opacity whenever the slider changes.
   useEffect(() => {
     if (!segAvailable) return;
     segmentation.config.style.setStyle(
@@ -407,7 +417,9 @@ export default function CornerstoneViewport({
         viewportId,
         segmentationId,
       },
-      { fillAlpha: segOpacity },
+      // The outline has its own alpha; without it, sliding to 0 still leaves a
+      // full-strength outline of every structure.
+      { fillAlpha: segOpacity, outlineOpacity: segOpacity },
     );
   }, [segAvailable, segOpacity, viewportId, segmentationId]);
 
