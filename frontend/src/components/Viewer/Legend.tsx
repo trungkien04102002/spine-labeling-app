@@ -1,47 +1,64 @@
 import type { LegendEntry } from "./CornerstoneViewport";
+import { Swatch } from "./LabelPicker";
+import { prettyName } from "../../lib/labels";
 
-/** Prettify a TotalSpineSeg label name, e.g. "vertebrae_L1" -> "Vertebra L1". */
-function prettyName(name: string): string {
-  if (name.startsWith("vertebrae_")) return `Vertebra ${name.slice(10)}`;
-  if (name.startsWith("disc_")) return `Disc ${name.slice(5).replace(/_/g, "-")}`;
-  return name.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
+interface Props {
+  entries: LegendEntry[];
+  /** When set, the legend doubles as the brush's structure picker. */
+  onSelect?: (id: number) => void;
+  /** Structure the brush currently paints (highlighted). */
+  activeId?: number | null;
 }
 
-/** Color-swatch legend mapping each mask color to its anatomical structure. */
-export default function Legend({ entries }: { entries: LegendEntry[] }) {
+/**
+ * Colour-swatch legend mapping each mask colour to its anatomical structure.
+ *
+ * While the mask is being edited the same rows become the picker: the doctor
+ * reads a colour off the image and clicks it here, instead of translating it
+ * into a name and hunting for that name in a separate dropdown.
+ */
+export default function Legend({ entries, onSelect, activeId }: Props) {
   if (entries.length === 0) return null;
   return (
     <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-        gap: "3px 14px",
-        fontSize: "0.78rem",
-      }}
+      className="grid grid-cols-2 gap-x-3.5 gap-y-[3px] text-[0.78rem]"
+      role={onSelect ? "listbox" : undefined}
+      aria-label={onSelect ? "Structure to paint" : undefined}
     >
-      {entries.map((e) => (
-        <div
-          key={e.id}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            whiteSpace: "nowrap",
-          }}
-        >
-          <span
-            style={{
-              display: "inline-block",
-              width: 11,
-              height: 11,
-              borderRadius: 2,
-              background: `rgb(${e.color[0]},${e.color[1]},${e.color[2]})`,
-              flexShrink: 0,
-            }}
-          />
-          {prettyName(e.name)}
-        </div>
-      ))}
+      {entries.map((e) => {
+        const active = onSelect != null && e.id === activeId;
+        const content = (
+          <>
+            <Swatch color={e.color} size={11} />
+            <span className="truncate">{prettyName(e.name)}</span>
+          </>
+        );
+        return onSelect ? (
+          <button
+            key={e.id}
+            type="button"
+            role="option"
+            aria-selected={active}
+            data-testid={`legend-option-${e.id}`}
+            onClick={() => onSelect(e.id)}
+            className={
+              "flex min-w-0 items-center gap-1.5 rounded px-1 py-0.5 text-left transition hover:bg-teal-50 " +
+              (active
+                ? "bg-teal-50 font-semibold text-teal-800 ring-1 ring-teal-400"
+                : "text-slate-700")
+            }
+          >
+            {content}
+          </button>
+        ) : (
+          <div
+            key={e.id}
+            className="flex min-w-0 items-center gap-1.5 px-1 py-0.5 text-slate-700"
+          >
+            {content}
+          </div>
+        );
+      })}
     </div>
   );
 }

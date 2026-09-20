@@ -27,6 +27,12 @@ import {
 } from "@cornerstonejs/tools";
 import { createNiftiImageIdsAndCacheMetadata } from "@cornerstonejs/nifti-volume-loader";
 import { ensureCornerstoneInitialized } from "../../lib/cornerstone";
+import {
+  redoMaskEdit,
+  resetMaskHistory,
+  undoMaskEdit,
+} from "../../lib/maskHistory";
+import LabelPicker from "./LabelPicker";
 
 const { ViewportType } = Enums;
 const { MouseBindings, SegmentationRepresentations } = csToolsEnums;
@@ -39,6 +45,10 @@ const MASK_EDIT_ENABLED = true;
 export interface MaskEditApi {
   /** Flat uint8 voxels in slice order (z, y, x), or null if no mask loaded. */
   getMaskVolume: () => Uint8Array | null;
+  /** Undo one brush/erase stroke. False when there is nothing left to undo. */
+  undoStroke: () => boolean;
+  /** Redo one undone stroke. False when there is nothing ahead. */
+  redoStroke: () => boolean;
 }
 
 /** One legend row: label id, anatomical name, and its rendered RGB color. */
@@ -64,10 +74,22 @@ interface Props {
   targetSlice?: number | null;
   /** Present labelmap labels (id -> name) for the edit label picker. */
   segLabels?: Record<string, string>;
+  /**
+   * Mask editing is controlled by the page, not by this component, so the
+   * Structures panel beside the image can act as the brush's picker and the
+   * page's Undo/Redo buttons can reach the strokes painted here.
+   */
+  editMode?: boolean;
+  onEditModeChange?: (on: boolean) => void;
+  /** Segment the brush paints. null = not chosen yet; the brush stays inert. */
+  activeLabel?: number | null;
+  onActiveLabelChange?: (id: number) => void;
   /** Populated with a handle to read the edited mask (for "Save mask"). */
   editApiRef?: MutableRefObject<MaskEditApi | null>;
-  /** Called when the mask is painted/erased (marks the mask dirty). */
-  onMaskEdited?: () => void;
+  /** Called once per completed stroke (mouse-down to mouse-up), not per move. */
+  onMaskStroke?: () => void;
+  /** Called when a fresh labelmap loads and the stroke history is dropped. */
+  onMaskHistoryReset?: () => void;
   /** Called once the labelmap is rendered, with each label's color (legend). */
   onLegend?: (entries: LegendEntry[]) => void;
 }
@@ -85,8 +107,13 @@ export default function CornerstoneViewport({
   overlay,
   targetSlice,
   segLabels,
+  editMode = false,
+  onEditModeChange,
+  activeLabel = null,
+  onActiveLabelChange,
   editApiRef,
-  onMaskEdited,
+  onMaskStroke,
+  onMaskHistoryReset,
   onLegend,
 }: Props) {
   const elementRef = useRef<HTMLDivElement>(null);
@@ -100,10 +127,18 @@ export default function CornerstoneViewport({
   const [segAvailable, setSegAvailable] = useState(false);
   const [segVisible, setSegVisible] = useState(true);
   const [segOpacity, setSegOpacity] = useState(0.5);
-  const [editMode, setEditMode] = useState(false);
   const [editTool, setEditTool] = useState<"brush" | "erase">("brush");
   const [brushSize, setBrushSize] = useState(10);
-  const [activeLabel, setActiveLabel] = useState<number>(0);
+  // Legend entries are kept here as well as handed to the page: the label
+  // picker needs each structure's *rendered* color, which only the LUT knows.
+  const [legendEntries, setLegendEntries] = useState<LegendEntry[]>([]);
+  // A stroke spans many mousemove events; these track it so the page is told
+  // "one stroke happened", matching one entry in Cornerstone's undo history.
+  const paintingRef = useRef(false);
+  const strokeTouchedRef = useRef(false);
+  // Read inside the load effect, which must not re-run when a parent re-renders.
+  const historyResetRef = useRef(onMaskHistoryReset);
+  historyResetRef.current = onMaskHistoryReset;
 
   const viewportId = `vp-${studyId}`;
   const segmentationId = `seg-${studyId}`;
@@ -232,6 +267,11 @@ export default function CornerstoneViewport({
           segmentation.triggerSegmentationEvents.triggerSegmentationDataModified(
             segmentationId,
           );
+          // Strokes recorded against the previous labelmap can only be replayed
+          // into voxels that no longer exist, so this labelmap starts with an
+          // empty history -- and the page has to forget its mask steps too.
+          resetMaskHistory();
+          historyResetRef.current?.();
           if (!cancelled) setSegAvailable(true);
         }
       }
@@ -255,6 +295,8 @@ export default function CornerstoneViewport({
       viewportRef.current = null;
       engineRef.current = null;
       labelmapIdsRef.current = [];
+      resetMaskHistory();
+      historyResetRef.current?.();
       segmentation.removeSegmentation(segmentationId);
       ToolGroupManager.destroyToolGroup(toolGroupId);
       engine?.destroy();
@@ -293,6 +335,19 @@ export default function CornerstoneViewport({
         });
         return out;
       },
+      // Replaying a memo writes the old voxel values back and fires
+      // SEGMENTATION_DATA_MODIFIED, which rebuilds the texture; the explicit
+      // render is belt-and-braces for the slice already on screen.
+      undoStroke: () => {
+        const done = undoMaskEdit();
+        if (done) viewportRef.current?.render();
+        return done;
+      },
+      redoStroke: () => {
+        const done = redoMaskEdit();
+        if (done) viewportRef.current?.render();
+        return done;
+      },
     };
     return () => {
       if (editApiRef) editApiRef.current = null;
@@ -304,13 +359,22 @@ export default function CornerstoneViewport({
     if (!segAvailable) return;
     const toolGroup = ToolGroupManager.getToolGroup(toolGroupId);
     if (!toolGroup) return;
-    if (editMode) {
+    // Painting with no structure chosen is what put the wrong colour on the
+    // image in the first place, so the brush is only armed once one is picked.
+    // Erasing needs no target, so it arms immediately.
+    const armed = editMode && (activeLabel != null || editTool === "erase");
+    if (armed) {
       // The brush paints into the viewport's ACTIVE segmentation/segment.
       segmentation.activeSegmentation.setActiveSegmentation(
         viewportId,
         segmentationId,
       );
-      segmentation.segmentIndex.setActiveSegmentIndex(segmentationId, activeLabel);
+      if (activeLabel != null) {
+        segmentation.segmentIndex.setActiveSegmentIndex(
+          segmentationId,
+          activeLabel,
+        );
+      }
       // Free the primary button from window/level so the brush receives it.
       toolGroup.setToolPassive(WindowLevelTool.toolName);
       toolGroup.setToolConfiguration(BrushTool.toolName, {
@@ -323,9 +387,16 @@ export default function CornerstoneViewport({
       csToolsUtilities.segmentation.setBrushSizeForToolGroup(toolGroupId, brushSize);
     } else {
       toolGroup.setToolPassive(BrushTool.toolName);
-      toolGroup.setToolActive(WindowLevelTool.toolName, {
-        bindings: [{ mouseButton: MouseBindings.Primary }],
-      });
+      if (editMode) {
+        // Editing, but no structure chosen: leave the primary button bound to
+        // nothing. Handing it back to window/level would mean a doctor who
+        // drags expecting to paint instead silently re-windows the image.
+        toolGroup.setToolPassive(WindowLevelTool.toolName);
+      } else {
+        toolGroup.setToolActive(WindowLevelTool.toolName, {
+          bindings: [{ mouseButton: MouseBindings.Primary }],
+        });
+      }
     }
   }, [
     segAvailable,
@@ -333,6 +404,7 @@ export default function CornerstoneViewport({
     editTool,
     brushSize,
     activeLabel,
+    viewportId,
     segmentationId,
     toolGroupId,
   ]);
@@ -340,7 +412,7 @@ export default function CornerstoneViewport({
   // Build the color legend once the labelmap is rendered (colors are assigned
   // by Cornerstone's LUT keyed on the label id = segment index).
   useEffect(() => {
-    if (!segAvailable || !segLabels || !onLegend) return;
+    if (!segAvailable || !segLabels) return;
     const entries: LegendEntry[] = Object.entries(segLabels).map(
       ([id, name]) => {
         const c = segmentation.config.color.getSegmentIndexColor(
@@ -351,32 +423,50 @@ export default function CornerstoneViewport({
         return { id: Number(id), name, color: [c[0], c[1], c[2]] };
       },
     );
-    onLegend(entries);
+    setLegendEntries(entries);
+    onLegend?.(entries);
   }, [segAvailable, segLabels, onLegend, viewportId, segmentationId]);
 
-  // Mark the mask dirty when the user paints/erases. Only while editing, so the
-  // initial setup's triggerSegmentationDataModified doesn't count as an edit.
+  // Report one completed stroke (mouse-down to mouse-up), so the page's undo
+  // stack gets one entry per stroke -- the same granularity Cornerstone commits
+  // to its own history on mouse-up. SEGMENTATION_DATA_MODIFIED alone fires on
+  // every mousemove, and would have produced dozens of steps per stroke.
   useEffect(() => {
-    if (!onMaskEdited || !editMode) return;
-    const handler = () => onMaskEdited();
+    if (!onMaskStroke || !editMode || !segAvailable) return;
+    const el = elementRef.current;
+    if (!el) return;
+    const onData = () => {
+      if (paintingRef.current) strokeTouchedRef.current = true;
+    };
+    const onDown = () => {
+      paintingRef.current = true;
+      strokeTouchedRef.current = false;
+    };
+    // On window, not the canvas: a stroke that ends outside the image still ends.
+    const onUp = () => {
+      if (!paintingRef.current) return;
+      paintingRef.current = false;
+      if (!strokeTouchedRef.current) return; // a click that painted nothing
+      strokeTouchedRef.current = false;
+      // The tool commits its memo in its own mouse-up handler; announce the
+      // stroke after that has run so the history is already one deeper.
+      setTimeout(() => onMaskStroke(), 0);
+    };
     eventTarget.addEventListener(
       csToolsEnums.Events.SEGMENTATION_DATA_MODIFIED,
-      handler,
+      onData,
     );
-    return () =>
+    el.addEventListener("mousedown", onDown);
+    window.addEventListener("mouseup", onUp);
+    return () => {
       eventTarget.removeEventListener(
         csToolsEnums.Events.SEGMENTATION_DATA_MODIFIED,
-        handler,
+        onData,
       );
-  }, [onMaskEdited, editMode]);
-
-  // Default the active edit label to the first present label once seg loads.
-  useEffect(() => {
-    if (segAvailable && activeLabel === 0 && segLabels) {
-      const first = Object.keys(segLabels)[0];
-      if (first) setActiveLabel(Number(first));
-    }
-  }, [segAvailable, segLabels, activeLabel]);
+      el.removeEventListener("mousedown", onDown);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [onMaskStroke, editMode, segAvailable]);
 
   // Jump the stack to a requested slice (e.g. clicking a disc in the grade table).
   useEffect(() => {
@@ -480,8 +570,9 @@ export default function CornerstoneViewport({
             <label>
               <input
                 type="checkbox"
+                data-testid="edit-mask-toggle"
                 checked={editMode}
-                onChange={(e) => setEditMode(e.target.checked)}
+                onChange={(e) => onEditModeChange?.(e.target.checked)}
               />{" "}
               Edit mask
             </label>
@@ -490,6 +581,7 @@ export default function CornerstoneViewport({
             <>
               <select
                 value={editTool}
+                data-testid="edit-tool"
                 onChange={(e) => setEditTool(e.target.value as "brush" | "erase")}
               >
                 <option value="brush">Brush</option>
@@ -507,18 +599,25 @@ export default function CornerstoneViewport({
                   onChange={(e) => setBrushSize(Number(e.target.value))}
                 />
               </label>
-              {segLabels && (
-                <select
+              {legendEntries.length > 0 && (
+                <LabelPicker
+                  entries={legendEntries}
                   value={activeLabel}
-                  onChange={(e) => setActiveLabel(Number(e.target.value))}
+                  onChange={(id) => onActiveLabelChange?.(id)}
                   disabled={editTool === "erase"}
+                  // Opening the list the moment editing starts makes the choice
+                  // the first thing the doctor sees, instead of a brush that
+                  // silently refuses to paint.
+                  autoOpen={activeLabel == null && editTool === "brush"}
+                />
+              )}
+              {editTool === "brush" && activeLabel == null && (
+                <span
+                  data-testid="pick-structure-hint"
+                  style={{ color: "#b45309", fontWeight: 500 }}
                 >
-                  {Object.entries(segLabels).map(([id, name]) => (
-                    <option key={id} value={id}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
+                  Pick the structure to paint — the brush is off until you do.
+                </span>
               )}
             </>
           )}
