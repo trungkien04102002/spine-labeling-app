@@ -210,7 +210,14 @@ def _live_run(db: Session) -> RetrainRun | None:
 
 def _readiness(db: Session, settings: Settings) -> ReadinessOut:
     holdout = _holdout_dir(settings)
-    holdout_ok, holdout_message = freeze_holdout.verify(str(holdout))
+    # A missing or unreadable held-out set is a state this page exists to
+    # report, not a crash. `verify` raises when the directory is not there at
+    # all -- which is exactly what a fresh deployment looks like, since
+    # `data/` is gitignored and does not travel with the code.
+    try:
+        holdout_ok, holdout_message = freeze_holdout.verify(str(holdout))
+    except (FileNotFoundError, OSError, ValueError) as exc:
+        holdout_ok, holdout_message = False, f"{holdout}: {exc}"
     holdout_rows = _dataset_rows(holdout)
 
     replay_dir = settings.retrain_replay_dir.strip()
