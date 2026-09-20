@@ -26,7 +26,10 @@ This is the one design decision to understand before changing anything in the
 Viewer.
 
 A doctor's correction does **not** change the model immediately. It is queued.
-Retraining runs offline. A new checkpoint has to be activated deliberately.
+Retraining is a separate, deliberate step — `/admin` can start one on a sealed
+batch (`POST /corrections/batches/{id}/retrain`, a polled job), and it produces
+a *candidate* checkpoint at most. A new checkpoint has to be activated
+deliberately.
 The reason is stated in the UI itself: otherwise patient B's result could
 change because of a correction made on patient A, which is unacceptable in a
 clinical tool. If a UI change makes corrections look instant, it breaks the
@@ -93,7 +96,16 @@ Backend is ~3900 lines under `backend/app/`, FastAPI, with routers for
 - **viewing** `fullGradingSliceUrl`, mask endpoints, `saveMask`
 - **inference** `runInference`, `getAnnotation`, `runFullGrading`,
   `getFullGrading`, `startFullGrading` + `getJob` (the async, polled path)
-- **feedback loop** `getCorrections`, `submitCorrections`
+- **feedback loop** `getCorrections`, `submitCorrections`,
+  `getCorrectionBatches`
+- **re-training** `getRetrainReadiness`, `startBatchRetrain` + `getJob`,
+  `getRetrainRuns` (the run log shown on `/admin`). A run trains on **every
+  correction sent so far** by default (`scope: "all"`, deduped to the latest
+  edit per grade); `scope: "batch"` trains on the launching batch alone and is
+  what makes a past run reproducible. The batch id is recorded either way. The replay set of original
+  discs is not in this repo: `RETRAIN_REPLAY_DIR` in `backend/.env` points at
+  `rsna_preprocessed` (~8.2 GB). Unset or missing → `/admin` shows the blocked
+  state and the run is refused unless asked for `without_replay`.
 - **model registry** `getModelVersions`, `activateModel`, `revertModel`
 - **export** `exportUrl`, `fullGradingCsvUrl`, `fullGradingJsonUrl`
 
@@ -202,6 +214,11 @@ Collected from advisor feedback, not yet built:
   configure which conditions are graded.
 - **No axial support.** Series switching exists, but nothing downstream uses an
   axial series. The 10 subarticular labels in the dataset are unused.
+- **No record of who activated a checkpoint, or when.** `/models` writes the
+  `ACTIVE` pointer and nothing else; re-training runs are logged in
+  `retrain_runs`, but the approval step that follows them is not. Adding an
+  `activations` row (checkpoint, time, and whatever identity the app ever
+  gains) would close the audit trail — the run log already has the shape.
 - **No explanation surface.** The model's output appears without any indication
   of where in the image it came from. (Research note: saliency maps were
   evaluated and found unreliable for this task, so a heat-map overlay would be

@@ -578,11 +578,15 @@ export default function ModelVersions() {
             </li>
             <li>
               <strong className="text-slate-700">
-                3 · Re-training runs offline.
+                3 · Someone runs re-training on a batch.
               </strong>{" "}
-              An operator runs it on the collected batches, scores the result on
-              a frozen held-out set, and only keeps a checkpoint that improves.
-              The new file lands beside the baseline, serving nothing.
+              From{" "}
+              <Link to="/admin" className="text-indigo-600 hover:underline">
+                Feedback operations
+              </Link>{" "}
+              (or a terminal). It scores the result on a frozen held-out set and
+              only keeps a checkpoint that improves. The new file lands beside
+              the baseline, serving nothing.
             </li>
             <li>
               <strong className="text-slate-700">4 · Someone decides.</strong>{" "}

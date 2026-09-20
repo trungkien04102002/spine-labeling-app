@@ -5,13 +5,24 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import Settings
 from app.db import init_db
-from app.routers import feedback, full_grading, infer, patients, studies
+from app.routers import (
+    feedback,
+    full_grading,
+    infer,
+    patients,
+    retraining,
+    studies,
+)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Ensure the MySQL schema exists when the server boots.
     init_db()
+    # Runs left "running" by a restart are closed out lazily, by the retraining
+    # router, which can tell a dead row from a live one. Doing it here would
+    # also fire in any other process that opens this database -- the test suite
+    # does -- and stamp a run that is genuinely in flight as interrupted.
     yield
 
 
@@ -37,6 +48,7 @@ app.include_router(studies.router)
 app.include_router(infer.router)
 app.include_router(full_grading.router)
 app.include_router(feedback.router)
+app.include_router(retraining.router)
 
 
 @app.get("/health")
