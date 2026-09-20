@@ -1,0 +1,316 @@
+{
+  "cases": [
+    {
+      "study_id": "1106510276",
+      "canal_severe": 3,
+      "foraminal_severe": 0,
+      "moderate": 2,
+      "truth": {
+        "canal_stenosis|l1_l2": "Severe",
+        "canal_stenosis|l2_l3": "Severe",
+        "canal_stenosis|l3_l4": "Severe",
+        "canal_stenosis|l4_l5": "Moderate",
+        "canal_stenosis|l5_s1": "Normal/Mild",
+        "left_foraminal|l1_l2": "Normal/Mild",
+        "left_foraminal|l2_l3": "Normal/Mild",
+        "left_foraminal|l3_l4": "Normal/Mild",
+        "left_foraminal|l4_l5": "Normal/Mild",
+        "left_foraminal|l5_s1": "Normal/Mild",
+        "right_foraminal|l1_l2": "Normal/Mild",
+        "right_foraminal|l2_l3": "Normal/Mild",
+        "right_foraminal|l3_l4": "Normal/Mild",
+        "right_foraminal|l4_l5": "Normal/Mild",
+        "right_foraminal|l5_s1": "Moderate"
+      },
+      "series": [
+        {
+          "series_id": "292704465",
+          "description": "Axial T2"
+        },
+        {
+          "series_id": "340595252",
+          "description": "Sagittal T2/STIR"
+        },
+        {
+          "series_id": "721258563",
+          "description": "Sagittal T1"
+        },
+        {
+          "series_id": "2740847627",
+          "description": "Axial T2"
+        }
+      ],
+      "grading_series": "340595252"
+    },
+    {
+      "study_id": "1179643011",
+      "canal_severe": 3,
+      "foraminal_severe": 0,
+      "moderate": 2,
+      "truth": {
+        "canal_stenosis|l1_l2": "Severe",
+        "canal_stenosis|l2_l3": "Severe",
+        "canal_stenosis|l3_l4": "Severe",
+        "canal_stenosis|l4_l5": "Moderate",
+        "canal_stenosis|l5_s1": "Normal/Mild",
+        "left_foraminal|l1_l2": "Normal/Mild",
+        "left_foraminal|l2_l3": "Normal/Mild",
+        "left_foraminal|l3_l4": "Normal/Mild",
+        "left_foraminal|l4_l5": "Normal/Mild",
+        "left_foraminal|l5_s1": "Normal/Mild",
+        "right_foraminal|l1_l2": "Normal/Mild",
+        "right_foraminal|l2_l3": "Normal/Mild",
+        "right_foraminal|l3_l4": "Normal/Mild",
+        "right_foraminal|l4_l5": "Normal/Mild",
+        "right_foraminal|l5_s1": "Moderate"
+      },
+      "series": [
+        {
+          "series_id": "458905857",
+          "description": "Sagittal T2/STIR"
+        },
+        {
+          "series_id": "1968346576",
+          "description": "Axial T2"
+        },
+        {
+          "series_id": "3427975182",
+          "description": "Sagittal T1"
+        }
+      ],
+      "grading_series": "458905857"
+    },
+    {
+      "study_id": "1703545013",
+      "canal_severe": 3,
+      "foraminal_severe": 0,
+      "moderate": 4,
+      "truth": {
+        "canal_stenosis|l1_l2": "Normal/Mild",
+        "canal_stenosis|l2_l3": "Normal/Mild",
+        "canal_stenosis|l3_l4": "Severe",
+        "canal_stenosis|l4_l5": "Severe",
+        "canal_stenosis|l5_s1": "Severe",
+        "left_foraminal|l1_l2": "Normal/Mild",
+        "left_foraminal|l2_l3": "Normal/Mild",
+        "left_foraminal|l3_l4": "Normal/Mild",
+        "left_foraminal|l4_l5": "Moderate",
+        "left_foraminal|l5_s1": "Moderate",
+        "right_foraminal|l1_l2": "Normal/Mild",
+        "right_foraminal|l2_l3": "Moderate",
+        "right_foraminal|l3_l4": "Moderate",
+        "right_foraminal|l4_l5": "Normal/Mild",
+        "right_foraminal|l5_s1": "Normal/Mild"
+      },
+      "series": [
+        {
+          "series_id": "1702905229",
+          "description": "Sagittal T2/STIR"
+        },
+        {
+          "series_id": "2244266415",
+          "description": "Sagittal T1"
+        },
+        {
+          "series_id": "4051168162",
+          "description": "Axial T2"
+        }
+      ],
+      "grading_series": "1702905229"
+    },
+    {
+      "study_id": "189360935",
+      "canal_severe": 0,
+      "foraminal_severe": 4,
+      "moderate": 4,
+      "truth": {
+        "canal_stenosis|l1_l2": "Normal/Mild",
+        "canal_stenosis|l2_l3": "Normal/Mild",
+        "canal_stenosis|l3_l4": "Normal/Mild",
+        "canal_stenosis|l4_l5": "Normal/Mild",
+        "canal_stenosis|l5_s1": "Normal/Mild",
+        "left_foraminal|l1_l2": "Moderate",
+        "left_foraminal|l2_l3": "Moderate",
+        "left_foraminal|l3_l4": "Normal/Mild",
+        "left_foraminal|l4_l5": "Severe",
+        "left_foraminal|l5_s1": "Severe",
+        "right_foraminal|l1_l2": "Normal/Mild",
+        "right_foraminal|l2_l3": "Moderate",
+        "right_foraminal|l3_l4": "Moderate",
+        "right_foraminal|l4_l5": "Severe",
+        "right_foraminal|l5_s1": "Severe"
+      },
+      "series": [
+        {
+          "series_id": "122094537",
+          "description": "Sagittal T1"
+        },
+        {
+          "series_id": "1647630648",
+          "description": "Sagittal T2/STIR"
+        },
+        {
+          "series_id": "3422460025",
+          "description": "Axial T2"
+        }
+      ],
+      "grading_series": "1647630648"
+    },
+    {
+      "study_id": "344297746",
+      "canal_severe": 0,
+      "foraminal_severe": 3,
+      "moderate": 7,
+      "truth": {
+        "canal_stenosis|l1_l2": "Moderate",
+        "canal_stenosis|l2_l3": "Moderate",
+        "canal_stenosis|l3_l4": "Normal/Mild",
+        "canal_stenosis|l4_l5": "Normal/Mild",
+        "canal_stenosis|l5_s1": "Normal/Mild",
+        "left_foraminal|l1_l2": "Normal/Mild",
+        "left_foraminal|l2_l3": "Moderate",
+        "left_foraminal|l3_l4": "Moderate",
+        "left_foraminal|l4_l5": "Severe",
+        "left_foraminal|l5_s1": "Moderate",
+        "right_foraminal|l1_l2": "Moderate",
+        "right_foraminal|l2_l3": "Normal/Mild",
+        "right_foraminal|l3_l4": "Moderate",
+        "right_foraminal|l4_l5": "Severe",
+        "right_foraminal|l5_s1": "Severe"
+      },
+      "series": [
+        {
+          "series_id": "2116827468",
+          "description": "Sagittal T2/STIR"
+        },
+        {
+          "series_id": "2541114970",
+          "description": "Sagittal T1"
+        },
+        {
+          "series_id": "4071243326",
+          "description": "Axial T2"
+        },
+        {
+          "series_id": "4254564292",
+          "description": "Axial T2"
+        }
+      ],
+      "grading_series": "2116827468"
+    },
+    {
+      "study_id": "1545888499",
+      "canal_severe": 0,
+      "foraminal_severe": 2,
+      "moderate": 1,
+      "truth": {
+        "canal_stenosis|l1_l2": "Normal/Mild",
+        "canal_stenosis|l2_l3": "Normal/Mild",
+        "canal_stenosis|l3_l4": "Normal/Mild",
+        "canal_stenosis|l4_l5": "Normal/Mild",
+        "canal_stenosis|l5_s1": "Moderate",
+        "left_foraminal|l1_l2": "Normal/Mild",
+        "left_foraminal|l2_l3": "Normal/Mild",
+        "left_foraminal|l3_l4": "Normal/Mild",
+        "left_foraminal|l4_l5": "Normal/Mild",
+        "left_foraminal|l5_s1": "Severe",
+        "right_foraminal|l1_l2": "Normal/Mild",
+        "right_foraminal|l2_l3": "Normal/Mild",
+        "right_foraminal|l3_l4": "Normal/Mild",
+        "right_foraminal|l4_l5": "Normal/Mild",
+        "right_foraminal|l5_s1": "Severe"
+      },
+      "series": [
+        {
+          "series_id": "1525533340",
+          "description": "Axial T2"
+        },
+        {
+          "series_id": "2294427958",
+          "description": "Sagittal T1"
+        },
+        {
+          "series_id": "2917369652",
+          "description": "Sagittal T2/STIR"
+        }
+      ],
+      "grading_series": "2917369652"
+    },
+    {
+      "study_id": "1518597578",
+      "canal_severe": 0,
+      "foraminal_severe": 0,
+      "moderate": 0,
+      "truth": {
+        "canal_stenosis|l1_l2": "Normal/Mild",
+        "canal_stenosis|l2_l3": "Normal/Mild",
+        "canal_stenosis|l3_l4": "Normal/Mild",
+        "canal_stenosis|l4_l5": "Normal/Mild",
+        "canal_stenosis|l5_s1": "Normal/Mild",
+        "left_foraminal|l1_l2": "Normal/Mild",
+        "left_foraminal|l2_l3": "Normal/Mild",
+        "left_foraminal|l3_l4": "Normal/Mild",
+        "left_foraminal|l4_l5": "Normal/Mild",
+        "left_foraminal|l5_s1": "Normal/Mild",
+        "right_foraminal|l1_l2": "Normal/Mild",
+        "right_foraminal|l2_l3": "Normal/Mild",
+        "right_foraminal|l3_l4": "Normal/Mild",
+        "right_foraminal|l4_l5": "Normal/Mild",
+        "right_foraminal|l5_s1": "Normal/Mild"
+      },
+      "series": [
+        {
+          "series_id": "619079412",
+          "description": "Sagittal T1"
+        },
+        {
+          "series_id": "717338000",
+          "description": "Sagittal T2/STIR"
+        },
+        {
+          "series_id": "1083623393",
+          "description": "Axial T2"
+        }
+      ],
+      "grading_series": "717338000"
+    },
+    {
+      "study_id": "2248929238",
+      "canal_severe": 0,
+      "foraminal_severe": 0,
+      "moderate": 0,
+      "truth": {
+        "canal_stenosis|l1_l2": "Normal/Mild",
+        "canal_stenosis|l2_l3": "Normal/Mild",
+        "canal_stenosis|l3_l4": "Normal/Mild",
+        "canal_stenosis|l4_l5": "Normal/Mild",
+        "canal_stenosis|l5_s1": "Normal/Mild",
+        "left_foraminal|l1_l2": "Normal/Mild",
+        "left_foraminal|l2_l3": "Normal/Mild",
+        "left_foraminal|l3_l4": "Normal/Mild",
+        "left_foraminal|l4_l5": "Normal/Mild",
+        "left_foraminal|l5_s1": "Normal/Mild",
+        "right_foraminal|l1_l2": "Normal/Mild",
+        "right_foraminal|l2_l3": "Normal/Mild",
+        "right_foraminal|l3_l4": "Normal/Mild",
+        "right_foraminal|l4_l5": "Normal/Mild",
+        "right_foraminal|l5_s1": "Normal/Mild"
+      },
+      "series": [
+        {
+          "series_id": "232069007",
+          "description": "Axial T2"
+        },
+        {
+          "series_id": "1547063674",
+          "description": "Sagittal T1"
+        },
+        {
+          "series_id": "2388049246",
+          "description": "Sagittal T2/STIR"
+        }
+      ],
+      "grading_series": "2388049246"
+    }
+  ]
+}

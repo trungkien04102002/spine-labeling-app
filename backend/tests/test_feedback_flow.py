@@ -119,6 +119,69 @@ def test_corrections_saved_after_a_submit_form_a_new_batch(client):
     assert client.get("/corrections").json()["batches"] == 2
 
 
+def test_status_narrows_the_rows_but_never_the_counts(client):
+    """The operator view lists the queue and the history separately.
+
+    Asking for the newest rows overall can return nothing but sent ones and
+    hide a correction that is still waiting, which is the single thing that
+    view must not get wrong -- so `status` exists. The counts stay global
+    either way, because they describe the whole log, not the slice asked for.
+    """
+    _add_corrections(client.db, 2)
+    client.post("/corrections/submit")
+    _add_corrections(client.db, 3)
+
+    pending = client.get("/corrections?status=pending").json()
+    submitted = client.get("/corrections?status=submitted").json()
+
+    assert [r["submitted_at"] for r in pending["recent"]] == [None] * 3
+    assert all(r["submitted_at"] is not None for r in submitted["recent"])
+    assert len(submitted["recent"]) == 2
+    for body in (pending, submitted):
+        assert (body["pending"], body["submitted"]) == (3, 2)
+
+
+def test_an_unknown_status_is_answered_rather_than_refused(client):
+    _add_corrections(client.db, 2)
+
+    body = client.get("/corrections?status=nonsense")
+
+    assert body.status_code == 200
+    assert len(body.json()["recent"]) == 2
+
+
+def test_batches_report_their_size_and_every_study_they_span(client):
+    """A batch is deliberately cross-patient: it is whatever was waiting."""
+    _add_corrections(client.db, 2, study_id="study-1")
+    _add_corrections(client.db, 1, study_id="study-2")
+    sealed = client.post("/corrections/submit").json()
+
+    batches = client.get("/corrections/batches").json()
+
+    assert len(batches) == 1
+    assert batches[0]["batch_id"] == sealed["batch_id"]
+    assert batches[0]["corrections"] == 3
+    assert sorted(batches[0]["studies"]) == ["study-1", "study-2"]
+    assert batches[0]["sealed_at"] is not None
+
+
+def test_batches_are_listed_newest_first(client):
+    _add_corrections(client.db, 1)
+    first = client.post("/corrections/submit").json()["batch_id"]
+    _add_corrections(client.db, 1)
+    second = client.post("/corrections/submit").json()["batch_id"]
+
+    batches = client.get("/corrections/batches").json()
+
+    assert [b["batch_id"] for b in batches] == [second, first]
+
+
+def test_unsent_corrections_belong_to_no_batch(client):
+    _add_corrections(client.db, 2)
+
+    assert client.get("/corrections/batches").json() == []
+
+
 def test_submitting_does_not_change_the_served_model(client):
     """Queueing is not training -- the active checkpoint must be untouched."""
     _add_corrections(client.db, 3)

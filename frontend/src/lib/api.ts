@@ -245,9 +245,33 @@ export interface SubmitResult {
   message: string;
 }
 
-/** Corrections waiting to be handed over, plus what has already gone. */
-export function getCorrections(limit = 20): Promise<CorrectionQueue> {
-  return apiFetch<CorrectionQueue>(`/corrections?limit=${limit}`);
+/** One sealed hand-off: the corrections `submitCorrections` stamped in one go. */
+export interface BatchOut {
+  batch_id: string;
+  sealed_at: string | null;
+  corrections: number;
+  studies: string[];
+}
+
+/**
+ * Corrections waiting to be handed over, plus what has already gone.
+ *
+ * `status` narrows the `recent` rows only — the three counts are always over
+ * the whole log. A backend that predates the parameter ignores it and returns
+ * a mixed list, so callers still have to filter what they get.
+ */
+export function getCorrections(
+  limit = 20,
+  status: "all" | "pending" | "submitted" = "all",
+): Promise<CorrectionQueue> {
+  return apiFetch<CorrectionQueue>(
+    `/corrections?limit=${limit}&status=${status}`,
+  );
+}
+
+/** Every sealed batch, newest first. Rejects with 404 on an older backend. */
+export function getCorrectionBatches(): Promise<BatchOut[]> {
+  return apiFetch<BatchOut[]>("/corrections/batches");
 }
 
 /**

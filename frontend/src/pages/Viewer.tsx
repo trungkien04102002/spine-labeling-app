@@ -125,6 +125,9 @@ function missingCbamColumns(grading: { condition: string }[]): boolean {
   return CBAM_CONDITIONS.every((c) => !present.has(c));
 }
 
+/** One step on the shared undo timeline: a grade change or one brush stroke. */
+type EditKind = "grade" | "mask";
+
 /** "7m 12s" — mm:ss reads as a duration; a raw second count does not. */
 function formatElapsed(seconds: number): string {
   const total = Math.floor(seconds);
@@ -189,18 +192,6 @@ function SeriesPicker({
             {s.num_slices ? (
               <span className="font-normal opacity-60"> ({s.num_slices})</span>
             ) : null}
-            {s.analyzed_by_ai ? (
-              <span
-                className={
-                  "ml-1.5 rounded px-1 py-px text-[10px] font-bold " +
-                  (s.is_active
-                    ? "bg-white/25 text-white"
-                    : "bg-teal-100 text-teal-700")
-                }
-              >
-                AI
-              </span>
-            ) : null}
           </button>
         ))}
         {busy ? (
@@ -210,13 +201,20 @@ function SeriesPicker({
       <p className="mt-1.5 text-[11px] leading-snug text-slate-500">
         {analyzed ? (
           <>
-            The AI graded the series marked <strong>AI</strong> (
-            {PLANE_LABEL[analyzed.orientation] ?? "series"}). Browse any series
-            freely — switching does not change the grades.
+            {/* The badge that used to mark this series was removed, so name the
+                series here instead: which sequence produced the grades is not
+                something the doctor should have to infer. */}
+            The grades come from the{" "}
+            <strong>
+              {PLANE_LABEL[analyzed.orientation] ?? "sagittal"}
+              {analyzed.description ? ` ${analyzed.description}` : ""}
+            </strong>{" "}
+            series. Browse any series freely — switching does not change the
+            grades.
           </>
         ) : (
           <>
-            Browse any plane freely. &ldquo;Run AI&rdquo; always grades the
+            Browse any plane freely. &ldquo;Run AI grading&rdquo; always grades the
             sagittal series, whichever one you are viewing.
           </>
         )}
@@ -242,8 +240,21 @@ export default function Viewer() {
   const [maskDirty, setMaskDirty] = useState(false);
   const [legend, setLegend] = useState<LegendEntry[]>([]);
   const editApiRef = useRef<MaskEditApi | null>(null);
+  // Mask editing is owned here, not inside the viewport, so the Structures
+  // panel can act as the brush's picker.
+  const [editMode, setEditMode] = useState(false);
+  // No default structure: whatever sorts first (spinal_cord, a 2-pixel-wide
+  // cord) is nobody's intended first brush. The doctor chooses, and until they
+  // do the brush stays off -- see CornerstoneViewport.
+  const [activeLabel, setActiveLabel] = useState<number | null>(null);
+  // Grades and brush strokes have separate undo machinery (an immutable value
+  // stack; Cornerstone's per-stroke voxel diffs), but a doctor should not have
+  // to know that. This records only WHICH of the two each edit was, in order,
+  // so one Undo button walks back through both in the order they happened.
+  const [undoKinds, setUndoKinds] = useState<EditKind[]>([]);
+  const [redoKinds, setRedoKinds] = useState<EditKind[]>([]);
 
-  // "Run AI" produces the full 11-label grading (SpineNet + CBAM) AND persists a
+  // "Run AI grading" produces the full 11-label grading (SpineNet + CBAM) AND persists a
   // v0 annotation, so the editable `result` above IS the 11-label table. We keep
   // `fullResult` only for the extras the annotation doesn't carry: the labelled
   // slice image and the CSV/JSON download URLs.
@@ -270,6 +281,8 @@ export default function Viewer() {
     getSeries(studyId)
       .then(setSeries)
       .catch(() => setSeries([]));
+    setUndoKinds([]);
+    setRedoKinds([]);
     getAnnotation(studyId)
       .then((r) => {
         gradeHistory.reset(r);
@@ -333,6 +346,8 @@ export default function Viewer() {
       setFullResult(await getFullGrading(studyId));
       const ann = await getAnnotation(studyId);
       gradeHistory.reset(ann);
+      setUndoKinds([]);
+      setRedoKinds([]);
       setDirty(false);
       setSliceNonce((n) => n + 1);
       getStudyDetail(studyId).then(setDetail).catch(() => {});
@@ -352,22 +367,79 @@ export default function Viewer() {
         g.level === level && g.condition === condition ? { ...g, severity } : g,
       ),
     });
+    setUndoKinds((k) => [...k, "grade"]);
+    setRedoKinds([]);
     setDirty(true);
     setSavedNote(null);
+  }
+
+  /** One finished brush stroke: one step on the shared undo timeline. */
+  function handleMaskStroke() {
+    setMaskDirty(true);
+    setUndoKinds((k) => [...k, "mask"]);
+    setRedoKinds([]);
+    setSavedNote(null);
+  }
+
+  /**
+   * A new labelmap was loaded (study opened, series switched). Cornerstone's
+   * stroke history was dropped with it, so drop our mask steps too rather than
+   * leave Undo promising to revert strokes that can no longer be replayed.
+   */
+  function handleMaskHistoryReset() {
+    setUndoKinds((k) => k.filter((x) => x !== "mask"));
+    setRedoKinds((k) => k.filter((x) => x !== "mask"));
+    setMaskDirty(false);
+  }
+
+  function applyStep(kind: EditKind, direction: "undo" | "redo"): boolean {
+    if (kind === "mask") {
+      const api = editApiRef.current;
+      if (!api) return false;
+      const done = direction === "undo" ? api.undoStroke() : api.redoStroke();
+      if (done) setMaskDirty(true);
+      return done;
+    }
+    if (direction === "undo") {
+      if (!gradeHistory.canUndo) return false;
+      gradeHistory.undo();
+    } else {
+      if (!gradeHistory.canRedo) return false;
+      gradeHistory.redo();
+    }
+    setDirty(true);
+    return true;
   }
 
   function handleUndo() {
-    if (!gradeHistory.canUndo) return;
-    gradeHistory.undo();
-    setDirty(true);
-    setSavedNote(null);
+    // Skip past any step that can no longer be replayed (e.g. a stroke that
+    // fell off the end of Cornerstone's bounded history) instead of appearing
+    // to do nothing.
+    const remaining = [...undoKinds];
+    while (remaining.length > 0) {
+      const kind = remaining.pop() as EditKind;
+      if (applyStep(kind, "undo")) {
+        setUndoKinds(remaining);
+        setRedoKinds((k) => [kind, ...k]);
+        setSavedNote(null);
+        return;
+      }
+    }
+    setUndoKinds([]);
   }
 
   function handleRedo() {
-    if (!gradeHistory.canRedo) return;
-    gradeHistory.redo();
-    setDirty(true);
-    setSavedNote(null);
+    const remaining = [...redoKinds];
+    while (remaining.length > 0) {
+      const kind = remaining.shift() as EditKind;
+      if (applyStep(kind, "redo")) {
+        setRedoKinds(remaining);
+        setUndoKinds((k) => [...k, kind]);
+        setSavedNote(null);
+        return;
+      }
+    }
+    setRedoKinds([]);
   }
 
   // Ctrl/Cmd+Z = undo, Ctrl/Cmd+Shift+Z (or Ctrl+Y) = redo.
@@ -433,6 +505,17 @@ export default function Viewer() {
     }
   }
 
+  // "Corrections" means grade corrections in this app (they feed correction_log).
+  // Saying that after a mask edit names the wrong thing, so the button reports
+  // whichever kind is actually pending.
+  const saveLabel = !dirty && !maskDirty
+    ? "Saved"
+    : dirty && maskDirty
+      ? "Save changes"
+      : maskDirty
+        ? "Save mask"
+        : "Save corrections";
+
   const btn =
     "rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-400 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed";
 
@@ -460,7 +543,7 @@ export default function Viewer() {
             disabled={running}
             className="rounded-lg bg-white px-4 py-1.5 text-sm font-semibold text-teal-700 shadow-sm transition hover:bg-teal-50 disabled:opacity-60"
           >
-            {running ? "Running…" : "✨ Run AI"}
+            {running ? "Grading…" : "✨ Run AI grading"}
           </button>
         </div>
 
@@ -513,11 +596,23 @@ export default function Viewer() {
                 overlay={detail ? <InfoOverlay detail={detail} /> : null}
                 targetSlice={targetSlice}
                 segLabels={result?.segmentation.labels}
+                editMode={editMode}
+                onEditModeChange={setEditMode}
+                activeLabel={activeLabel}
+                onActiveLabelChange={setActiveLabel}
                 editApiRef={editApiRef}
-                onMaskEdited={() => {
-                  setMaskDirty(true);
-                  setSavedNote(null);
-                }}
+                onUndo={handleUndo}
+                onRedo={handleRedo}
+                canUndo={undoKinds.length > 0}
+                canRedo={redoKinds.length > 0}
+                onSave={handleSave}
+                canSave={(dirty || maskDirty) && !saving}
+                saveLabel={saving ? "Saving…" : saveLabel}
+                undoLabel={
+                  undoKinds.at(-1) === "mask" ? "Undo mask edit" : "Undo"
+                }
+                onMaskStroke={handleMaskStroke}
+                onMaskHistoryReset={handleMaskHistoryReset}
                 onLegend={setLegend}
               />
             )}
@@ -573,11 +668,30 @@ export default function Viewer() {
 
           {legend.length > 0 && (
             <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-              <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-slate-800">
+              <h2 className="mb-2 flex items-center gap-2 text-base font-bold text-slate-800">
                 <span className="h-4 w-1 rounded bg-gradient-to-b from-teal-500 to-cyan-500" />
                 Structures
               </h2>
-              <Legend entries={legend} />
+              {/* While editing, the legend IS the brush's picker: the doctor
+                  reads a colour off the image and clicks it, with no detour
+                  through a separate list of names. */}
+              {editMode && (
+                <p className="mb-2 text-xs text-slate-500">
+                  {activeLabel == null ? (
+                    <span className="font-medium text-amber-700">
+                      Click it on the image, or pick it here — the fill tools
+                      are off until a structure is chosen.
+                    </span>
+                  ) : (
+                    "Click a structure here, or point at it on the image, to switch what is painted."
+                  )}
+                </p>
+              )}
+              <Legend
+                entries={legend}
+                onSelect={editMode ? setActiveLabel : undefined}
+                activeId={activeLabel}
+              />
             </div>
           )}
 
@@ -641,6 +755,12 @@ export default function Viewer() {
               a new model version has to be reviewed and switched on before it
               grades anyone — so this never changes the next patient's result.
             </p>
+            <Link
+              to="/models"
+              className="mt-2 inline-block text-xs font-medium text-indigo-600 hover:underline"
+            >
+              Model versions — review and switch on →
+            </Link>
           </div>
         </aside>
 
@@ -674,32 +794,41 @@ export default function Viewer() {
                   onEditSeverity={handleEditSeverity}
                 />
                 <div className="mt-3 flex flex-wrap items-center gap-2">
+                  {/* One pair of buttons for both kinds of edit: the label
+                      names whichever comes off the timeline next, so it is
+                      clear a mask edit is about to be reverted. */}
                   <button
                     onClick={handleUndo}
-                    disabled={!gradeHistory.canUndo}
-                    title="Undo (Ctrl+Z)"
+                    disabled={undoKinds.length === 0}
+                    title={
+                      undoKinds.at(-1) === "mask"
+                        ? "Undo mask edit (Ctrl+Z)"
+                        : "Undo (Ctrl+Z)"
+                    }
+                    data-testid="undo-button"
                     className={btn}
                   >
-                    ↶ Undo
+                    ↶ Undo{undoKinds.at(-1) === "mask" ? " mask edit" : ""}
                   </button>
                   <button
                     onClick={handleRedo}
-                    disabled={!gradeHistory.canRedo}
-                    title="Redo (Ctrl+Shift+Z)"
+                    disabled={redoKinds.length === 0}
+                    title={
+                      redoKinds[0] === "mask"
+                        ? "Redo mask edit (Ctrl+Shift+Z)"
+                        : "Redo (Ctrl+Shift+Z)"
+                    }
+                    data-testid="redo-button"
                     className={btn}
                   >
-                    ↷ Redo
+                    ↷ Redo{redoKinds[0] === "mask" ? " mask edit" : ""}
                   </button>
                   <button
                     onClick={handleSave}
                     disabled={(!dirty && !maskDirty) || saving}
                     className="rounded-lg bg-gradient-to-r from-teal-600 to-cyan-500 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
-                    {saving
-                      ? "Saving…"
-                      : dirty || maskDirty
-                        ? "Save corrections"
-                        : "Saved"}
+                    {saving ? "Saving…" : saveLabel}
                   </button>
                   <a href={exportUrl(studyId!)} target="_blank" rel="noreferrer">
                     <span className={btn}>⬇ Export</span>
@@ -748,7 +877,7 @@ export default function Viewer() {
             ) : (
               !running && (
                 <p className="text-sm text-slate-500">
-                  No AI results yet — click “✨ Run AI” (top right).
+                  No AI results yet — click “✨ Run AI grading” (top right).
                 </p>
               )
             )}

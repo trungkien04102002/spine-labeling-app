@@ -4,7 +4,7 @@ interface History<T> {
   state: T;
   /** Push a new state, discarding any redo entries ahead of the cursor. */
   set: (next: T) => void;
-  /** Replace the whole history with a single entry (e.g. on load / Run AI). */
+  /** Replace the whole history with a single entry (e.g. on load / Run AI grading). */
   reset: (value: T) => void;
   undo: () => void;
   redo: () => void;

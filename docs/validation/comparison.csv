@@ -1,0 +1,121 @@
+study_id,app_study_id,case_kind,condition,level,predicted,ground_truth,score,match
+1106510276,VAL-1106510276,severe canal stenosis,canal_stenosis,l1_l2,Normal/Mild,Severe,0.3506,0
+1106510276,VAL-1106510276,severe canal stenosis,left_foraminal,l1_l2,Normal/Mild,Normal/Mild,0.4362,1
+1106510276,VAL-1106510276,severe canal stenosis,right_foraminal,l1_l2,Moderate,Normal/Mild,0.4542,0
+1106510276,VAL-1106510276,severe canal stenosis,canal_stenosis,l2_l3,Severe,Severe,0.3865,1
+1106510276,VAL-1106510276,severe canal stenosis,left_foraminal,l2_l3,Moderate,Normal/Mild,0.4401,0
+1106510276,VAL-1106510276,severe canal stenosis,right_foraminal,l2_l3,Moderate,Normal/Mild,0.4684,0
+1106510276,VAL-1106510276,severe canal stenosis,canal_stenosis,l3_l4,Severe,Severe,0.3979,1
+1106510276,VAL-1106510276,severe canal stenosis,left_foraminal,l3_l4,Normal/Mild,Normal/Mild,0.4405,1
+1106510276,VAL-1106510276,severe canal stenosis,right_foraminal,l3_l4,Moderate,Normal/Mild,0.4687,0
+1106510276,VAL-1106510276,severe canal stenosis,canal_stenosis,l4_l5,Normal/Mild,Moderate,0.5394,0
+1106510276,VAL-1106510276,severe canal stenosis,left_foraminal,l4_l5,Normal/Mild,Normal/Mild,0.5719,1
+1106510276,VAL-1106510276,severe canal stenosis,right_foraminal,l4_l5,Normal/Mild,Normal/Mild,0.5391,1
+1106510276,VAL-1106510276,severe canal stenosis,canal_stenosis,l5_s1,Normal/Mild,Normal/Mild,0.4440,1
+1106510276,VAL-1106510276,severe canal stenosis,left_foraminal,l5_s1,Normal/Mild,Normal/Mild,0.5455,1
+1106510276,VAL-1106510276,severe canal stenosis,right_foraminal,l5_s1,Normal/Mild,Moderate,0.4744,0
+1179643011,VAL-1179643011,severe canal stenosis,canal_stenosis,l1_l2,Severe,Severe,0.5579,1
+1179643011,VAL-1179643011,severe canal stenosis,left_foraminal,l1_l2,Moderate,Normal/Mild,0.4174,0
+1179643011,VAL-1179643011,severe canal stenosis,right_foraminal,l1_l2,Moderate,Normal/Mild,0.4316,0
+1179643011,VAL-1179643011,severe canal stenosis,canal_stenosis,l2_l3,Severe,Severe,0.4384,1
+1179643011,VAL-1179643011,severe canal stenosis,left_foraminal,l2_l3,Normal/Mild,Normal/Mild,0.4355,1
+1179643011,VAL-1179643011,severe canal stenosis,right_foraminal,l2_l3,Moderate,Normal/Mild,0.4281,0
+1179643011,VAL-1179643011,severe canal stenosis,canal_stenosis,l3_l4,Severe,Severe,0.5553,1
+1179643011,VAL-1179643011,severe canal stenosis,left_foraminal,l3_l4,Normal/Mild,Normal/Mild,0.5881,1
+1179643011,VAL-1179643011,severe canal stenosis,right_foraminal,l3_l4,Normal/Mild,Normal/Mild,0.5298,1
+1179643011,VAL-1179643011,severe canal stenosis,canal_stenosis,l4_l5,Normal/Mild,Moderate,0.5340,0
+1179643011,VAL-1179643011,severe canal stenosis,left_foraminal,l4_l5,Normal/Mild,Normal/Mild,0.3760,1
+1179643011,VAL-1179643011,severe canal stenosis,right_foraminal,l4_l5,Moderate,Normal/Mild,0.3896,0
+1179643011,VAL-1179643011,severe canal stenosis,canal_stenosis,l5_s1,Normal/Mild,Normal/Mild,0.5981,1
+1179643011,VAL-1179643011,severe canal stenosis,left_foraminal,l5_s1,Normal/Mild,Normal/Mild,0.4528,1
+1179643011,VAL-1179643011,severe canal stenosis,right_foraminal,l5_s1,Moderate,Moderate,0.3936,1
+1703545013,VAL-1703545013,severe canal stenosis,canal_stenosis,l1_l2,Normal/Mild,Normal/Mild,0.7736,1
+1703545013,VAL-1703545013,severe canal stenosis,left_foraminal,l1_l2,Normal/Mild,Normal/Mild,0.6115,1
+1703545013,VAL-1703545013,severe canal stenosis,right_foraminal,l1_l2,Normal/Mild,Normal/Mild,0.6006,1
+1703545013,VAL-1703545013,severe canal stenosis,canal_stenosis,l2_l3,Normal/Mild,Normal/Mild,0.6038,1
+1703545013,VAL-1703545013,severe canal stenosis,left_foraminal,l2_l3,Normal/Mild,Normal/Mild,0.6067,1
+1703545013,VAL-1703545013,severe canal stenosis,right_foraminal,l2_l3,Normal/Mild,Moderate,0.5585,0
+1703545013,VAL-1703545013,severe canal stenosis,canal_stenosis,l3_l4,Moderate,Severe,0.4739,0
+1703545013,VAL-1703545013,severe canal stenosis,left_foraminal,l3_l4,Normal/Mild,Normal/Mild,0.5569,1
+1703545013,VAL-1703545013,severe canal stenosis,right_foraminal,l3_l4,Normal/Mild,Moderate,0.5136,0
+1703545013,VAL-1703545013,severe canal stenosis,canal_stenosis,l4_l5,Severe,Severe,0.6589,1
+1703545013,VAL-1703545013,severe canal stenosis,left_foraminal,l4_l5,Moderate,Moderate,0.4249,1
+1703545013,VAL-1703545013,severe canal stenosis,right_foraminal,l4_l5,Moderate,Normal/Mild,0.4624,0
+1703545013,VAL-1703545013,severe canal stenosis,canal_stenosis,l5_s1,Severe,Severe,0.4043,1
+1703545013,VAL-1703545013,severe canal stenosis,left_foraminal,l5_s1,Moderate,Moderate,0.3993,1
+1703545013,VAL-1703545013,severe canal stenosis,right_foraminal,l5_s1,Moderate,Normal/Mild,0.4088,0
+189360935,VAL-189360935,severe foraminal narrowing,canal_stenosis,l1_l2,Normal/Mild,Normal/Mild,0.6369,1
+189360935,VAL-189360935,severe foraminal narrowing,left_foraminal,l1_l2,Normal/Mild,Moderate,0.4948,0
+189360935,VAL-189360935,severe foraminal narrowing,right_foraminal,l1_l2,Moderate,Normal/Mild,0.4610,0
+189360935,VAL-189360935,severe foraminal narrowing,canal_stenosis,l2_l3,Moderate,Normal/Mild,0.3820,0
+189360935,VAL-189360935,severe foraminal narrowing,left_foraminal,l2_l3,Moderate,Moderate,0.5066,1
+189360935,VAL-189360935,severe foraminal narrowing,right_foraminal,l2_l3,Moderate,Moderate,0.4563,1
+189360935,VAL-189360935,severe foraminal narrowing,canal_stenosis,l3_l4,Moderate,Normal/Mild,0.4367,0
+189360935,VAL-189360935,severe foraminal narrowing,left_foraminal,l3_l4,Moderate,Normal/Mild,0.5552,0
+189360935,VAL-189360935,severe foraminal narrowing,right_foraminal,l3_l4,Moderate,Moderate,0.5006,1
+189360935,VAL-189360935,severe foraminal narrowing,canal_stenosis,l4_l5,Moderate,Normal/Mild,0.3995,0
+189360935,VAL-189360935,severe foraminal narrowing,left_foraminal,l4_l5,Moderate,Severe,0.5384,0
+189360935,VAL-189360935,severe foraminal narrowing,right_foraminal,l4_l5,Moderate,Severe,0.5372,0
+189360935,VAL-189360935,severe foraminal narrowing,canal_stenosis,l5_s1,Normal/Mild,Normal/Mild,0.6328,1
+189360935,VAL-189360935,severe foraminal narrowing,left_foraminal,l5_s1,Moderate,Severe,0.4880,0
+189360935,VAL-189360935,severe foraminal narrowing,right_foraminal,l5_s1,Moderate,Severe,0.4402,0
+344297746,VAL-344297746,severe foraminal narrowing,canal_stenosis,l1_l2,Moderate,Moderate,0.4232,1
+344297746,VAL-344297746,severe foraminal narrowing,left_foraminal,l1_l2,Moderate,Normal/Mild,0.4756,0
+344297746,VAL-344297746,severe foraminal narrowing,right_foraminal,l1_l2,Normal/Mild,Moderate,0.4414,0
+344297746,VAL-344297746,severe foraminal narrowing,canal_stenosis,l2_l3,Severe,Moderate,0.7501,0
+344297746,VAL-344297746,severe foraminal narrowing,left_foraminal,l2_l3,Moderate,Moderate,0.5159,1
+344297746,VAL-344297746,severe foraminal narrowing,right_foraminal,l2_l3,Moderate,Normal/Mild,0.4797,0
+344297746,VAL-344297746,severe foraminal narrowing,canal_stenosis,l3_l4,Moderate,Normal/Mild,0.3758,0
+344297746,VAL-344297746,severe foraminal narrowing,left_foraminal,l3_l4,Moderate,Moderate,0.5670,1
+344297746,VAL-344297746,severe foraminal narrowing,right_foraminal,l3_l4,Normal/Mild,Moderate,0.4440,0
+344297746,VAL-344297746,severe foraminal narrowing,canal_stenosis,l4_l5,Normal/Mild,Normal/Mild,0.4046,1
+344297746,VAL-344297746,severe foraminal narrowing,left_foraminal,l4_l5,Normal/Mild,Severe,0.3955,0
+344297746,VAL-344297746,severe foraminal narrowing,right_foraminal,l4_l5,Normal/Mild,Severe,0.4168,0
+344297746,VAL-344297746,severe foraminal narrowing,canal_stenosis,l5_s1,Severe,Normal/Mild,0.3853,0
+344297746,VAL-344297746,severe foraminal narrowing,left_foraminal,l5_s1,Moderate,Moderate,0.4178,1
+344297746,VAL-344297746,severe foraminal narrowing,right_foraminal,l5_s1,Moderate,Severe,0.3941,0
+1545888499,VAL-1545888499,severe foraminal narrowing,canal_stenosis,l1_l2,Normal/Mild,Normal/Mild,0.9180,1
+1545888499,VAL-1545888499,severe foraminal narrowing,left_foraminal,l1_l2,Normal/Mild,Normal/Mild,0.8025,1
+1545888499,VAL-1545888499,severe foraminal narrowing,right_foraminal,l1_l2,Normal/Mild,Normal/Mild,0.7714,1
+1545888499,VAL-1545888499,severe foraminal narrowing,canal_stenosis,l2_l3,Normal/Mild,Normal/Mild,0.9373,1
+1545888499,VAL-1545888499,severe foraminal narrowing,left_foraminal,l2_l3,Normal/Mild,Normal/Mild,0.8222,1
+1545888499,VAL-1545888499,severe foraminal narrowing,right_foraminal,l2_l3,Normal/Mild,Normal/Mild,0.8453,1
+1545888499,VAL-1545888499,severe foraminal narrowing,canal_stenosis,l3_l4,Normal/Mild,Normal/Mild,0.7096,1
+1545888499,VAL-1545888499,severe foraminal narrowing,left_foraminal,l3_l4,Normal/Mild,Normal/Mild,0.5536,1
+1545888499,VAL-1545888499,severe foraminal narrowing,right_foraminal,l3_l4,Normal/Mild,Normal/Mild,0.5677,1
+1545888499,VAL-1545888499,severe foraminal narrowing,canal_stenosis,l4_l5,Normal/Mild,Normal/Mild,0.7659,1
+1545888499,VAL-1545888499,severe foraminal narrowing,left_foraminal,l4_l5,Normal/Mild,Normal/Mild,0.5868,1
+1545888499,VAL-1545888499,severe foraminal narrowing,right_foraminal,l4_l5,Normal/Mild,Normal/Mild,0.5232,1
+1545888499,VAL-1545888499,severe foraminal narrowing,canal_stenosis,l5_s1,Normal/Mild,Moderate,0.6742,0
+1545888499,VAL-1545888499,severe foraminal narrowing,left_foraminal,l5_s1,Moderate,Severe,0.4240,0
+1545888499,VAL-1545888499,severe foraminal narrowing,right_foraminal,l5_s1,Moderate,Severe,0.4667,0
+1518597578,VAL-1518597578,normal / mild throughout,canal_stenosis,l1_l2,Normal/Mild,Normal/Mild,0.8791,1
+1518597578,VAL-1518597578,normal / mild throughout,left_foraminal,l1_l2,Normal/Mild,Normal/Mild,0.7686,1
+1518597578,VAL-1518597578,normal / mild throughout,right_foraminal,l1_l2,Normal/Mild,Normal/Mild,0.7084,1
+1518597578,VAL-1518597578,normal / mild throughout,canal_stenosis,l2_l3,Normal/Mild,Normal/Mild,0.8692,1
+1518597578,VAL-1518597578,normal / mild throughout,left_foraminal,l2_l3,Normal/Mild,Normal/Mild,0.6823,1
+1518597578,VAL-1518597578,normal / mild throughout,right_foraminal,l2_l3,Normal/Mild,Normal/Mild,0.6755,1
+1518597578,VAL-1518597578,normal / mild throughout,canal_stenosis,l3_l4,Normal/Mild,Normal/Mild,0.9045,1
+1518597578,VAL-1518597578,normal / mild throughout,left_foraminal,l3_l4,Normal/Mild,Normal/Mild,0.6798,1
+1518597578,VAL-1518597578,normal / mild throughout,right_foraminal,l3_l4,Normal/Mild,Normal/Mild,0.6714,1
+1518597578,VAL-1518597578,normal / mild throughout,canal_stenosis,l4_l5,Normal/Mild,Normal/Mild,0.7001,1
+1518597578,VAL-1518597578,normal / mild throughout,left_foraminal,l4_l5,Normal/Mild,Normal/Mild,0.5323,1
+1518597578,VAL-1518597578,normal / mild throughout,right_foraminal,l4_l5,Normal/Mild,Normal/Mild,0.5617,1
+1518597578,VAL-1518597578,normal / mild throughout,canal_stenosis,l5_s1,Moderate,Normal/Mild,0.5940,0
+1518597578,VAL-1518597578,normal / mild throughout,left_foraminal,l5_s1,Normal/Mild,Normal/Mild,0.4862,1
+1518597578,VAL-1518597578,normal / mild throughout,right_foraminal,l5_s1,Normal/Mild,Normal/Mild,0.4962,1
+2248929238,VAL-2248929238,normal / mild throughout,canal_stenosis,l1_l2,Normal/Mild,Normal/Mild,0.8987,1
+2248929238,VAL-2248929238,normal / mild throughout,left_foraminal,l1_l2,Normal/Mild,Normal/Mild,0.7699,1
+2248929238,VAL-2248929238,normal / mild throughout,right_foraminal,l1_l2,Normal/Mild,Normal/Mild,0.7834,1
+2248929238,VAL-2248929238,normal / mild throughout,canal_stenosis,l2_l3,Normal/Mild,Normal/Mild,0.9096,1
+2248929238,VAL-2248929238,normal / mild throughout,left_foraminal,l2_l3,Normal/Mild,Normal/Mild,0.8518,1
+2248929238,VAL-2248929238,normal / mild throughout,right_foraminal,l2_l3,Normal/Mild,Normal/Mild,0.7993,1
+2248929238,VAL-2248929238,normal / mild throughout,canal_stenosis,l3_l4,Normal/Mild,Normal/Mild,0.9053,1
+2248929238,VAL-2248929238,normal / mild throughout,left_foraminal,l3_l4,Normal/Mild,Normal/Mild,0.8218,1
+2248929238,VAL-2248929238,normal / mild throughout,right_foraminal,l3_l4,Normal/Mild,Normal/Mild,0.7803,1
+2248929238,VAL-2248929238,normal / mild throughout,canal_stenosis,l4_l5,Normal/Mild,Normal/Mild,0.8675,1
+2248929238,VAL-2248929238,normal / mild throughout,left_foraminal,l4_l5,Normal/Mild,Normal/Mild,0.6862,1
+2248929238,VAL-2248929238,normal / mild throughout,right_foraminal,l4_l5,Normal/Mild,Normal/Mild,0.6874,1
+2248929238,VAL-2248929238,normal / mild throughout,canal_stenosis,l5_s1,Normal/Mild,Normal/Mild,0.6483,1
+2248929238,VAL-2248929238,normal / mild throughout,left_foraminal,l5_s1,Normal/Mild,Normal/Mild,0.4656,1
+2248929238,VAL-2248929238,normal / mild throughout,right_foraminal,l5_s1,Moderate,Normal/Mild,0.4848,0
