@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import {
   createStudy,
   deleteStudy,
+  getCorrections,
   getHealth,
   getModelVersions,
   getPatients,
@@ -54,6 +55,12 @@ export default function PatientList() {
   // from the worklist rather than buried behind a link labelled only "Model".
   const [activeModel, setActiveModel] = useState<string | null>(null);
   const [pendingModels, setPendingModels] = useState(0);
+  // Corrections waiting anywhere in the app. The queue is app-wide, so the
+  // worklist is the honest place to show its size -- inside one patient's
+  // viewer the same number reads as if it belonged to that patient.
+  const [pendingCorrections, setPendingCorrections] = useState<number | null>(
+    null,
+  );
   const fileInputs = useRef<Record<string, HTMLInputElement | null>>({});
 
   // Toolbar: search + modality filter.
@@ -100,6 +107,9 @@ export default function PatientList() {
         );
       })
       .catch(() => setActiveModel(null));
+    getCorrections(1)
+      .then((queue) => setPendingCorrections(queue.pending))
+      .catch(() => setPendingCorrections(null));
   }, [loadPatients]);
 
   async function handleUpload(studyId: string, file: File) {
@@ -207,6 +217,18 @@ export default function PatientList() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <Link
+              to="/admin"
+              title="The correction queue, the batches already sent, and what to run next"
+              className="flex items-center gap-2 rounded-lg bg-white/15 px-3 py-1.5 text-xs font-medium text-white backdrop-blur transition hover:bg-white/25"
+            >
+              <span>Feedback</span>
+              {pendingCorrections != null && pendingCorrections > 0 && (
+                <span className="rounded-full bg-indigo-200 px-1.5 py-0.5 text-[10px] font-bold text-indigo-900">
+                  {pendingCorrections} waiting
+                </span>
+              )}
+            </Link>
             <Link
               to="/models"
               title="Which checkpoint grades new studies, and how a new one is approved"
