@@ -21,6 +21,8 @@ import {
   PanTool,
   WindowLevelTool,
   BrushTool,
+  CircleScissorsTool,
+  RectangleScissorsTool,
   segmentation,
   utilities as csToolsUtilities,
   Enums as csToolsEnums,
@@ -28,14 +30,53 @@ import {
 import { createNiftiImageIdsAndCacheMetadata } from "@cornerstonejs/nifti-volume-loader";
 import { ensureCornerstoneInitialized } from "../../lib/cornerstone";
 import {
+  MASK_HISTORY_DEPTH,
+  maskHistoryDepth,
   redoMaskEdit,
   resetMaskHistory,
   undoMaskEdit,
 } from "../../lib/maskHistory";
-import LabelPicker from "./LabelPicker";
+import { prettyName } from "../../lib/labels";
+import LabelPicker, { Swatch } from "./LabelPicker";
 
 const { ViewportType } = Enums;
 const { MouseBindings, SegmentationRepresentations } = csToolsEnums;
+
+/** Shape of the gesture that edits voxels. Each fills or erases, never both. */
+type EditShape = "brush" | "circle" | "rect";
+type EditAction = "paint" | "erase";
+
+/**
+ * How much thicker the selected structure's outline is drawn than the others.
+ * This is how "what am I about to paint into?" is answered on the image itself
+ * rather than only in the toolbar.
+ */
+const ACTIVE_OUTLINE_DELTA = 3;
+
+/** Cornerstone tool that draws each shape. */
+function shapeToolName(shape: EditShape): string {
+  if (shape === "circle") return CircleScissorsTool.toolName;
+  if (shape === "rect") return RectangleScissorsTool.toolName;
+  return BrushTool.toolName;
+}
+
+/**
+ * Fill/erase is a *strategy* on the tool, not a separate tool. The brush and
+ * the scissors spell their strategies differently, which is the only reason
+ * this mapping exists.
+ */
+function strategyFor(shape: EditShape, action: EditAction): string {
+  if (shape === "brush") {
+    return action === "erase" ? "ERASE_INSIDE_CIRCLE" : "FILL_INSIDE_CIRCLE";
+  }
+  return action === "erase" ? "ERASE_INSIDE" : "FILL_INSIDE";
+}
+
+const EVERY_EDIT_TOOL = [
+  BrushTool.toolName,
+  CircleScissorsTool.toolName,
+  RectangleScissorsTool.toolName,
+];
 
 // Mask brush/erase editing on the stack labelmap (paint requires window/level
 // to be passive so the primary button reaches the brush).
@@ -86,6 +127,14 @@ interface Props {
   onActiveLabelChange?: (id: number) => void;
   /** Populated with a handle to read the edited mask (for "Save mask"). */
   editApiRef?: MutableRefObject<MaskEditApi | null>;
+  /** Undo/redo the page's single edit timeline, so the toolbar and the grades
+   *  panel drive the same history rather than two competing ones. */
+  onUndo?: () => void;
+  onRedo?: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
+  /** What the next undo would revert, for the button's label. */
+  undoLabel?: string;
   /** Called once per completed stroke (mouse-down to mouse-up), not per move. */
   onMaskStroke?: () => void;
   /** Called when a fresh labelmap loads and the stroke history is dropped. */
@@ -112,6 +161,11 @@ export default function CornerstoneViewport({
   activeLabel = null,
   onActiveLabelChange,
   editApiRef,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
+  undoLabel,
   onMaskStroke,
   onMaskHistoryReset,
   onLegend,
@@ -127,15 +181,25 @@ export default function CornerstoneViewport({
   const [segAvailable, setSegAvailable] = useState(false);
   const [segVisible, setSegVisible] = useState(true);
   const [segOpacity, setSegOpacity] = useState(0.5);
-  const [editTool, setEditTool] = useState<"brush" | "erase">("brush");
+  const [editShape, setEditShape] = useState<EditShape>("brush");
+  const [editAction, setEditAction] = useState<EditAction>("paint");
   const [brushSize, setBrushSize] = useState(10);
+  // "Point at it" mode: the next click on the image chooses the structure the
+  // edit tools work on, instead of painting.
+  const [picking, setPicking] = useState(false);
+  // The structure under the cursor while picking, and whether the last click
+  // landed on background. Both are read-outs only; neither changes the mask.
+  const [hoverLabel, setHoverLabel] = useState<number | null>(null);
+  const [pickMissed, setPickMissed] = useState(false);
   // Legend entries are kept here as well as handed to the page: the label
   // picker needs each structure's *rendered* color, which only the LUT knows.
   const [legendEntries, setLegendEntries] = useState<LegendEntry[]>([]);
-  // A stroke spans many mousemove events; these track it so the page is told
-  // "one stroke happened", matching one entry in Cornerstone's undo history.
+  // A gesture spans many mousemove events; these track it so the page is told
+  // "one edit happened", matching one entry in Cornerstone's undo history.
   const paintingRef = useRef(false);
   const strokeTouchedRef = useRef(false);
+  // Undo depth at mouse-down. The page only gets a step if this grew.
+  const depthAtDownRef = useRef(0);
   // Read inside the load effect, which must not re-run when a parent re-renders.
   const historyResetRef = useRef(onMaskHistoryReset);
   historyResetRef.current = onMaskHistoryReset;
@@ -143,6 +207,28 @@ export default function CornerstoneViewport({
   const viewportId = `vp-${studyId}`;
   const segmentationId = `seg-${studyId}`;
   const toolGroupId = `tg-${studyId}`;
+
+  // Pointing wins over painting: while it is armed the primary button chooses a
+  // structure instead of changing voxels. It arms on request, and by itself
+  // when nothing is chosen yet -- the moment the brush would refuse to paint
+  // anyway, so the doctor's first click on the image does something useful.
+  const pickArmed =
+    editMode &&
+    segAvailable &&
+    (picking || (editAction === "paint" && activeLabel == null));
+  // Painting with no structure chosen is what put the wrong colour on the image
+  // in the first place, so a fill tool is only armed once one is picked.
+  // Erasing needs no target, so it arms immediately.
+  const editArmed =
+    editMode &&
+    segAvailable &&
+    !pickArmed &&
+    (editAction === "erase" || activeLabel != null);
+  /** Structure under the cursor while pointing, named and coloured. */
+  const hoverEntry =
+    hoverLabel == null
+      ? null
+      : (legendEntries.find((e) => e.id === hoverLabel) ?? null);
 
   useEffect(() => {
     let cancelled = false;
@@ -173,9 +259,15 @@ export default function CornerstoneViewport({
         type: ViewportType.STACK,
       });
 
-      [StackScrollTool, ZoomTool, PanTool, WindowLevelTool, BrushTool].forEach(
-        addTool,
-      );
+      [
+        StackScrollTool,
+        ZoomTool,
+        PanTool,
+        WindowLevelTool,
+        BrushTool,
+        CircleScissorsTool,
+        RectangleScissorsTool,
+      ].forEach(addTool);
       const toolGroup =
         ToolGroupManager.getToolGroup(toolGroupId) ??
         ToolGroupManager.createToolGroup(toolGroupId);
@@ -185,9 +277,16 @@ export default function CornerstoneViewport({
       toolGroup.addTool(PanTool.toolName);
       toolGroup.addTool(ZoomTool.toolName);
       toolGroup.addTool(StackScrollTool.toolName);
-      // Brush + eraser are the same tool with different strategies.
+      // Brush + eraser are the same tool with different strategies, and so are
+      // the two region tools: draw a shape, fill or erase everything inside it.
       toolGroup.addTool(BrushTool.toolName, {
         activeStrategy: "FILL_INSIDE_CIRCLE",
+      });
+      toolGroup.addTool(CircleScissorsTool.toolName, {
+        activeStrategy: "FILL_INSIDE",
+      });
+      toolGroup.addTool(RectangleScissorsTool.toolName, {
+        activeStrategy: "FILL_INSIDE",
       });
       toolGroup.addViewport(viewportId, renderingEngineId);
 
@@ -354,43 +453,55 @@ export default function CornerstoneViewport({
     };
   }, [editApiRef, segAvailable]);
 
-  // Toggle between review (window/level on primary) and edit (brush on primary).
+  // Keep Cornerstone's active segment in step with the page's choice at all
+  // times -- not only while a tool is armed -- because the labelmap draws the
+  // *active* segment with a thicker outline. That outline is how the doctor
+  // sees what is selected, and it has to appear whichever of the three ways
+  // made the choice: clicking the image, the toolbar picker, or the legend.
+  useEffect(() => {
+    if (!segAvailable) return;
+    segmentation.activeSegmentation.setActiveSegmentation(
+      viewportId,
+      segmentationId,
+    );
+    if (activeLabel == null) return;
+    segmentation.segmentIndex.setActiveSegmentIndex(segmentationId, activeLabel);
+    viewportRef.current?.render();
+  }, [segAvailable, activeLabel, viewportId, segmentationId]);
+
+  // Toggle between review (window/level on primary), pointing (a click chooses
+  // a structure) and editing (the chosen shape tool on primary).
   useEffect(() => {
     if (!segAvailable) return;
     const toolGroup = ToolGroupManager.getToolGroup(toolGroupId);
     if (!toolGroup) return;
-    // Painting with no structure chosen is what put the wrong colour on the
-    // image in the first place, so the brush is only armed once one is picked.
-    // Erasing needs no target, so it arms immediately.
-    const armed = editMode && (activeLabel != null || editTool === "erase");
-    if (armed) {
-      // The brush paints into the viewport's ACTIVE segmentation/segment.
-      segmentation.activeSegmentation.setActiveSegmentation(
-        viewportId,
-        segmentationId,
-      );
-      if (activeLabel != null) {
-        segmentation.segmentIndex.setActiveSegmentIndex(
-          segmentationId,
-          activeLabel,
-        );
-      }
-      // Free the primary button from window/level so the brush receives it.
+    if (editArmed) {
+      // Free the primary button from window/level so the edit tool receives it.
       toolGroup.setToolPassive(WindowLevelTool.toolName);
-      toolGroup.setToolConfiguration(BrushTool.toolName, {
-        activeStrategy:
-          editTool === "erase" ? "ERASE_INSIDE_CIRCLE" : "FILL_INSIDE_CIRCLE",
+      const armedTool = shapeToolName(editShape);
+      EVERY_EDIT_TOOL.filter((name) => name !== armedTool).forEach((name) =>
+        toolGroup.setToolPassive(name),
+      );
+      toolGroup.setToolConfiguration(armedTool, {
+        activeStrategy: strategyFor(editShape, editAction),
       });
-      toolGroup.setToolActive(BrushTool.toolName, {
+      toolGroup.setToolActive(armedTool, {
         bindings: [{ mouseButton: MouseBindings.Primary }],
       });
-      csToolsUtilities.segmentation.setBrushSizeForToolGroup(toolGroupId, brushSize);
+      if (editShape === "brush") {
+        csToolsUtilities.segmentation.setBrushSizeForToolGroup(
+          toolGroupId,
+          brushSize,
+        );
+      }
     } else {
-      toolGroup.setToolPassive(BrushTool.toolName);
+      EVERY_EDIT_TOOL.forEach((name) => toolGroup.setToolPassive(name));
       if (editMode) {
-        // Editing, but no structure chosen: leave the primary button bound to
-        // nothing. Handing it back to window/level would mean a doctor who
-        // drags expecting to paint instead silently re-windows the image.
+        // Editing, but pointing at a structure or waiting for one to be chosen:
+        // leave the primary button bound to nothing. Handing it back to
+        // window/level would mean a doctor who drags expecting to paint instead
+        // silently re-windows the image. The pick listener below reads the
+        // click straight off the element.
         toolGroup.setToolPassive(WindowLevelTool.toolName);
       } else {
         toolGroup.setToolActive(WindowLevelTool.toolName, {
@@ -401,13 +512,82 @@ export default function CornerstoneViewport({
   }, [
     segAvailable,
     editMode,
-    editTool,
+    editArmed,
+    editShape,
+    editAction,
     brushSize,
-    activeLabel,
-    viewportId,
-    segmentationId,
     toolGroupId,
   ]);
+
+  // Draw the selected structure with a fatter outline than its neighbours.
+  useEffect(() => {
+    if (!segAvailable) return;
+    segmentation.config.style.setStyle(
+      {
+        type: SegmentationRepresentations.Labelmap,
+        viewportId,
+        segmentationId,
+      },
+      { activeSegmentOutlineWidthDelta: ACTIVE_OUTLINE_DELTA },
+    );
+  }, [segAvailable, viewportId, segmentationId]);
+
+  // Click the image to choose the structure to work on.
+  //
+  // This is deliberately not Cornerstone's `SegmentSelectTool`: that tool acts
+  // on *hover*, so merely moving the mouse across the image would re-target the
+  // brush without the doctor asking. It picks with the same utility underneath;
+  // here the hover only reports what is under the cursor, and the click is what
+  // commits.
+  useEffect(() => {
+    if (!pickArmed) return;
+    const el = elementRef.current;
+    if (!el) return;
+    const labelAt = (evt: MouseEvent): number | null => {
+      const viewport = viewportRef.current;
+      if (!viewport) return null;
+      const rect = el.getBoundingClientRect();
+      const world = viewport.canvasToWorld([
+        evt.clientX - rect.left,
+        evt.clientY - rect.top,
+      ]);
+      const index = csToolsUtilities.segmentation.getSegmentIndexAtWorldPoint(
+        segmentationId,
+        world,
+        { viewport },
+      );
+      return index && index > 0 ? index : null;
+    };
+    let frame = 0;
+    const onMove = (evt: MouseEvent) => {
+      if (frame) return; // one probe per animation frame, not per mousemove
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        setHoverLabel(labelAt(evt));
+      });
+    };
+    const onClick = (evt: MouseEvent) => {
+      if (evt.button !== 0) return;
+      const index = labelAt(evt);
+      if (index == null) {
+        setPickMissed(true);
+        return;
+      }
+      setPickMissed(false);
+      onActiveLabelChange?.(index);
+      // Pointing is a step on the way to editing, so hand the tool back once
+      // the structure is chosen instead of making the doctor leave pick mode.
+      setPicking(false);
+    };
+    el.addEventListener("mousemove", onMove);
+    el.addEventListener("click", onClick);
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      el.removeEventListener("mousemove", onMove);
+      el.removeEventListener("click", onClick);
+      setHoverLabel(null);
+    };
+  }, [pickArmed, segmentationId, onActiveLabelChange]);
 
   // Build the color legend once the labelmap is rendered (colors are assigned
   // by Cornerstone's LUT keyed on the label id = segment index).
@@ -427,30 +607,51 @@ export default function CornerstoneViewport({
     onLegend?.(entries);
   }, [segAvailable, segLabels, onLegend, viewportId, segmentationId]);
 
-  // Report one completed stroke (mouse-down to mouse-up), so the page's undo
-  // stack gets one entry per stroke -- the same granularity Cornerstone commits
-  // to its own history on mouse-up. SEGMENTATION_DATA_MODIFIED alone fires on
-  // every mousemove, and would have produced dozens of steps per stroke.
+  // Report one completed gesture (mouse-down to mouse-up), so the page's undo
+  // stack gets one entry per gesture -- the same granularity Cornerstone commits
+  // to its own history on mouse-up.
+  //
+  // The test is Cornerstone's own undo depth, not "did any voxel change". A
+  // gesture earns a step on the page's timeline only if it actually left
+  // something to undo, which is exactly the guarantee the Undo button makes.
+  // Asking the tool instead would happily add a step for an edit that recorded
+  // no memo (`PaintFillTool` writes voxels that way, which is why it is not
+  // offered here) and Ctrl+Z would then skip over it.
   useEffect(() => {
     if (!onMaskStroke || !editMode || !segAvailable) return;
     const el = elementRef.current;
     if (!el) return;
+    // Kept only for the saturated-history case below: once 50 steps are on the
+    // ring the depth stops growing, and then "voxels changed" is all there is.
     const onData = () => {
       if (paintingRef.current) strokeTouchedRef.current = true;
     };
     const onDown = () => {
       paintingRef.current = true;
       strokeTouchedRef.current = false;
+      depthAtDownRef.current = maskHistoryDepth();
     };
-    // On window, not the canvas: a stroke that ends outside the image still ends.
+    // On window, not the canvas: a gesture that ends outside the image still ends.
     const onUp = () => {
       if (!paintingRef.current) return;
       paintingRef.current = false;
-      if (!strokeTouchedRef.current) return; // a click that painted nothing
+      const before = depthAtDownRef.current;
+      const touched = strokeTouchedRef.current;
       strokeTouchedRef.current = false;
-      // The tool commits its memo in its own mouse-up handler; announce the
-      // stroke after that has run so the history is already one deeper.
-      setTimeout(() => onMaskStroke(), 0);
+      // The tools commit their memo in their own mouse-up handler -- the brush
+      // as the stroke ends, the scissors when they apply the fill. Both run
+      // inside the DOM mouse-up dispatch, so read the depth in the next task,
+      // once they are done.
+      setTimeout(() => {
+        const grew = maskHistoryDepth() - before;
+        if (grew > 0) {
+          for (let i = 0; i < grew; i++) onMaskStroke();
+        } else if (touched && before >= MASK_HISTORY_DEPTH) {
+          // The ring is full: a new memo pushed the oldest one out instead of
+          // making the history deeper. Still one undoable gesture.
+          onMaskStroke();
+        }
+      }, 0);
     };
     eventTarget.addEventListener(
       csToolsEnums.Events.SEGMENTATION_DATA_MODIFIED,
@@ -579,44 +780,112 @@ export default function CornerstoneViewport({
           )}
           {MASK_EDIT_ENABLED && editMode && (
             <>
+              <button
+                type="button"
+                data-testid="pick-tool"
+                aria-pressed={pickArmed}
+                onClick={() => {
+                  setPickMissed(false);
+                  setPicking((on) => !on);
+                }}
+                className={
+                  "rounded-md border px-2 py-1 text-xs font-medium transition " +
+                  (pickArmed
+                    ? "border-teal-500 bg-teal-600 text-white"
+                    : "border-slate-300 bg-white text-slate-700 hover:border-teal-400")
+                }
+              >
+                ⌖ Point &amp; select
+              </button>
+              {onUndo && (
+                <span
+                  style={{ display: "inline-flex", gap: "0.25rem" }}
+                  title="Undo the last edit (Ctrl+Z)"
+                >
+                  <button
+                    type="button"
+                    data-testid="toolbar-undo"
+                    onClick={onUndo}
+                    disabled={!canUndo}
+                    className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-700 transition hover:border-teal-400 disabled:opacity-40"
+                  >
+                    ↶ {undoLabel ?? "Undo"}
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="toolbar-redo"
+                    onClick={onRedo}
+                    disabled={!canRedo}
+                    title="Redo (Ctrl+Shift+Z)"
+                    className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-700 transition hover:border-teal-400 disabled:opacity-40"
+                  >
+                    ↷
+                  </button>
+                </span>
+              )}
               <select
-                value={editTool}
+                value={editShape}
                 data-testid="edit-tool"
-                onChange={(e) => setEditTool(e.target.value as "brush" | "erase")}
+                onChange={(e) => setEditShape(e.target.value as EditShape)}
               >
                 <option value="brush">Brush</option>
+                <option value="circle">Circle</option>
+                <option value="rect">Rectangle</option>
+              </select>
+              <select
+                value={editAction}
+                data-testid="edit-action"
+                onChange={(e) => setEditAction(e.target.value as EditAction)}
+              >
+                <option value="paint">Fill</option>
                 <option value="erase">Erase</option>
               </select>
-              <label
-                style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}
-              >
-                Size
-                <input
-                  type="range"
-                  min={1}
-                  max={40}
-                  value={brushSize}
-                  onChange={(e) => setBrushSize(Number(e.target.value))}
-                />
-              </label>
+              {editShape === "brush" && (
+                <label
+                  style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}
+                >
+                  Size
+                  <input
+                    type="range"
+                    min={1}
+                    max={40}
+                    value={brushSize}
+                    onChange={(e) => setBrushSize(Number(e.target.value))}
+                  />
+                </label>
+              )}
               {legendEntries.length > 0 && (
                 <LabelPicker
                   entries={legendEntries}
                   value={activeLabel}
                   onChange={(id) => onActiveLabelChange?.(id)}
-                  disabled={editTool === "erase"}
-                  // Opening the list the moment editing starts makes the choice
-                  // the first thing the doctor sees, instead of a brush that
-                  // silently refuses to paint.
-                  autoOpen={activeLabel == null && editTool === "brush"}
+                  disabled={editAction === "erase"}
                 />
               )}
-              {editTool === "brush" && activeLabel == null && (
+              {pickArmed ? (
                 <span
                   data-testid="pick-structure-hint"
                   style={{ color: "#b45309", fontWeight: 500 }}
                 >
-                  Pick the structure to paint — the brush is off until you do.
+                  Click the structure on the image
+                  {activeLabel == null ? " — nothing is selected yet." : "."}
+                </span>
+              ) : null}
+              {pickArmed && (
+                <span
+                  data-testid="pick-hover"
+                  className="flex items-center gap-1.5 text-slate-600"
+                >
+                  {hoverEntry ? (
+                    <>
+                      <Swatch color={hoverEntry.color} />
+                      {prettyName(hoverEntry.name)}
+                    </>
+                  ) : pickMissed ? (
+                    "Nothing there — that is background."
+                  ) : (
+                    "—"
+                  )}
                 </span>
               )}
             </>
@@ -635,6 +904,9 @@ export default function CornerstoneViewport({
             minHeight: "360px",
             background: "black",
             overflow: "hidden",
+            // Pointing has no Cornerstone tool behind it, so it has no cursor
+            // of its own either; say so explicitly.
+            cursor: pickArmed ? "crosshair" : undefined,
             // The app root sets text-align:center; that shifts Cornerstone's
             // absolutely-positioned canvas. Reset it so the canvas fills the box.
             textAlign: "left",

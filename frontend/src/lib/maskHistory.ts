@@ -13,8 +13,12 @@ const { DefaultHistoryMemo } = utilities.HistoryMemo;
  * rather than a copy of the labelmap (a 320x320x20 mask is ~2 MB per copy).
  *
  * This module is the only place the app touches that global, so the rules for
- * using it safely stay in one file. Only the brush pushes memos here: the
- * annotation tools that would also use it are not enabled in this viewer.
+ * using it safely stay in one file. The brush and the circle/rectangle scissors
+ * push memos here (all three go through `LabelmapBaseTool.createMemo` /
+ * `doneEditMemo`); the annotation tools that would also use it are not enabled
+ * in this viewer. `PaintFillTool` deliberately is not enabled either -- it
+ * writes voxels straight through the voxel manager and records nothing, so an
+ * edit made with it could not be undone.
  */
 
 /** Strokes kept undoable. 50 is Cornerstone's own default ring size. */
@@ -32,6 +36,26 @@ export const MASK_HISTORY_DEPTH = 50;
  */
 export function resetMaskHistory(): void {
   DefaultHistoryMemo.size = MASK_HISTORY_DEPTH;
+}
+
+/**
+ * How many steps are currently undoable.
+ *
+ * This is the app's proof that an edit is reversible: a gesture only earns a
+ * step on the page's Undo timeline if it actually deepened this history. Asking
+ * the tool "did you paint?" cannot tell the difference between a tool that
+ * recorded a memo and one that wrote voxels behind the history's back -- this
+ * can.
+ *
+ * `undoAvailable` is private in Cornerstone's typings but a plain field at
+ * runtime; the boolean `canUndo` is the public fallback if that ever changes,
+ * which degrades to "at least one step" rather than to nothing.
+ */
+export function maskHistoryDepth(): number {
+  const depth = (DefaultHistoryMemo as unknown as { undoAvailable?: unknown })
+    .undoAvailable;
+  if (typeof depth === "number") return depth;
+  return DefaultHistoryMemo.canUndo ? 1 : 0;
 }
 
 export function canUndoMaskEdit(): boolean {

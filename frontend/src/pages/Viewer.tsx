@@ -590,6 +590,13 @@ export default function Viewer() {
                 activeLabel={activeLabel}
                 onActiveLabelChange={setActiveLabel}
                 editApiRef={editApiRef}
+                onUndo={handleUndo}
+                onRedo={handleRedo}
+                canUndo={undoKinds.length > 0}
+                canRedo={redoKinds.length > 0}
+                undoLabel={
+                  undoKinds.at(-1) === "mask" ? "Undo mask edit" : "Undo"
+                }
                 onMaskStroke={handleMaskStroke}
                 onMaskHistoryReset={handleMaskHistoryReset}
                 onLegend={setLegend}
@@ -658,11 +665,11 @@ export default function Viewer() {
                 <p className="mb-2 text-xs text-slate-500">
                   {activeLabel == null ? (
                     <span className="font-medium text-amber-700">
-                      Click a structure to paint it — the brush is off until you
-                      choose one.
+                      Click it on the image, or pick it here — the fill tools
+                      are off until a structure is chosen.
                     </span>
                   ) : (
-                    "Click a structure to switch what the brush paints."
+                    "Click a structure here, or point at it on the image, to switch what is painted."
                   )}
                 </p>
               )}
@@ -775,32 +782,32 @@ export default function Viewer() {
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   {/* One pair of buttons for both kinds of edit: the label
                       names whichever comes off the timeline next, so it is
-                      clear a brush stroke is about to be reverted. */}
+                      clear a mask edit is about to be reverted. */}
                   <button
                     onClick={handleUndo}
                     disabled={undoKinds.length === 0}
                     title={
                       undoKinds.at(-1) === "mask"
-                        ? "Undo brush stroke (Ctrl+Z)"
+                        ? "Undo mask edit (Ctrl+Z)"
                         : "Undo (Ctrl+Z)"
                     }
                     data-testid="undo-button"
                     className={btn}
                   >
-                    ↶ Undo{undoKinds.at(-1) === "mask" ? " stroke" : ""}
+                    ↶ Undo{undoKinds.at(-1) === "mask" ? " mask edit" : ""}
                   </button>
                   <button
                     onClick={handleRedo}
                     disabled={redoKinds.length === 0}
                     title={
                       redoKinds[0] === "mask"
-                        ? "Redo brush stroke (Ctrl+Shift+Z)"
+                        ? "Redo mask edit (Ctrl+Shift+Z)"
                         : "Redo (Ctrl+Shift+Z)"
                     }
                     data-testid="redo-button"
                     className={btn}
                   >
-                    ↷ Redo{redoKinds[0] === "mask" ? " stroke" : ""}
+                    ↷ Redo{redoKinds[0] === "mask" ? " mask edit" : ""}
                   </button>
                   <button
                     onClick={handleSave}
