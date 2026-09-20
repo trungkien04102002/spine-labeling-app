@@ -189,18 +189,6 @@ function SeriesPicker({
             {s.num_slices ? (
               <span className="font-normal opacity-60"> ({s.num_slices})</span>
             ) : null}
-            {s.analyzed_by_ai ? (
-              <span
-                className={
-                  "ml-1.5 rounded px-1 py-px text-[10px] font-bold " +
-                  (s.is_active
-                    ? "bg-white/25 text-white"
-                    : "bg-teal-100 text-teal-700")
-                }
-              >
-                AI
-              </span>
-            ) : null}
           </button>
         ))}
         {busy ? (
@@ -210,9 +198,16 @@ function SeriesPicker({
       <p className="mt-1.5 text-[11px] leading-snug text-slate-500">
         {analyzed ? (
           <>
-            The AI graded the series marked <strong>AI</strong> (
-            {PLANE_LABEL[analyzed.orientation] ?? "series"}). Browse any series
-            freely — switching does not change the grades.
+            {/* The badge that used to mark this series was removed, so name the
+                series here instead: which sequence produced the grades is not
+                something the doctor should have to infer. */}
+            The grades come from the{" "}
+            <strong>
+              {PLANE_LABEL[analyzed.orientation] ?? "sagittal"}
+              {analyzed.description ? ` ${analyzed.description}` : ""}
+            </strong>{" "}
+            series. Browse any series freely — switching does not change the
+            grades.
           </>
         ) : (
           <>
