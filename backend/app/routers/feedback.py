@@ -50,6 +50,15 @@ class CorrectionQueue(BaseModel):
     recent: list[CorrectionOut]
 
 
+class BatchOut(BaseModel):
+    """One sealed hand-off: what `POST /corrections/submit` stamped in one go."""
+
+    batch_id: str
+    sealed_at: datetime.datetime | None
+    corrections: int
+    studies: list[str]
+
+
 class SubmitResult(BaseModel):
     batch_id: str
     submitted: int
@@ -70,8 +79,22 @@ class ActivateRequest(BaseModel):
 
 
 @router.get("/corrections", response_model=CorrectionQueue)
-def list_corrections(limit: int = 20, db: Session = Depends(get_db)) -> CorrectionQueue:
-    """How many corrections are waiting, how many were handed over, and the latest few."""
+def list_corrections(
+    limit: int = 20,
+    status: str = "all",
+    db: Session = Depends(get_db),
+) -> CorrectionQueue:
+    """How many corrections are waiting, how many were handed over, and the latest few.
+
+    The counts are always over the whole log; `status` narrows only `recent`.
+    That matters for the operator view, where the queue and the already-sent
+    history are two separate lists: asking for the newest 200 rows overall can
+    return 200 sent rows and hide a waiting one, which would misreport the
+    thing the queue exists to show. `status` is one of "all" (default),
+    "pending" or "submitted"; anything else is treated as "all" rather than
+    refused, so an older client asking for something unknown still gets a
+    usable answer.
+    """
     pending = db.query(CorrectionLog).filter(CorrectionLog.submitted_at.is_(None))
     submitted = db.query(CorrectionLog).filter(CorrectionLog.submitted_at.isnot(None))
 
@@ -81,9 +104,15 @@ def list_corrections(limit: int = 20, db: Session = Depends(get_db)) -> Correcti
         if row.batch_id
     }
 
+    if status == "pending":
+        query = pending
+    elif status == "submitted":
+        query = submitted
+    else:
+        query = db.query(CorrectionLog)
+
     recent = (
-        db.query(CorrectionLog)
-        .order_by(desc(CorrectionLog.at), desc(CorrectionLog.id))
+        query.order_by(desc(CorrectionLog.at), desc(CorrectionLog.id))
         .limit(max(1, min(limit, 200)))
         .all()
     )
@@ -94,6 +123,42 @@ def list_corrections(limit: int = 20, db: Session = Depends(get_db)) -> Correcti
         batches=len(batch_ids),
         recent=[CorrectionOut.model_validate(c, from_attributes=True) for c in recent],
     )
+
+
+@router.get("/corrections/batches", response_model=list[BatchOut])
+def list_batches(db: Session = Depends(get_db)) -> list[BatchOut]:
+    """Every sealed batch, newest first, with its size and the studies it spans.
+
+    A batch id is the only handle that makes a past training run reproducible
+    (`build_dataset --batch-id` rebuilds exactly the corrections it saw), so
+    the operator view needs the ids themselves, not just a count of them. The
+    study list is here because a batch is deliberately cross-patient -- it is
+    every correction outstanding at the moment someone pressed send, whichever
+    patient it came from -- and a count alone never shows that.
+    """
+    rows = (
+        db.query(CorrectionLog)
+        .filter(CorrectionLog.batch_id.isnot(None))
+        .order_by(desc(CorrectionLog.submitted_at), desc(CorrectionLog.id))
+        .all()
+    )
+
+    batches: dict[str, BatchOut] = {}
+    for row in rows:
+        batch = batches.get(row.batch_id)
+        if batch is None:
+            batches[row.batch_id] = BatchOut(
+                batch_id=row.batch_id,
+                sealed_at=row.submitted_at,
+                corrections=1,
+                studies=[row.study_id],
+            )
+            continue
+        batch.corrections += 1
+        if row.study_id not in batch.studies:
+            batch.studies.append(row.study_id)
+
+    return list(batches.values())
 
 
 @router.post("/corrections/submit", response_model=SubmitResult)
