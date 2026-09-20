@@ -505,6 +505,17 @@ export default function Viewer() {
     }
   }
 
+  // "Corrections" means grade corrections in this app (they feed correction_log).
+  // Saying that after a mask edit names the wrong thing, so the button reports
+  // whichever kind is actually pending.
+  const saveLabel = !dirty && !maskDirty
+    ? "Saved"
+    : dirty && maskDirty
+      ? "Save changes"
+      : maskDirty
+        ? "Save mask"
+        : "Save corrections";
+
   const btn =
     "rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-400 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed";
 
@@ -594,6 +605,9 @@ export default function Viewer() {
                 onRedo={handleRedo}
                 canUndo={undoKinds.length > 0}
                 canRedo={redoKinds.length > 0}
+                onSave={handleSave}
+                canSave={(dirty || maskDirty) && !saving}
+                saveLabel={saving ? "Saving…" : saveLabel}
                 undoLabel={
                   undoKinds.at(-1) === "mask" ? "Undo mask edit" : "Undo"
                 }
@@ -814,11 +828,7 @@ export default function Viewer() {
                     disabled={(!dirty && !maskDirty) || saving}
                     className="rounded-lg bg-gradient-to-r from-teal-600 to-cyan-500 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
-                    {saving
-                      ? "Saving…"
-                      : dirty || maskDirty
-                        ? "Save corrections"
-                        : "Saved"}
+                    {saving ? "Saving…" : saveLabel}
                   </button>
                   <a href={exportUrl(studyId!)} target="_blank" rel="noreferrer">
                     <span className={btn}>⬇ Export</span>

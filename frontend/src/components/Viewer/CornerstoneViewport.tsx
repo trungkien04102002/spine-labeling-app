@@ -135,6 +135,11 @@ interface Props {
   canRedo?: boolean;
   /** What the next undo would revert, for the button's label. */
   undoLabel?: string;
+  /** Save the study's pending edits, so a mask edit can be saved from the
+   *  toolbar rather than from the panel below the image. */
+  onSave?: () => void;
+  canSave?: boolean;
+  saveLabel?: string;
   /** Called once per completed stroke (mouse-down to mouse-up), not per move. */
   onMaskStroke?: () => void;
   /** Called when a fresh labelmap loads and the stroke history is dropped. */
@@ -166,6 +171,9 @@ export default function CornerstoneViewport({
   canUndo,
   canRedo,
   undoLabel,
+  onSave,
+  canSave,
+  saveLabel,
   onMaskStroke,
   onMaskHistoryReset,
   onLegend,
@@ -822,6 +830,17 @@ export default function CornerstoneViewport({
                     ↷
                   </button>
                 </span>
+              )}
+              {onSave && (
+                <button
+                  type="button"
+                  data-testid="toolbar-save"
+                  onClick={onSave}
+                  disabled={!canSave}
+                  className="rounded-md bg-gradient-to-r from-teal-600 to-cyan-500 px-2.5 py-1 text-xs font-semibold text-white shadow-sm transition hover:brightness-110 disabled:opacity-40"
+                >
+                  {saveLabel ?? "Save"}
+                </button>
               )}
               <select
                 value={editShape}
