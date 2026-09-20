@@ -214,6 +214,52 @@ python3 tools/build_validation_set.py --api http://localhost:8000
 python3 tools/compare_validation_set.py
 ```
 
+## 7. Moving graded studies between the box and the laptop
+
+A box with no host volume loses everything when it is recycled or destroyed
+(`vast-capabilities | jq '.instance.workspace_is_volume'` — `false` on the
+2026-09-20 box). Grading is the expensive part, so pull finished studies down
+rather than re-running them: 326 MB of eight graded studies took **13 seconds**,
+against roughly 80 minutes to grade them again on a laptop CPU.
+
+```bash
+# laptop — studies + the box's database, into a staging dir
+mkdir -p /tmp/boxpull
+ssh -p <PORT> root@<HOST> \
+  'cd /workspace/spine-labeling-app/backend && tar czf - spine.db data/VAL-*' \
+  | tar xzf - -C /tmp/boxpull
+cp -R /tmp/boxpull/data/VAL-* ~/spine-labeling-app/backend/data/
+```
+
+**The database stores absolute paths, so it cannot simply be copied over.**
+`studies.volume_path`, `studies.display_path`, `series.volume_path`,
+`series.display_path` and `annotations.mask_path` all point at
+`/workspace/spine-labeling-app/backend/…`. Copy that database onto a laptop
+unchanged and every study opens blank — the worklist looks right, which is what
+makes it confusing.
+
+Merging (keeping the laptop's own studies) rather than overwriting means, per
+study: insert its patient and keep the new row id, insert the study against
+that id, then its `series`, `annotations` and `correction_log` rows, rewriting
+the prefix `/workspace/spine-labeling-app/backend/` to the local one in every
+path column. Delete any rows for the same study ids first, so a second run does
+not stack duplicates. Back the laptop database up before starting
+(`cp spine.db spine.db.bak.$(date +%Y%m%d-%H%M%S)`).
+
+Verify by serving it, not by trusting the copy — start the backend on a spare
+port and check a study actually grades back:
+
+```bash
+PORT=8001 ./run.sh backend
+curl -s localhost:8001/patients
+curl -s localhost:8001/studies/<STUDY_ID>/grade_full   # expect a full grading table
+```
+
+Going the other way (seeding a fresh box with studies already graded on the
+laptop) is the same in reverse, rewriting the prefix the other way.
+
+---
+
 ---
 
 ## Symptom → cause
