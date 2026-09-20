@@ -509,7 +509,7 @@ export default function Viewer() {
   // Saying that after a mask edit names the wrong thing, so the button reports
   // whichever kind is actually pending.
   const saveLabel = !dirty && !maskDirty
-    ? "Saved"
+    ? "Save"
     : dirty && maskDirty
       ? "Save changes"
       : maskDirty
