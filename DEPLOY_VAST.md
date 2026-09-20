@@ -94,27 +94,47 @@ Verify: `md5sum $APP/backend/models/weights/phase2_cbam.pth` →
 `50101203903b1aa3bcf3d6103daa650e`, and `ls $APP/backend/spinenet/weights/*/*.pt`
 → four files.
 
-## 3. Python on the VM
+## 3. Python on the VM — run `vast_setup.sh` first
 
-**Reuse `/venv/main`.** The Vast PyTorch image already ships torch with CUDA
-(2.14.0+cu130 on 2026-09-20), so a fresh venv would re-download ~2.5 GB for
-nothing:
+```bash
+cd /workspace/spine-labeling-app && ./vast_setup.sh --skip-download
+```
+
+It installs the backend deps, writes `backend/.env` (SQLite + CUDA
+segmentation), and builds `tss-venv` with the versions already pinned:
+`totalspineseg==20250416 nnunetv2==2.4.2 torch==2.4.1`. It is re-runnable, one
+failing step does not abort the rest, and it prints a summary of what is OK or
+missing. `--skip-download` because §2 already placed the checkpoint by hand;
+without it the script pulls from Drive, whose quota is per **account**, so a
+re-upload does not lift it.
+
+**Use the script.** The 2026-09-20 deploy installed everything by hand instead
+and rediscovered, the slow way, two things the script had already solved --
+`pip install totalspineseg` unpinned ships without nnunetv2
+(`ModuleNotFoundError: No module named 'nnunetv2'`), and torch >=2.6 flipped
+`torch.load(weights_only=True)`, which stops nnunetv2 2.4.2 loading its own
+checkpoints (`UnpicklingError: Weights only load failed`). Both are pinned
+away at `vast_setup.sh:111`, comment included.
+
+What the script does **not** do: the SpineNet weight stores in §0. It handles
+`phase2_cbam.pth` only, so grading still dies at the SpineNet stage until
+`backend/spinenet/weights/` is populated.
+
+### If you install by hand anyway
+
+Reuse `/venv/main` -- the Vast PyTorch image already ships torch with CUDA
+(2.14.0+cu130 on 2026-09-20), so a fresh venv re-downloads ~2.5 GB for nothing:
 
 ```bash
 source /venv/main/bin/activate
 cd /workspace/spine-labeling-app/backend && uv pip install -r requirements.txt
 ```
 
-TotalSpineSeg needs **its own** venv (it pins numpy<2) and **pinned
-versions** — `pip install totalspineseg` alone installs a build that does not
-pull in nnunetv2 and dies with `ModuleNotFoundError: No module named
-'nnunetv2'`:
-
-```bash
-cd /workspace && python3 -m venv tss-venv
-./tss-venv/bin/pip install "totalspineseg==20250416" "nnunetv2==2.4.2" "numpy<2"
-./tss-venv/bin/totalspineseg_init          # a no-op once §2 copied the models
-```
+TotalSpineSeg needs **its own** venv (it pins numpy<2). If its torch ends up
+>=2.6 rather than the pinned 2.4.1, the weights_only flip above applies and
+`TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1` in the backend's environment is the way
+out (§4) -- the backend passes its env straight to the CLI. That is what the
+box currently runs on.
 
 Pinning also keeps the segmentation label ids stable. `app/inference/crops.py`
 maps TotalSpineSeg disc labels 92/93/94/95/100 to the five lumbar levels; a
