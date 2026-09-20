@@ -216,7 +216,7 @@ function SeriesPicker({
           </>
         ) : (
           <>
-            Browse any plane freely. &ldquo;Run AI&rdquo; always grades the
+            Browse any plane freely. &ldquo;Run AI grading&rdquo; always grades the
             sagittal series, whichever one you are viewing.
           </>
         )}
@@ -243,7 +243,7 @@ export default function Viewer() {
   const [legend, setLegend] = useState<LegendEntry[]>([]);
   const editApiRef = useRef<MaskEditApi | null>(null);
 
-  // "Run AI" produces the full 11-label grading (SpineNet + CBAM) AND persists a
+  // "Run AI grading" produces the full 11-label grading (SpineNet + CBAM) AND persists a
   // v0 annotation, so the editable `result` above IS the 11-label table. We keep
   // `fullResult` only for the extras the annotation doesn't carry: the labelled
   // slice image and the CSV/JSON download URLs.
@@ -460,7 +460,7 @@ export default function Viewer() {
             disabled={running}
             className="rounded-lg bg-white px-4 py-1.5 text-sm font-semibold text-teal-700 shadow-sm transition hover:bg-teal-50 disabled:opacity-60"
           >
-            {running ? "Running…" : "✨ Run AI"}
+            {running ? "Grading…" : "✨ Run AI grading"}
           </button>
         </div>
 
@@ -641,6 +641,12 @@ export default function Viewer() {
               a new model version has to be reviewed and switched on before it
               grades anyone — so this never changes the next patient's result.
             </p>
+            <Link
+              to="/models"
+              className="mt-2 inline-block text-xs font-medium text-indigo-600 hover:underline"
+            >
+              Model versions — review and switch on →
+            </Link>
           </div>
         </aside>
 
@@ -748,7 +754,7 @@ export default function Viewer() {
             ) : (
               !running && (
                 <p className="text-sm text-slate-500">
-                  No AI results yet — click “✨ Run AI” (top right).
+                  No AI results yet — click “✨ Run AI grading” (top right).
                 </p>
               )
             )}

@@ -4,6 +4,7 @@ import {
   createStudy,
   deleteStudy,
   getHealth,
+  getModelVersions,
   getPatients,
   updateStudy,
   uploadStudy,
@@ -49,6 +50,10 @@ export default function PatientList() {
   const [patients, setPatients] = useState<PatientOut[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState<string | null>(null);
+  // Which checkpoint is grading, named in the header so the choice is visible
+  // from the worklist rather than buried behind a link labelled only "Model".
+  const [activeModel, setActiveModel] = useState<string | null>(null);
+  const [pendingModels, setPendingModels] = useState(0);
   const fileInputs = useRef<Record<string, HTMLInputElement | null>>({});
 
   // Toolbar: search + modality filter.
@@ -86,6 +91,15 @@ export default function PatientList() {
         }),
       );
     loadPatients();
+    getModelVersions()
+      .then((versions) => {
+        setActiveModel(versions.find((v) => v.is_active)?.name ?? null);
+        // The baseline is a fallback, not something awaiting approval.
+        setPendingModels(
+          versions.filter((v) => !v.is_active && !v.is_baseline).length,
+        );
+      })
+      .catch(() => setActiveModel(null));
   }, [loadPatients]);
 
   async function handleUpload(studyId: string, file: File) {
@@ -192,7 +206,24 @@ export default function PatientList() {
               </p>
             </div>
           </div>
-          <StatusPill backend={backend} />
+          <div className="flex items-center gap-3">
+            <Link
+              to="/models"
+              title="Which checkpoint grades new studies, and how a new one is approved"
+              className="flex items-center gap-2 rounded-lg bg-white/15 px-3 py-1.5 text-xs font-medium text-white backdrop-blur transition hover:bg-white/25"
+            >
+              <span>
+                Model:{" "}
+                <span className="font-mono">{activeModel ?? "unknown"}</span>
+              </span>
+              {pendingModels > 0 && (
+                <span className="rounded-full bg-amber-300 px-1.5 py-0.5 text-[10px] font-bold text-amber-900">
+                  {pendingModels} to review
+                </span>
+              )}
+            </Link>
+            <StatusPill backend={backend} />
+          </div>
         </div>
       </header>
 
