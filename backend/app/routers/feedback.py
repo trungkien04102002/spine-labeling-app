@@ -111,7 +111,7 @@ def submit_corrections(db: Session = Depends(get_db)) -> SubmitResult:
         return SubmitResult(
             batch_id="",
             submitted=0,
-            message="Không có chỉnh sửa nào đang chờ gửi.",
+            message="No corrections are waiting to be sent.",
         )
 
     batch_id = f"batch-{datetime.datetime.utcnow():%Y%m%d-%H%M%S}-{uuid.uuid4().hex[:6]}"
@@ -125,9 +125,9 @@ def submit_corrections(db: Session = Depends(get_db)) -> SubmitResult:
         batch_id=batch_id,
         submitted=len(pending),
         message=(
-            f"Đã gửi {len(pending)} chỉnh sửa cho AI học (mã lô {batch_id}). "
-            "Mô hình sẽ được huấn luyện lại ngoại tuyến và chỉ thay đổi khi "
-            "được duyệt."
+            f"Sent {len(pending)} correction{'' if len(pending) == 1 else 's'} "
+            f"as batch {batch_id}. Re-training runs offline, and the new model "
+            "version has to be reviewed before it grades anyone."
         ),
     )
 
