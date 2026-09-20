@@ -406,3 +406,117 @@ def test_split_seed_without_a_study_id_column_is_refused(tmp_path):
         freeze_holdout.freeze_holdout(
             str(source), str(tmp_path / "holdout"), n=10, split_seed=42
         )
+
+
+# --- A measurement that was never made must not break the page -------------
+
+
+def test_a_nan_in_a_sidecar_does_not_break_the_versions_endpoint(
+    client, weights_dir
+):
+    """The /models page must survive a metric that could not be computed.
+
+    `retrain_head.evaluate` scores a class with no examples in the held-out
+    set as NaN on purpose, so it can be left out of the macro average instead
+    of being counted as a zero. The sidecar it writes then holds a literal
+    `NaN` token, which is not valid JSON at all -- `json.dumps` emits it, and
+    a browser's `JSON.parse` rejects the *whole* document, so one absent
+    number can stop `/models` loading rather than leave one cell blank.
+
+    Whether it does is currently a library detail: pydantic 2.13 happens to
+    render a non-finite float as `null`, while starlette's own `JSONResponse`
+    raises on one, and nothing here pins either. This test nails the behaviour
+    down as a property of the endpoint instead of a property of whatever
+    versions `pip` resolved today: the response is parseable, and an absent
+    measurement reads as null.
+    """
+    (weights_dir / "phase2_cbam_v2.pth").write_bytes(b"retrained")
+    (weights_dir / "phase2_cbam_v2.pth.json").write_text(
+        json.dumps(
+            {
+                "before": {"macro_f1": 0.5, "f1_right_foraminal": float("nan")},
+                "after": {"macro_f1": float("nan"), "severe_f1": 0.61},
+                "trained_at": "2026-09-21T00:00:00",
+            },
+            allow_nan=True,
+        )
+    )
+
+    response = client.get("/model/versions")
+
+    assert response.status_code == 200
+    assert "NaN" not in response.text, "a bare NaN token is not valid JSON"
+    # `json.loads` is more forgiving than a browser's JSON.parse, so assert on
+    # the raw text above as well as on the decoded shape here.
+    listed = {c["name"]: c for c in json.loads(response.text)}
+    metrics = listed["phase2_cbam_v2.pth"]["metrics"]
+    assert metrics["after"]["macro_f1"] is None, "absent measurement reads as null"
+    assert metrics["after"]["severe_f1"] == 0.61, "real numbers are untouched"
+    assert metrics["before"]["f1_right_foraminal"] is None
+    assert metrics["trained_at"] == "2026-09-21T00:00:00"
+
+
+def test_activating_a_checkpoint_with_a_nan_sidecar_still_answers(
+    client, weights_dir
+):
+    """Activate/revert return the same shape, so they need the same guard."""
+    (weights_dir / "phase2_cbam_v2.pth").write_bytes(b"retrained")
+    (weights_dir / "phase2_cbam_v2.pth.json").write_text(
+        json.dumps({"after": {"macro_f1": float("nan")}}, allow_nan=True)
+    )
+
+    response = client.post(
+        "/model/activate", json={"checkpoint": "phase2_cbam_v2.pth"}
+    )
+
+    assert response.status_code == 200
+    assert "NaN" not in response.text
+    assert json.loads(response.text)["metrics"]["after"]["macro_f1"] is None
+
+
+# --- Who decided, and when -------------------------------------------------
+
+
+def test_nothing_activated_yet_reads_as_an_empty_history(client):
+    assert client.get("/model/activations").json() == []
+
+
+def test_activating_is_recorded_with_what_it_replaced(client, weights_dir):
+    """"A person approved this" has to be a record, not a claim about the UI."""
+    (weights_dir / "phase2_cbam_v2.pth").write_bytes(b"retrained")
+
+    client.post("/model/activate", json={"checkpoint": "phase2_cbam_v2.pth"})
+
+    history = client.get("/model/activations").json()
+    assert len(history) == 1
+    entry = history[0]
+    assert entry["checkpoint"] == "phase2_cbam_v2.pth"
+    assert entry["previous_checkpoint"] == model_registry.BASELINE
+    assert entry["action"] == "activate"
+    # No sign-in exists in this build, so the record says so instead of
+    # naming somebody it made up.
+    assert entry["actor"] is None
+    assert entry["at"]
+
+
+def test_a_revert_is_recorded_too(client, weights_dir):
+    """Going back decides what the next patient is graded by just as much."""
+    (weights_dir / "phase2_cbam_v2.pth").write_bytes(b"retrained")
+    client.post("/model/activate", json={"checkpoint": "phase2_cbam_v2.pth"})
+
+    client.post("/model/revert")
+
+    history = client.get("/model/activations").json()
+    assert [e["action"] for e in history] == ["revert", "activate"], "newest first"
+    assert history[0]["checkpoint"] == model_registry.BASELINE
+    assert history[0]["previous_checkpoint"] == "phase2_cbam_v2.pth"
+
+
+def test_a_refused_activation_records_nothing(client, weights_dir):
+    """Nothing changed, so the log must not say anything did."""
+    assert (
+        client.post("/model/activate", json={"checkpoint": "nope.pth"}).status_code
+        == 404
+    )
+
+    assert client.get("/model/activations").json() == []

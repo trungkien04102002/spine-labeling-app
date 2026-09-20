@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime
 import shutil
 import zipfile
 from pathlib import Path
@@ -329,6 +330,91 @@ def get_mask_volume(
     )
 
 
+#: Where superseded labelmaps are kept, inside the study's own data directory.
+MASK_VERSIONS_DIR = "mask_versions"
+
+
+def _archive_current_mask(db: Session, study_id: str, mask_path: Path) -> str | None:
+    """Keep the labelmap that is about to be overwritten, and say where it went.
+
+    Grade corrections have always been versioned -- every edit is a new
+    ``annotations`` row and the previous one is still there -- while a mask
+    edit wrote straight over ``mask.nii.gz`` and destroyed what it replaced. A
+    stray brush stroke saved by accident was therefore unrecoverable, and the
+    traceability this tool claims held for only half of what a doctor can
+    change.
+
+    The fix is deliberately the small one: the serving path
+    (``GET /studies/{id}/mask.nii.gz``, the viewer, the export) still finds the
+    current mask exactly where it always did. Only the *old* bytes move, into
+    ``<study>/mask_versions/``, and the annotation rows that referred to them
+    are repointed there -- so each version's ``mask_path`` names the file that
+    actually holds that version's mask, which is what the column was for.
+
+    Every version is kept. A labelmap is a few hundred KB to a few MB gzipped,
+    so a study edited ten times costs single-digit megabytes; pruning would
+    trade the one property this exists to provide against disk that is not
+    scarce.
+
+    Returns the archive's filename (not its full path -- the on-disk layout
+    stays internal), or None when there was no mask to keep.
+    """
+    if not mask_path.is_file():
+        return None
+
+    versions_dir = mask_path.parent / MASK_VERSIONS_DIR
+    versions_dir.mkdir(parents=True, exist_ok=True)
+    # Sequence number for reading order, timestamp so two saves in one second
+    # cannot collide and so the file is self-describing outside the database.
+    sequence = len(list(versions_dir.glob("mask_v*.nii.gz"))) + 1
+    stamp = datetime.datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+    archive = versions_dir / f"mask_v{sequence:03d}_{stamp}.nii.gz"
+    shutil.copy2(mask_path, archive)
+
+    live = mask_path.resolve()
+    for row in db.query(Annotation).filter_by(study_id=study_id).all():
+        if row.mask_path and Path(row.mask_path).resolve() == live:
+            row.mask_path = str(archive.resolve())
+    db.commit()
+    return archive.name
+
+
+def _record_mask_version(db: Session, study_id: str, mask_path: Path) -> int | None:
+    """Add the annotation version that the just-written mask belongs to.
+
+    Carries the latest payload forward unchanged -- a mask edit is not a grade
+    edit -- so the row says "at this version, the grades were these and the
+    mask was this file". It also keeps the newest row pointing at the live
+    mask, which is what ``build_dataset`` reads when it re-crops discs; without
+    it, repointing the old rows would have quietly aimed re-training at a
+    superseded labelmap.
+
+    Returns the new version number, or None when the study has no annotation
+    yet (nothing has been inferred, so there is no version line to extend).
+    """
+    prior = (
+        db.query(Annotation)
+        .filter_by(study_id=study_id)
+        .order_by(desc(Annotation.version), desc(Annotation.id))
+        .first()
+    )
+    if prior is None:
+        return None
+
+    version = prior.version + 1
+    db.add(
+        Annotation(
+            study_id=study_id,
+            version=version,
+            kind="mask",
+            payload_json=dict(prior.payload_json or {}),
+            mask_path=str(mask_path.resolve()),
+        )
+    )
+    db.commit()
+    return version
+
+
 @router.put("/studies/{study_id}/mask")
 async def save_mask(
     study_id: str,
@@ -363,8 +449,20 @@ async def save_mask(
     mask_img.CopyInformation(display)
     mask_path = Path(settings.data_dir) / study_id / "mask.nii.gz"
     mask_path.parent.mkdir(parents=True, exist_ok=True)
+
+    archived = _archive_current_mask(db, study_id, mask_path)
     sitk.WriteImage(mask_img, str(mask_path))
-    return {"ok": True, "shape": [z, y, x]}
+    version = _record_mask_version(db, study_id, mask_path)
+
+    return {
+        "ok": True,
+        "shape": [z, y, x],
+        # What the save can be undone back to, and the annotation version this
+        # edit became. Both are null on the first save of a study, when there
+        # was nothing to keep.
+        "previous_mask": archived,
+        "version": version,
+    }
 
 
 @router.get("/studies/{study_id}/export")

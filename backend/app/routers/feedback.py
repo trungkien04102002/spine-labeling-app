@@ -27,7 +27,8 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.feedback import model_registry
-from app.models_db import CorrectionLog
+from app.jsonsafe import finite_only
+from app.models_db import CorrectionLog, ModelActivation
 
 router = APIRouter(tags=["feedback"])
 
@@ -76,6 +77,58 @@ class CheckpointOut(BaseModel):
 
 class ActivateRequest(BaseModel):
     checkpoint: str
+
+
+class ActivationOut(BaseModel):
+    """One recorded decision to change the checkpoint in service."""
+
+    id: int
+    checkpoint: str
+    previous_checkpoint: str | None
+    action: str
+    #: None == unattributed. This build has no sign-in, so there is no name to
+    #: report; the UI says so rather than implying the record names someone.
+    actor: str | None
+    at: datetime.datetime
+
+
+def _checkpoint_out(info: model_registry.CheckpointInfo) -> CheckpointOut:
+    """A checkpoint on its way out over HTTP, with its numbers made JSON-safe.
+
+    The sidecar written beside a retrained checkpoint can hold NaN: a class
+    with no examples in the held-out set scores NaN on purpose, so it can be
+    left out of the macro average rather than counted as zero. `json.dumps`
+    emits that as the bare token `NaN`, which `JSON.parse` rejects -- and it
+    rejects the whole response, so one absent measurement inside one
+    checkpoint stops `/models` from loading at all instead of leaving one cell
+    blank. `app.jsonsafe.finite_only` turns it into `null`, which is what a
+    measurement that was not made actually means, and is the same rule the
+    re-training run log applies to the same numbers.
+    """
+    fields = vars(info) | {"metrics": finite_only(info.metrics)}
+    return CheckpointOut(**fields)
+
+
+def _record_activation(
+    db: Session, checkpoint: str, previous: str | None, action: str
+) -> None:
+    """Write down that someone changed what grades patients, and from what.
+
+    Called after the pointer has actually moved, so the log never claims a
+    change that did not happen.
+    """
+    db.add(
+        ModelActivation(
+            checkpoint=checkpoint,
+            previous_checkpoint=previous,
+            action=action,
+            # No authentication in this build; recorded as unattributed rather
+            # than attributed to an invented user.
+            actor=None,
+            at=datetime.datetime.utcnow(),
+        )
+    )
+    db.commit()
 
 
 @router.get("/corrections", response_model=CorrectionQueue)
@@ -200,26 +253,58 @@ def submit_corrections(db: Session = Depends(get_db)) -> SubmitResult:
 @router.get("/model/versions", response_model=list[CheckpointOut])
 def list_model_versions() -> list[CheckpointOut]:
     """Checkpoints available to serve, baseline first."""
-    return [
-        CheckpointOut(**vars(info)) for info in model_registry.list_checkpoints()
-    ]
+    return [_checkpoint_out(info) for info in model_registry.list_checkpoints()]
 
 
 @router.post("/model/activate", response_model=CheckpointOut)
-def activate_model(request: ActivateRequest) -> CheckpointOut:
-    """Put a checkpoint into service. Takes effect on the next inference."""
+def activate_model(
+    request: ActivateRequest, db: Session = Depends(get_db)
+) -> CheckpointOut:
+    """Put a checkpoint into service. Takes effect on the next inference.
+
+    The change is recorded in ``model_activations`` once it has taken: what
+    was in service before, what is now, and when. A refused activation writes
+    nothing, because nothing changed.
+    """
+    previous = model_registry.active_checkpoint_name()
     try:
         info = model_registry.activate(request.checkpoint)
     except model_registry.UnknownCheckpoint as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return CheckpointOut(**vars(info))
+    _record_activation(db, info.name, previous, "activate")
+    return _checkpoint_out(info)
 
 
 @router.post("/model/revert", response_model=CheckpointOut)
-def revert_model() -> CheckpointOut:
-    """Go back to the shipped baseline checkpoint."""
+def revert_model(db: Session = Depends(get_db)) -> CheckpointOut:
+    """Go back to the shipped baseline checkpoint.
+
+    Recorded like any other activation: reverting decides what the next
+    patient is graded by just as much as approving a candidate does.
+    """
+    previous = model_registry.active_checkpoint_name()
     try:
         info = model_registry.revert()
     except model_registry.UnknownCheckpoint as exc:  # baseline file went missing
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return CheckpointOut(**vars(info))
+    _record_activation(db, info.name, previous, "revert")
+    return _checkpoint_out(info)
+
+
+@router.get("/model/activations", response_model=list[ActivationOut])
+def list_model_activations(
+    limit: int = 20, db: Session = Depends(get_db)
+) -> list[ActivationOut]:
+    """Every recorded decision to change the serving checkpoint, newest first.
+
+    Empty is a meaningful answer, not a missing one: it means nothing has been
+    switched on this server since the record started -- the baseline the app
+    shipped with is still what grades patients.
+    """
+    rows = (
+        db.query(ModelActivation)
+        .order_by(desc(ModelActivation.at), desc(ModelActivation.id))
+        .limit(max(1, min(limit, 200)))
+        .all()
+    )
+    return [ActivationOut.model_validate(r, from_attributes=True) for r in rows]

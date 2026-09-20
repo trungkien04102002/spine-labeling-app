@@ -2,8 +2,10 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   activateModel,
+  getModelActivations,
   getModelVersions,
   revertModel,
+  type ActivationOut,
   type CheckpointOut,
 } from "../lib/api";
 
@@ -32,8 +34,22 @@ function formatSize(bytes: number): string {
   return `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
 
+/** For timestamps the backend took from the filesystem, i.e. already local. */
 function formatDate(iso: string): string {
   const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? iso : date.toLocaleString();
+}
+
+/**
+ * For timestamps the database stamped, which are naive UTC.
+ *
+ * A bare `2026-09-20T17:42:32` is read by the browser as local time, so the
+ * activation log would claim a decision was made seven hours before or after
+ * it was — exactly the kind of quiet inaccuracy an audit trail cannot afford.
+ * Marking it as UTC before parsing is the same thing the operator page does.
+ */
+function formatUtcDate(iso: string): string {
+  const date = new Date(/[Z+]|-\d\d:\d\d$/.test(iso) ? iso : `${iso}Z`);
   return Number.isNaN(date.getTime()) ? iso : date.toLocaleString();
 }
 
@@ -252,8 +268,81 @@ function Badge({
   );
 }
 
+/**
+ * Every recorded decision to change what grades patients, newest first.
+ *
+ * This sits next to "In service now" because it answers the question that
+ * card raises and used to leave hanging: the page could say which checkpoint
+ * is running, but nothing said who put it there or what it replaced. For a
+ * tool whose whole claim is that the model changes only when a person decides,
+ * an unrecorded decision is the same as no decision at all.
+ *
+ * Reverts appear here too, as decisions in their own right.
+ */
+function ActivationHistory({ entries }: { entries: ActivationOut[] | null }) {
+  if (entries === null) {
+    return <p className="mt-4 text-xs text-slate-500">Loading history…</p>;
+  }
+
+  if (entries.length === 0) {
+    return (
+      <p className="mt-4 border-t border-slate-100 pt-3 text-xs leading-relaxed text-slate-500">
+        Nothing has been switched on this server yet — the checkpoint the app
+        shipped with is still the one grading studies. Every activation and
+        revert from here on is recorded below.
+      </p>
+    );
+  }
+
+  return (
+    <div className="mt-4 border-t border-slate-100 pt-3">
+      <h3 className="text-xs font-semibold text-slate-700">
+        What has been put into service, and when
+      </h3>
+      <ol className="mt-2 space-y-2">
+        {entries.map((entry) => (
+          <li key={entry.id} className="flex gap-2.5 text-xs">
+            <span
+              className={`mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full ${
+                entry.action === "revert" ? "bg-slate-400" : "bg-teal-500"
+              }`}
+            />
+            <div className="leading-relaxed">
+              <span className="font-medium text-slate-700">
+                {entry.action === "revert"
+                  ? "Reverted to"
+                  : "Put into service:"}
+              </span>{" "}
+              <span className="font-mono text-slate-800">
+                {entry.checkpoint}
+              </span>
+              {entry.previous_checkpoint &&
+                entry.previous_checkpoint !== entry.checkpoint && (
+                  <>
+                    {" "}
+                    <span className="text-slate-500">replacing</span>{" "}
+                    <span className="font-mono text-slate-600">
+                      {entry.previous_checkpoint}
+                    </span>
+                  </>
+                )}
+              <div className="text-[11px] text-slate-500">
+                {formatUtcDate(entry.at)} ·{" "}
+                {/* No sign-in exists in this build, so the record is honest
+                    about it rather than naming an invented user. */}
+                {entry.actor ?? "unattributed (this build has no sign-in)"}
+              </div>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
 export default function ModelVersions() {
   const [checkpoints, setCheckpoints] = useState<CheckpointOut[] | null>(null);
+  const [activations, setActivations] = useState<ActivationOut[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -270,6 +359,11 @@ export default function ModelVersions() {
         setCheckpoints(null);
         setError(err instanceof Error ? err.message : String(err));
       });
+    // The history is supporting evidence, not the page: a server too old to
+    // have it still shows which checkpoint is in service.
+    getModelActivations()
+      .then(setActivations)
+      .catch(() => setActivations([]));
   }, []);
 
   useEffect(load, [load]);
@@ -432,6 +526,8 @@ export default function ModelVersions() {
               )}
             </>
           )}
+
+          <ActivationHistory entries={activations} />
         </section>
 
         {/* Candidates ---------------------------------------------------- */}

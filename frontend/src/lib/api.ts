@@ -322,6 +322,32 @@ export function revertModel(): Promise<CheckpointOut> {
   return apiFetch<CheckpointOut>("/model/revert", { method: "POST" });
 }
 
+/**
+ * One recorded decision to change the checkpoint that grades patients.
+ *
+ * The app's claim is that the model only ever changes because a person
+ * decided it should; this is the record of those decisions, so the claim is
+ * something the system can show rather than something the UI asserts. A
+ * revert is one of them too — going back changes what the next patient is
+ * graded by just as much as approving a candidate does.
+ */
+export interface ActivationOut {
+  id: number;
+  /** What this decision put into service. */
+  checkpoint: string;
+  /** What was in service immediately before it. */
+  previous_checkpoint: string | null;
+  action: "activate" | "revert";
+  /** null == unattributed. There is no sign-in in this build, so the record
+   *  says so instead of naming somebody the backend would have invented. */
+  actor: string | null;
+  at: string;
+}
+
+export function getModelActivations(limit = 20): Promise<ActivationOut[]> {
+  return apiFetch<ActivationOut[]>(`/model/activations?limit=${limit}`);
+}
+
 // --- Long-running grading as a polled job ---------------------------------
 
 export interface JobOut {
