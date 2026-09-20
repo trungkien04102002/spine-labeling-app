@@ -120,7 +120,11 @@ class Annotation(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     study_id: Mapped[str] = mapped_column(ForeignKey("studies.id"), nullable=False)
     version: Mapped[int] = mapped_column(Integer, nullable=False)
-    kind: Mapped[str] = mapped_column(String(16), nullable=False)  # "ai" | "corrected"
+    # "ai" (what the model produced) | "corrected" (a doctor's grade edit) |
+    # "mask" (a doctor's segmentation edit). `mask_path` is per version: each
+    # row points at the file holding *that* version's labelmap, so a mask edit
+    # archives the old file and repoints the rows that referred to it.
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
     payload_json: Mapped[dict] = mapped_column(JSON, nullable=False)
     mask_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(
@@ -204,6 +208,50 @@ class RetrainRun(Base):
     n_rows: Mapped[int | None] = mapped_column(Integer, nullable=True)
     skipped_json: Mapped[list | None] = mapped_column(JSON, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class ModelActivation(Base):
+    """One decision to change (or restore) the checkpoint that grades patients.
+
+    The whole claim this app makes about its feedback loop is that the model
+    only ever changes because a person decided it should. Until this table
+    existed, that decision left no trace: ``POST /model/activate`` moved a
+    one-line ``ACTIVE`` pointer and nothing recorded that anyone had moved it,
+    when, or away from what -- so "a human approved this" was an assertion
+    about the UI, not something the system could show afterwards.
+
+    A revert is recorded the same way, because going back to the baseline is
+    an activation decision like any other: it changes what the next patient is
+    graded by, and a loop that logs only the optimistic half of its decisions
+    is not an audit trail.
+
+    ``actor`` is honest about what the app knows. There is no sign-in here --
+    a deliberate demo posture, not an oversight -- so it is ``None``, meaning
+    "unattributed", rather than a name this code would have had to invent. If
+    authentication is ever added, the column is already where the identity
+    goes and old rows stay truthfully blank.
+    """
+
+    __tablename__ = "model_activations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    #: The checkpoint put into service by this decision.
+    checkpoint: Mapped[str] = mapped_column(String(255), nullable=False)
+    #: What was in service immediately before it. Equal to `checkpoint` when
+    #: someone re-activated what was already running -- still a decision, and
+    #: still recorded, because "nothing happened" is itself worth being able
+    #: to show.
+    previous_checkpoint: Mapped[str | None] = mapped_column(
+        String(255), nullable=True
+    )
+    #: "activate" | "revert" -- the same operation, but the intent differs and
+    #: only the record can preserve which one a person believed they made.
+    action: Mapped[str] = mapped_column(String(16), default="activate")
+    #: None == unattributed: this build has no authentication. See above.
+    actor: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, default=datetime.datetime.utcnow
+    )
 
 
 def mark_interrupted_runs(db: Session, is_alive: "Callable[[str | None], bool]") -> int:

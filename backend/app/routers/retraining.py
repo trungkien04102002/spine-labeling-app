@@ -40,7 +40,6 @@ from __future__ import annotations
 
 import csv
 import datetime
-import math
 import threading
 from contextlib import contextmanager
 from pathlib import Path
@@ -55,6 +54,7 @@ from app.config import Settings, get_settings
 from app.db import SessionLocal, get_db
 from app.feedback import build_dataset, freeze_holdout, model_registry, retrain_head
 from app.jobs import jobs
+from app.jsonsafe import finite_only
 from app.models_db import CorrectionLog, RetrainRun, mark_interrupted_runs
 from app.routers.full_grading import JobOut
 
@@ -113,13 +113,14 @@ def _finite_only(metrics: dict | None) -> dict | None:
     survives `json.dumps` as the bare token `NaN`, which `JSON.parse` in the
     browser refuses, taking the whole run log down with it. So a measurement
     that does not exist is written as null, which is what it means.
+
+    The rule itself lives in `app.jsonsafe` so that every endpoint serving
+    these numbers -- the run log here, the checkpoint list on `/models` --
+    applies the same one, rather than each growing its own.
     """
     if not metrics:
         return metrics
-    return {
-        key: (value if not isinstance(value, float) or math.isfinite(value) else None)
-        for key, value in metrics.items()
-    }
+    return finite_only(metrics)
 
 
 def _candidate_checkpoint_path(batch_id: str, cumulative: bool) -> Path:
