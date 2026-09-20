@@ -103,15 +103,17 @@ function InfoOverlay({ detail }: { detail: StudyDetail }) {
 // What each predicted grade means, shown in the "About this tool" panel so a
 // reader knows what the model outputs (wording follows the Oxford SpineNet demo
 // + standard lumbar-MRI radiology). `src` marks which model produces the column.
+// `scale` spells out the exact values, and must stay in step with
+// `lib/severityVocabulary.ts` — that is what the grade table's dropdowns offer.
 const PREDICTION_GUIDE: { name: string; scale: string; meaning: string; src: "SpineNet" | "CBAM" }[] = [
-  { name: "Pfirrmann", scale: "5 grades (I–V)", meaning: "Disc degeneration, from healthy (I) to severely degenerated (V).", src: "SpineNet" },
-  { name: "Disc narrowing", scale: "4 grades", meaning: "Loss of intervertebral disc height.", src: "SpineNet" },
-  { name: "Central canal stenosis", scale: "4 grades", meaning: "Narrowing of the central spinal canal.", src: "CBAM" },
-  { name: "Foraminal stenosis (L/R)", scale: "binary", meaning: "Narrowing of the left/right nerve-exit foramen.", src: "CBAM" },
-  { name: "Spondylolisthesis", scale: "binary", meaning: "Forward slippage of one vertebra over another.", src: "SpineNet" },
-  { name: "Endplate defects (upper/lower)", scale: "binary", meaning: "Damage to the vertebral endplate.", src: "SpineNet" },
-  { name: "Marrow changes (upper/lower)", scale: "binary", meaning: "Modic vertebral bone-marrow signal changes.", src: "SpineNet" },
-  { name: "Disc herniation", scale: "binary", meaning: "Protrusion/extrusion of disc material.", src: "SpineNet" },
+  { name: "Pfirrmann", scale: "Grade 1–5", meaning: "Disc degeneration, from healthy (1) to severely degenerated (5).", src: "SpineNet" },
+  { name: "Disc narrowing", scale: "Grade 1–4", meaning: "Loss of intervertebral disc height.", src: "SpineNet" },
+  { name: "Central canal stenosis", scale: "Normal/Mild · Moderate · Severe", meaning: "Narrowing of the central spinal canal.", src: "CBAM" },
+  { name: "Foraminal stenosis (L/R)", scale: "Normal/Mild · Moderate · Severe", meaning: "Narrowing of the left/right nerve-exit foramen.", src: "CBAM" },
+  { name: "Spondylolisthesis", scale: "None · Grade I · Grade II", meaning: "Forward slippage of one vertebra over another.", src: "SpineNet" },
+  { name: "Endplate defects (upper/lower)", scale: "Absent / Present", meaning: "Damage to the vertebral endplate.", src: "SpineNet" },
+  { name: "Marrow changes (upper/lower)", scale: "Absent / Present", meaning: "Modic vertebral bone-marrow signal changes.", src: "SpineNet" },
+  { name: "Disc herniation", scale: "Absent / Present", meaning: "Protrusion/extrusion of disc material.", src: "SpineNet" },
 ];
 
 // The three columns the project's own model owns. Their absence is the visible

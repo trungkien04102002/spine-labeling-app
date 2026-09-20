@@ -1,4 +1,8 @@
 import type { GradingItem } from "../../lib/api";
+import {
+  isTrainableCondition,
+  severityOptions,
+} from "../../lib/severityVocabulary";
 
 // Ordering *hints* only — anything the model returns that isn't listed still
 // shows, appended after the known ones. This keeps the table correct when the
@@ -38,8 +42,9 @@ const CONDITION_LABELS: Record<string, string> = {
   upper_marrow: "Upper marrow",
   lower_marrow: "Lower marrow",
 };
-const SEVERITIES = ["Normal/Mild", "Moderate", "Severe"];
 const LOW_CONFIDENCE = 0.5;
+/** Marks a column whose corrections the re-training loop does not consume. */
+const NOT_TRAINED_MARK = "†";
 
 /** Prettify an unknown condition key, e.g. "disc_herniation" -> "Disc herniation". */
 function conditionLabel(key: string): string {
@@ -97,14 +102,29 @@ export default function GradeTable({ grading, onJump, onEditSeverity }: Props) {
 
   const levels = ordered([...byLevel.keys()], LEVEL_ORDER);
   const conditions = ordered([...conditionSet], CONDITION_ORDER);
-  // Include every severity the model actually used, so the dropdown can
-  // represent scales beyond Normal/Mild/Moderate/Severe.
-  const severityOptions = ordered(
-    [...new Set([...SEVERITIES, ...grading.map((g) => g.severity)])],
-    SEVERITIES,
+  // Each condition gets its own scale: "Upper endplate defect" is only ever
+  // Absent/Present, and offering it Moderate produced corrections the training
+  // set silently drops. See lib/severityVocabulary.ts. A condition that file
+  // does not know falls back to the values this study holds for it, so a
+  // condition the backend adds stays editable.
+  const seenByCondition = new Map<string, Set<string>>();
+  for (const item of grading) {
+    if (!seenByCondition.has(item.condition)) {
+      seenByCondition.set(item.condition, new Set());
+    }
+    seenByCondition.get(item.condition)!.add(item.severity);
+  }
+  const optionsByCondition = new Map<string, string[]>(
+    conditions.map((c) => [
+      c,
+      severityOptions(c, seenByCondition.get(c) ?? []),
+    ]),
   );
+  // Only worth a footnote when the table actually shows such a column.
+  const hasUntrainedColumn = conditions.some((c) => !isTrainableCondition(c));
 
   return (
+    <>
     <div style={{ overflowX: "auto" }}>
     <table
       style={{
@@ -119,6 +139,14 @@ export default function GradeTable({ grading, onJump, onEditSeverity }: Props) {
           {conditions.map((c) => (
             <th key={c} style={{ padding: "4px 8px" }}>
               {conditionLabel(c)}
+              {!isTrainableCondition(c) && (
+                <span
+                  title="Graded by the vendored upstream SpineNet. Corrections here are saved and exported, but re-training does not use them."
+                  style={{ color: "#868e96", cursor: "help", marginLeft: 2 }}
+                >
+                  {NOT_TRAINED_MARK}
+                </span>
+              )}
             </th>
           ))}
         </tr>
@@ -139,6 +167,13 @@ export default function GradeTable({ grading, onJump, onEditSeverity }: Props) {
               {conditions.map((c) => {
                 const item = row.get(c);
                 const low = item != null && item.score < LOW_CONFIDENCE;
+                // The cell's own value is unioned in last: a stored severity
+                // outside the condition's scale must still display and stay
+                // selected rather than silently become a neighbouring value.
+                const cellOptions =
+                  item && !(optionsByCondition.get(c) ?? []).includes(item.severity)
+                    ? [...(optionsByCondition.get(c) ?? []), item.severity]
+                    : optionsByCondition.get(c) ?? [];
                 return (
                   <td
                     key={c}
@@ -169,7 +204,7 @@ export default function GradeTable({ grading, onJump, onEditSeverity }: Props) {
                               border: "none",
                             }}
                           >
-                            {severityOptions.map((s) => (
+                            {cellOptions.map((s) => (
                               <option key={s} value={s}>
                                 {s}
                               </option>
@@ -199,5 +234,22 @@ export default function GradeTable({ grading, onJump, onEditSeverity }: Props) {
       </tbody>
     </table>
     </div>
+    {hasUntrainedColumn && (
+      <p
+        style={{
+          margin: "8px 0 0",
+          fontSize: "0.72rem",
+          lineHeight: 1.5,
+          color: "#868e96",
+        }}
+      >
+        {NOT_TRAINED_MARK} Graded by the vendored upstream SpineNet. Corrections
+        to these columns are saved with the study and included in the export,
+        but the re-training loop does not use them — it re-trains only Canal,
+        L. foraminal and R. foraminal, the three heads of the app&rsquo;s own
+        model.
+      </p>
+    )}
+    </>
   );
 }
