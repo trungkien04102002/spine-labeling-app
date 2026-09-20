@@ -27,6 +27,17 @@ class Settings(BaseSettings):
     seg_max_workers: int = 1
     seg_max_workers_nnunet: int = 1
 
+    # Re-training (POST /corrections/batches/{id}/retrain) mixes ~200 ORIGINAL
+    # discs into the corrections so the heads stay anchored to the distribution
+    # the deployed checkpoint learned; without them a few dozen corrections pull
+    # the model wherever they happen to point. Those discs are the preprocessed
+    # RSNA set from the research repo (~8.2 GB), which is NOT part of this
+    # application and sits at a different path on every machine -- hence a
+    # setting with no default rather than a guessed path. Empty means "not
+    # configured", which the operator page shows as a blocked state instead of
+    # quietly running the weaker, replay-free experiment.
+    retrain_replay_dir: str = ""
+
 
 def get_settings() -> Settings:
     """FastAPI dependency yielding app settings (overridable in tests)."""

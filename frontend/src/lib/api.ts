@@ -56,8 +56,20 @@ export interface StudyDetail {
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, init);
   if (!response.ok) {
+    // FastAPI puts the reason in `detail`, and some of this app's refusals are
+    // the whole message — "no replay set is configured, set RETRAIN_REPLAY_DIR
+    // to …" is useless as "400 Bad Request". Fall back to the status line when
+    // the body is not the shape we expect.
+    let detail = "";
+    try {
+      const body = (await response.json()) as { detail?: unknown };
+      if (typeof body.detail === "string") detail = body.detail;
+    } catch {
+      /* not JSON — the status line is all there is */
+    }
     throw new Error(
-      `API request failed: ${response.status} ${response.statusText}`,
+      detail ||
+        `API request failed: ${response.status} ${response.statusText}`,
     );
   }
   return response.json() as Promise<T>;
@@ -336,4 +348,102 @@ export function startFullGrading(studyId: string): Promise<JobOut> {
 
 export function getJob(jobId: string): Promise<JobOut> {
   return apiFetch<JobOut>(`/jobs/${jobId}`);
+}
+
+// --- Re-training one batch, as a polled job -------------------------------
+
+/**
+ * What a re-training run needs, and which of those things the server has.
+ *
+ * The replay set is the interesting one: ~8.2 GB of original discs that live
+ * in the research repo, not in this app, so on some machines it simply is not
+ * there. That is a state the page shows rather than a silent fallback — a run
+ * without it is a different, weaker experiment.
+ */
+export interface RetrainReadiness {
+  replay_setting: string;
+  replay_dir: string | null;
+  replay_configured: boolean;
+  replay_present: boolean;
+  replay_rows: number | null;
+  holdout_dir: string;
+  holdout_present: boolean;
+  holdout_rows: number | null;
+  holdout_message: string;
+  base_checkpoint: string;
+  base_checkpoint_present: boolean;
+  /** Distinct (study, field) corrections across every sealed batch: what a
+   *  cumulative run trains on. A grade corrected twice counts once. */
+  cumulative_corrections: number;
+  sealed_batches: number;
+  can_run: boolean;
+  can_run_without_replay: boolean;
+  blockers: string[];
+  replay_blocker: string | null;
+  defaults: Record<string, number | string>;
+  running_batch_id: string | null;
+}
+
+/** One attempted run: what it used, how it ended, and what it measured. */
+export interface RetrainRunOut {
+  id: number;
+  batch_id: string;
+  job_id: string | null;
+  status: "running" | "done" | "error" | "interrupted";
+  started_at: string;
+  finished_at: string | null;
+  duration_seconds: number | null;
+  params: Record<string, unknown>;
+  /** null while running; false = ran fine, held-out macro-F1 did not improve. */
+  improved: boolean | null;
+  checkpoint_name: string | null;
+  checkpoint_exists: boolean;
+  /** Whether that candidate was since approved on /models. Never by the run. */
+  checkpoint_active: boolean;
+  /** A measurement the run could not make (a class absent from the held-out
+   *  set) comes back as null rather than NaN, which is not valid JSON. */
+  before: Record<string, number | null> | null;
+  after: Record<string, number | null> | null;
+  n_corrections: number | null;
+  n_rows: number | null;
+  skipped: string[] | null;
+  error: string | null;
+}
+
+export interface RetrainOptions {
+  /** "all" (default) trains on every correction sent so far; "batch" on the
+   *  launching batch alone, which is what makes a past run reproducible. */
+  scope?: "all" | "batch";
+  epochs?: number;
+  lr?: number;
+  batch_size?: number;
+  replay_size?: number;
+  /** Run without the replay set: deliberately weaker, never the default. */
+  without_replay?: boolean;
+}
+
+export function getRetrainReadiness(): Promise<RetrainReadiness> {
+  return apiFetch<RetrainReadiness>("/retraining/readiness");
+}
+
+export function getRetrainRuns(limit = 20): Promise<RetrainRunOut[]> {
+  return apiFetch<RetrainRunOut[]>(`/retraining/runs?limit=${limit}`);
+}
+
+/**
+ * Start one re-training run on a sealed batch. Poll `getJob` for progress.
+ *
+ * It produces a candidate checkpoint at most — it never activates anything,
+ * so what the next patient is graded by is unchanged until a person approves
+ * the candidate on `/models`.
+ */
+export function startBatchRetrain(
+  batchId: string,
+  options: RetrainOptions = {},
+): Promise<JobOut> {
+  return apiFetch<JobOut>(`/corrections/batches/${batchId}/retrain`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(options),
+  });
 }

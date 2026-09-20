@@ -24,6 +24,11 @@ cd frontend && npm install && cd ..
 export TOTALSPINESEG_BIN=/Users/kienha/totalspineseg/venv/bin/totalspineseg
 export SEG_DEVICE=cpu
 
+# (tuỳ chọn) bộ replay để chạy re-training từ trang /admin — thư mục
+# rsna_preprocessed của repo nghiên cứu (~8.2 GB, không nằm trong repo này).
+# Không đặt thì nút "Run re-training" bị khoá kèm lý do, không chạy lén.
+export RETRAIN_REPLAY_DIR=/Users/kienha/spinet-v2/rsna_preprocessed
+
 # chạy cả 2
 ./run.sh                # mở http://localhost:5173
 ./run.sh stop           # dừng
@@ -95,5 +100,6 @@ Worklist ban đầu rỗng (dữ liệu không đi kèm code):
 | Grade rỗng sau Run AI | Thiếu checkpoint — kiểm tra `backend/models/weights/phase2_cbam.pth` |
 | Seg báo lỗi CLI | Sai `TOTALSPINESEG_BIN`, hoặc chưa `totalspineseg_init` |
 | Máy thuê không có CUDA | Sửa `SEG_DEVICE=cpu` trong `backend/.env` (chậm hơn) |
+| Nút "Run re-training" ở `/admin` bị khoá | Chưa có `RETRAIN_REPLAY_DIR` (hoặc đường dẫn không tồn tại) — trang ghi rõ thiếu gì |
 
 Chi tiết deploy: [DEPLOY_VAST.md](DEPLOY_VAST.md) · Tổng quan: [README.md](README.md)

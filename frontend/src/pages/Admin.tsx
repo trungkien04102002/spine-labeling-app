@@ -1,28 +1,42 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   getCorrectionBatches,
   getCorrections,
+  getJob,
   getModelVersions,
+  getRetrainReadiness,
+  getRetrainRuns,
+  startBatchRetrain,
   type BatchOut,
   type CorrectionOut,
   type CorrectionQueue,
+  type JobOut,
+  type RetrainReadiness,
+  type RetrainRunOut,
 } from "../lib/api";
 
 /**
  * The operator's window on the first half of the feedback loop.
  *
  * A doctor corrects grades in the viewer; the corrections queue; sending them
- * seals a batch; **an engineer then runs re-training from a terminal**; the
- * checkpoint that produces appears on `/models` for a person to approve.
+ * seals a batch; **someone runs re-training on that batch from here**; the
+ * candidate checkpoint it produces appears on `/models` for a person to
+ * approve.
  *
- * Nothing on this page starts training, and nothing here should ever look as
- * if it might. The gap between "a batch is sealed" and "a new model exists" is
- * bridged by a human running two commands, and that gap is the claim the
- * thesis makes about this app: a correction made on one patient can never
- * quietly change what the next patient is graded by. So the page shows the
- * commands rather than a button — that is the honest way to expose re-training
- * from a screen that cannot perform it.
+ * The button on this page starts a run. It does not break the claim the thesis
+ * makes about this app, because the claim was never "there is no trigger" — it
+ * is that a correction made on one patient cannot change what the next patient
+ * is graded by until a person deliberately approves a new checkpoint. A run
+ * produces a candidate file and a row in the run log; the model in service is
+ * the one it was before. The gate is the approval step on `/models`, and this
+ * page says so wherever it offers to start something.
+ *
+ * Two things this screen is careful to show rather than hide: the replay set
+ * of original discs is 8.2 GB that lives in the research repo and is simply
+ * absent on some machines (so a run is blocked, not silently weakened), and
+ * head-only fine-tuning on CPU takes tens of minutes (so a run in progress is
+ * loud, keeps its stage on screen, and survives leaving the page).
  *
  * It is a sibling of `ModelVersions.tsx`, which owns the second half (review
  * and activation). The two link to each other instead of repeating each other.
@@ -43,9 +57,13 @@ const HOLDOUT_DIR = "data/holdout_frozen";
 /**
  * The replay set of original discs is NOT in this app: it is `rsna_preprocessed`
  * from the research repo, ~8.2 GB, and its absolute path differs per machine.
- * Deliberately a visible placeholder rather than an invented path.
+ * Shown only when the server has no path configured — otherwise the commands
+ * carry the real one.
  */
 const REPLAY_DIR_PLACEHOLDER = "<PATH-TO>/rsna_preprocessed";
+
+/** How often a run in progress is polled, in ms. Runs last minutes. */
+const POLL_MS = 3000;
 
 /**
  * The three conditions the fine-tuned grading model has heads for.
@@ -98,6 +116,15 @@ function formatDate(iso: string | null): string {
   // local time and silently shift it, so mark it as UTC before parsing.
   const date = new Date(/[Z+]|-\d\d:\d\d$/.test(iso) ? iso : `${iso}Z`);
   return Number.isNaN(date.getTime()) ? iso : date.toLocaleString();
+}
+
+/** "14 min 02 s" — a run is minutes, and rounding it to minutes hides drift. */
+function formatDuration(seconds: number): string {
+  const whole = Math.max(0, Math.round(seconds));
+  const minutes = Math.floor(whole / 60);
+  const rest = whole % 60;
+  if (minutes === 0) return `${rest} s`;
+  return `${minutes} min ${String(rest).padStart(2, "0")} s`;
 }
 
 /** Copy-to-clipboard that says whether it worked, because often it does not. */
@@ -228,19 +255,432 @@ function CorrectionTable({ rows }: { rows: CorrectionOut[] }) {
   );
 }
 
+// --- Running one batch -----------------------------------------------------
+
+interface RetrainParams {
+  /**
+   * What the run trains on.
+   *
+   * "all" is the default on purpose. A loop that only ever trains on the
+   * newest batch lets earlier corrections decay — round two never sees round
+   * one's edits in its training data, only inside the weights it starts from.
+   * The replay discs do not cover that: they are original RSNA scans, so they
+   * anchor the model to the original distribution, not to what the doctors
+   * have said since.
+   */
+  scope: "all" | "batch";
+  epochs: number;
+  replay_size: number;
+}
+
+const DEFAULT_PARAMS: RetrainParams = {
+  scope: "all",
+  epochs: 5,
+  replay_size: 200,
+};
+
+/** A live run, as the job reports it: stage, bar, elapsed, and reassurance. */
+function RunningPanel({ job }: { job: JobOut }) {
+  return (
+    <div className="mt-1 rounded-md border border-indigo-200 bg-indigo-50 px-2 py-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[11px] font-semibold text-indigo-800">
+          Running · {formatDuration(job.elapsed_seconds)}
+        </span>
+        <span className="text-[11px] tabular-nums text-indigo-700">
+          {job.percent}%
+        </span>
+      </div>
+      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-indigo-100">
+        <div
+          className="h-full rounded-full bg-indigo-500 transition-all"
+          style={{ width: `${job.percent}%` }}
+        />
+      </div>
+      <div className="mt-1 text-[11px] leading-snug text-indigo-900">
+        {job.stage}
+      </div>
+      <div className="mt-1 text-[11px] leading-snug text-indigo-700/80">
+        Head-only fine-tuning on CPU takes tens of minutes. You can leave this
+        page — the run continues on the server and this panel finds it again.
+      </div>
+    </div>
+  );
+}
+
 /**
- * Where this batch stands in the loop, drawn so the missing step is visible.
+ * The trigger for one batch, in whichever of its states applies.
  *
- * The re-training step is a real part of the flow and belongs in the sequence,
- * but the app does not perform it: an engineer runs two commands in a
- * terminal. So it is drawn the way the thesis's architecture figure draws
- * anything not built into the software — dashed rather than solid — and its
- * button is disabled, labelled, and says in words where the step actually
- * happens. A button that looked live and did nothing would be the single
- * dishonest thing on a screen whose whole subject is that no model changes
- * without a person deciding, and a demo that presses it would find that out.
+ * The replay-free variant is deliberately awkward: a separate, plainly
+ * labelled button behind its own confirmation, never the thing that happens
+ * when you press the ordinary one. Without ~200 original discs mixed in, a
+ * few dozen corrections drag the heads wherever they point, which is a
+ * different experiment rather than a slightly worse version of this one.
  */
-function LoopSteps() {
+function RetrainControl({
+  batchId,
+  readiness,
+  job,
+  jobBatchId,
+  lastRun,
+  starting,
+  error,
+  confirming,
+  setConfirming,
+  onStart,
+}: {
+  batchId: string;
+  readiness: RetrainReadiness | null;
+  job: JobOut | null;
+  jobBatchId: string | null;
+  lastRun: RetrainRunOut | null;
+  starting: boolean;
+  error: string | null;
+  /** Owned by the parent: a confirmation widens the step it lives in. */
+  confirming: null | "full" | "replayless";
+  setConfirming: (next: null | "full" | "replayless") => void;
+  onStart: (
+    batchId: string,
+    params: RetrainParams,
+    withoutReplay: boolean,
+  ) => void;
+}) {
+  const [params, setParams] = useState<RetrainParams>(DEFAULT_PARAMS);
+
+  const isMine = jobBatchId === batchId && job !== null;
+  if (isMine && job.status === "running") return <RunningPanel job={job} />;
+
+  const busyElsewhere =
+    readiness?.running_batch_id != null && readiness.running_batch_id !== batchId;
+  const canRun = readiness?.can_run === true && !busyElsewhere;
+  const canRunWithoutReplay =
+    readiness?.can_run_without_replay === true && !busyElsewhere;
+
+  const priorDuration =
+    lastRun?.duration_seconds != null ? lastRun.duration_seconds : null;
+
+  function start(withoutReplay: boolean) {
+    setConfirming(null);
+    onStart(batchId, params, withoutReplay);
+  }
+
+  if (confirming !== null) {
+    const replayless = confirming === "replayless";
+    return (
+      <div
+        className={`mt-1 rounded-md border p-2 ${
+          replayless
+            ? "border-amber-300 bg-amber-50"
+            : "border-indigo-200 bg-indigo-50"
+        }`}
+      >
+        <p
+          className={`text-[11px] font-bold ${replayless ? "text-amber-900" : "text-indigo-900"}`}
+        >
+          {replayless
+            ? "Run without the replay set?"
+            : "Start a re-training run?"}
+        </p>
+
+        <fieldset className="mt-1.5 rounded border border-slate-200 bg-white/70 p-1.5">
+          <legend className="px-1 text-[11px] font-semibold text-slate-600">
+            What it trains on
+          </legend>
+          <label className="flex cursor-pointer gap-1.5 text-[11px] text-slate-700">
+            <input
+              type="radio"
+              name={`scope-${batchId}`}
+              checked={params.scope === "all"}
+              onChange={() => setParams((p) => ({ ...p, scope: "all" }))}
+              className="mt-0.5"
+            />
+            <span>
+              <strong>All corrections sent so far</strong>
+              {readiness != null && (
+                <>
+                  {" "}
+                  — {readiness.cumulative_corrections} correction
+                  {readiness.cumulative_corrections === 1 ? "" : "s"} across{" "}
+                  {readiness.sealed_batches} batch
+                  {readiness.sealed_batches === 1 ? "" : "es"}
+                </>
+              )}
+              . Each round then has to satisfy everything the doctors have
+              corrected to date, not only the newest batch. A grade corrected
+              twice counts once — the latest edit wins, duplicates do not pile
+              up.
+            </span>
+          </label>
+          <label className="mt-1 flex cursor-pointer gap-1.5 text-[11px] text-slate-700">
+            <input
+              type="radio"
+              name={`scope-${batchId}`}
+              checked={params.scope === "batch"}
+              onChange={() => setParams((p) => ({ ...p, scope: "batch" }))}
+              className="mt-0.5"
+            />
+            <span>
+              <strong>This batch only</strong> — exactly what{" "}
+              <span className="font-mono">{batchId}</span> holds. Reproducible:
+              the same batch id rebuilds the same data later.
+            </span>
+          </label>
+          {params.scope === "all" && (
+            <p className="mt-1 text-[11px] leading-snug text-slate-500">
+              Two costs worth knowing: the cumulative set grows every round, so
+              runs get slower and head-only fine-tuning stops being obviously
+              the right method once it is large; and it enforces older
+              corrections indefinitely, which entrenches one reader's judgement
+              — agreement between readers on this task is only about κ=0.68, so
+              corrections are not ground truth.
+            </p>
+          )}
+        </fieldset>
+        <ul
+          className={`mt-1 space-y-0.5 text-[11px] leading-snug ${replayless ? "text-amber-800" : "text-indigo-900/90"}`}
+        >
+          <li>
+            · It fine-tunes the heads of{" "}
+            <span className="font-mono">
+              {readiness?.base_checkpoint ?? "the checkpoint in service"}
+            </span>{" "}
+            on{" "}
+            {params.scope === "all"
+              ? "every correction sent so far"
+              : "this batch"}{" "}
+            and scores the result on the frozen held-out set.
+          </li>
+          <li>
+            · A new checkpoint is written <strong>only</strong> if held-out
+            macro-F1 improves. "No improvement, nothing saved" is a normal
+            result.
+          </li>
+          <li>
+            · Nothing is activated. What grades the next patient does not
+            change until someone approves the candidate on{" "}
+            <Link to="/models" className="underline">
+              Model versions
+            </Link>
+            .
+          </li>
+          <li>
+            · It runs on CPU and takes minutes, not seconds
+            {priorDuration != null && (
+              <> — the last run here took {formatDuration(priorDuration)}</>
+            )}
+            . Only one run at a time.
+          </li>
+          {replayless && (
+            <li className="font-semibold">
+              · Without the replay discs there is no guard against the model
+              forgetting what it already knew. This is a weaker experiment, and
+              the run log will record it as one.
+            </li>
+          )}
+        </ul>
+
+        <details className="mt-1.5">
+          <summary className="cursor-pointer text-[11px] font-medium text-slate-600">
+            Parameters
+          </summary>
+          <div className="mt-1 flex flex-wrap gap-3">
+            <label className="text-[11px] text-slate-600">
+              Epochs (max)
+              <input
+                type="number"
+                min={1}
+                max={20}
+                value={params.epochs}
+                onChange={(e) =>
+                  setParams((p) => ({
+                    ...p,
+                    epochs: Number(e.target.value) || 1,
+                  }))
+                }
+                className="ml-1 w-16 rounded border border-slate-300 px-1 py-0.5 text-[11px]"
+              />
+            </label>
+            {!replayless && (
+              <label className="text-[11px] text-slate-600">
+                Replay discs
+                <input
+                  type="number"
+                  min={0}
+                  max={2000}
+                  step={50}
+                  value={params.replay_size}
+                  onChange={(e) =>
+                    setParams((p) => ({
+                      ...p,
+                      replay_size: Number(e.target.value) || 0,
+                    }))
+                  }
+                  className="ml-1 w-20 rounded border border-slate-300 px-1 py-0.5 text-[11px]"
+                />
+              </label>
+            )}
+          </div>
+          <p className="mt-1 text-[11px] leading-snug text-slate-500">
+            Early stopping can end a run before the last epoch. More epochs and
+            more replay discs both make the run longer, roughly in proportion.
+          </p>
+        </details>
+
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          <button
+            type="button"
+            onClick={() => start(replayless)}
+            disabled={starting}
+            className={`rounded-md px-2.5 py-1 text-[11px] font-semibold text-white transition disabled:opacity-50 ${
+              replayless
+                ? "bg-amber-600 hover:bg-amber-700"
+                : "bg-indigo-600 hover:bg-indigo-700"
+            }`}
+          >
+            {starting
+              ? "Starting…"
+              : replayless
+                ? "Yes, run without replay"
+                : "Yes, start the run"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfirming(null)}
+            className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600 transition hover:bg-slate-50"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-1">
+      <button
+        type="button"
+        onClick={() => setConfirming("full")}
+        disabled={!canRun || starting}
+        title={
+          canRun
+            ? "Rebuild this batch and fine-tune the heads on it"
+            : busyElsewhere
+              ? `A run on ${readiness?.running_batch_id} is still going`
+              : (readiness?.replay_blocker ??
+                readiness?.blockers.join(" ") ??
+                "Not ready")
+        }
+        className={
+          canRun
+            ? "w-full rounded-md bg-gradient-to-r from-indigo-600 to-violet-500 px-2 py-1 text-[11px] font-semibold text-white shadow-sm transition hover:brightness-110"
+            : "w-full cursor-not-allowed rounded-md border border-slate-300 bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-400"
+        }
+      >
+        Run re-training
+      </button>
+
+      {busyElsewhere && (
+        <div className="mt-1 text-[11px] leading-snug text-slate-500">
+          A run on{" "}
+          <span className="font-mono">{readiness?.running_batch_id}</span> is
+          still going. One at a time — a run uses the whole CPU.
+        </div>
+      )}
+
+      {!busyElsewhere && !canRun && readiness && (
+        <div className="mt-1 text-[11px] leading-snug text-amber-700">
+          {readiness.blockers.length > 0
+            ? readiness.blockers.join(" ")
+            : readiness.replay_blocker}
+        </div>
+      )}
+
+      {!busyElsewhere && !canRun && canRunWithoutReplay && (
+        <button
+          type="button"
+          onClick={() => setConfirming("replayless")}
+          className="mt-1 w-full rounded-md border border-amber-300 bg-white px-2 py-1 text-[11px] font-medium text-amber-800 transition hover:bg-amber-50"
+        >
+          Run without the replay set (weaker)…
+        </button>
+      )}
+
+      {isMine && job.status === "error" && (
+        <div className="mt-1 rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] text-rose-700">
+          The run failed: {job.error}
+        </div>
+      )}
+      {isMine && job.status === "done" && lastRun?.status === "done" && (
+        <div
+          className={`mt-1 rounded-md border px-2 py-1 text-[11px] ${
+            lastRun.improved
+              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+              : "border-slate-200 bg-slate-50 text-slate-600"
+          }`}
+        >
+          {lastRun.improved ? (
+            <>
+              Finished in {formatDuration(lastRun.duration_seconds ?? 0)} —
+              candidate{" "}
+              <span className="font-mono">{lastRun.checkpoint_name}</span> is
+              waiting on{" "}
+              <Link to="/models" className="underline">
+                Model versions
+              </Link>
+              .
+            </>
+          ) : (
+            <>
+              Finished in {formatDuration(lastRun.duration_seconds ?? 0)} — no
+              held-out improvement, so nothing was saved. The model in service
+              is unchanged.
+            </>
+          )}
+        </div>
+      )}
+      {error && (
+        <div className="mt-1 rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] text-rose-700">
+          {error}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Where this batch stands in the loop.
+ *
+ * All three steps are solid now: the middle one is a button on this page, and
+ * the one after it is a person on `/models`. The step that is drawn as a
+ * decision rather than an action is step 3, because that is the one the whole
+ * design rests on — a run produces a candidate and nothing else changes.
+ */
+function LoopSteps({
+  batchId,
+  readiness,
+  job,
+  jobBatchId,
+  lastRun,
+  starting,
+  error,
+  onStart,
+}: {
+  batchId: string;
+  readiness: RetrainReadiness | null;
+  job: JobOut | null;
+  jobBatchId: string | null;
+  lastRun: RetrainRunOut | null;
+  starting: boolean;
+  error: string | null;
+  onStart: (
+    batchId: string,
+    params: RetrainParams,
+    withoutReplay: boolean,
+  ) => void;
+}) {
+  const [confirming, setConfirming] = useState<null | "full" | "replayless">(
+    null,
+  );
   return (
     <div className="mt-4 flex flex-wrap items-stretch gap-2">
       <div className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
@@ -254,23 +694,29 @@ function LoopSteps() {
 
       <div className="flex items-center text-slate-300">→</div>
 
-      <div className="flex-1 rounded-lg border-2 border-dashed border-slate-300 bg-white px-3 py-2">
+      <div
+        className={`rounded-lg border border-slate-200 bg-white px-3 py-2 ${
+          // A confirmation carries a choice with consequences and several
+          // sentences explaining it; squeezed into a third of the row it
+          // becomes a column of two-word lines nobody reads.
+          confirming !== null ? "basis-full" : "min-w-[16rem] flex-1"
+        }`}
+      >
         <div className="text-[11px] font-semibold text-slate-700">
           2 · Re-train
         </div>
-        <button
-          type="button"
-          disabled
-          aria-disabled="true"
-          title="Re-training is not run by this app. Copy the commands below and run them in a terminal."
-          className="mt-1 w-full cursor-not-allowed rounded-md border border-dashed border-slate-300 bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-400"
-        >
-          Run re-training
-        </button>
-        <div className="mt-1 text-[11px] leading-snug text-slate-500">
-          Not wired up. This step runs from a terminal — the commands are
-          below.
-        </div>
+        <RetrainControl
+          batchId={batchId}
+          readiness={readiness}
+          job={job}
+          jobBatchId={jobBatchId}
+          lastRun={lastRun}
+          starting={starting}
+          error={error}
+          confirming={confirming}
+          setConfirming={setConfirming}
+          onStart={onStart}
+        />
       </div>
 
       <div className="flex items-center text-slate-300">→</div>
@@ -286,7 +732,7 @@ function LoopSteps() {
           Model versions →
         </Link>
         <div className="mt-0.5 text-[11px] text-slate-500">
-          In the app, once a checkpoint exists.
+          Nothing a run produces grades anyone until someone approves it here.
         </div>
       </div>
     </div>
@@ -311,12 +757,17 @@ function Commands({ title, code }: { title: string; code: string }) {
 }
 
 /**
- * The two commands that turn one sealed batch into a candidate checkpoint.
+ * The same two steps the button runs, as commands.
  *
- * Written out in full, with the batch id already substituted, because the
- * batch id is the only thing that makes a past training run reproducible.
+ * Kept because the button is not the only way in: a run on a machine with a
+ * GPU, or with different parameters, is still a terminal job, and the batch id
+ * is what makes any past run reproducible.
  */
-function retrainCommands(batchId: string, activeCheckpoint: string): string {
+function retrainCommands(
+  batchId: string,
+  activeCheckpoint: string,
+  replayDir: string | null,
+): string {
   const out = `${DATASET_DIR}/${batchId}`;
   return [
     "cd backend",
@@ -332,7 +783,7 @@ function retrainCommands(batchId: string, activeCheckpoint: string): string {
     `    --checkpoint models/weights/${activeCheckpoint} \\`,
     `    --dataset-dir ${out} \\`,
     `    --holdout-dir ${HOLDOUT_DIR} \\`,
-    `    --replay-dir ${REPLAY_DIR_PLACEHOLDER} \\`,
+    `    --replay-dir ${replayDir ?? REPLAY_DIR_PLACEHOLDER} \\`,
     `    --out-checkpoint models/weights/${batchId}.pth`,
   ].join("\n");
 }
@@ -341,11 +792,30 @@ function BatchCard({
   batch,
   rows,
   activeCheckpoint,
+  readiness,
+  job,
+  jobBatchId,
+  lastRun,
+  starting,
+  error,
+  onStart,
 }: {
   batch: BatchOut;
   /** The rows of this batch the server actually returned (may be partial). */
   rows: CorrectionOut[];
   activeCheckpoint: string;
+  readiness: RetrainReadiness | null;
+  job: JobOut | null;
+  jobBatchId: string | null;
+  /** The newest run recorded for this batch, if any. */
+  lastRun: RetrainRunOut | null;
+  starting: boolean;
+  error: string | null;
+  onStart: (
+    batchId: string,
+    params: RetrainParams,
+    withoutReplay: boolean,
+  ) => void;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -404,15 +874,257 @@ function BatchCard({
         </div>
       )}
 
-      <LoopSteps />
-
-      <Commands
-        title="Step 2, in full — run these in a terminal"
-        code={retrainCommands(batch.batch_id, activeCheckpoint)}
+      <LoopSteps
+        batchId={batch.batch_id}
+        readiness={readiness}
+        job={job}
+        jobBatchId={jobBatchId}
+        lastRun={lastRun}
+        starting={starting}
+        error={error}
+        onStart={onStart}
       />
+
+      <details className="mt-3">
+        <summary className="cursor-pointer text-[11px] font-medium text-slate-500">
+          Or run the same two steps in a terminal
+        </summary>
+        <Commands
+          title="What the button runs, as commands"
+          code={retrainCommands(
+            batch.batch_id,
+            activeCheckpoint,
+            readiness?.replay_present ? readiness.replay_dir : null,
+          )}
+        />
+      </details>
     </article>
   );
 }
+
+// --- The run log -----------------------------------------------------------
+
+const RUN_METRICS: { key: string; label: string }[] = [
+  { key: "macro_f1", label: "Macro F1" },
+  { key: "severe_f1", label: "Severe F1" },
+  { key: "mean_acc", label: "Mean accuracy" },
+];
+
+function RunBadge({ run }: { run: RetrainRunOut }) {
+  const [text, cls] =
+    run.status === "running"
+      ? ["Running", "bg-indigo-100 text-indigo-700"]
+      : run.status === "error"
+        ? ["Failed", "bg-rose-100 text-rose-700"]
+        : run.status === "interrupted"
+          ? ["Interrupted", "bg-amber-100 text-amber-800"]
+          : run.improved
+            ? ["Candidate saved", "bg-emerald-100 text-emerald-700"]
+            : ["No improvement", "bg-slate-100 text-slate-600"];
+  return (
+    <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${cls}`}>
+      {text}
+    </span>
+  );
+}
+
+/** Before/after on the frozen held-out set, as the run measured it. */
+function RunMetrics({ run }: { run: RetrainRunOut }) {
+  if (!run.before || !run.after) return null;
+  // A metric the run could not measure comes back as null (a class with no
+  // support in the held-out set); showing "—" for it would suggest a number
+  // was expected, so the row is simply left out.
+  const rows = RUN_METRICS.map((m) => ({
+    ...m,
+    before: run.before?.[m.key],
+    after: run.after?.[m.key],
+  })).filter(
+    (m): m is { key: string; label: string; before: number; after: number } =>
+      typeof m.before === "number" && typeof m.after === "number",
+  );
+  if (rows.length === 0) return null;
+
+  return (
+    <table className="mt-2 w-full max-w-md text-[11px]">
+      <thead>
+        <tr className="text-slate-500">
+          <th className="py-0.5 text-left font-medium">
+            On the frozen held-out set
+          </th>
+          <th className="py-0.5 text-right font-medium">Before</th>
+          <th className="py-0.5 text-right font-medium">After</th>
+          <th className="py-0.5 text-right font-medium">Change</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((m) => {
+          const { before, after } = m;
+          const delta = after - before;
+          const cls =
+            delta === 0
+              ? "text-slate-400"
+              : delta > 0
+                ? "text-emerald-600"
+                : "text-rose-600";
+          return (
+            <tr key={m.key} className="border-t border-slate-200">
+              <td className="py-0.5 text-slate-700">{m.label}</td>
+              <td className="py-0.5 text-right tabular-nums text-slate-500">
+                {before.toFixed(3)}
+              </td>
+              <td className="py-0.5 text-right font-semibold tabular-nums text-slate-800">
+                {after.toFixed(3)}
+              </td>
+              <td className={`py-0.5 text-right font-semibold tabular-nums ${cls}`}>
+                {delta > 0 ? "+" : delta < 0 ? "−" : "±"}
+                {Math.abs(delta).toFixed(3)}
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
+/**
+ * True when nothing moved at all between before and after.
+ *
+ * Three identical rows and three ±0.000 changes read like a broken
+ * measurement. They are not: `retrain_head` restores the best-scoring state it
+ * saw, so a run where no epoch beat the starting point ends on exactly the
+ * weights it began with. Worth one sentence, because the alternative reading
+ * is that the numbers are fake.
+ */
+function unchangedMetrics(run: RetrainRunOut): boolean {
+  const before = run.before ?? {};
+  const after = run.after ?? {};
+  const keys = Object.keys(after).filter((k) => typeof after[k] === "number");
+  return (
+    keys.length > 0 && keys.every((k) => before[k] === after[k])
+  );
+}
+
+
+function paramSummary(run: RetrainRunOut): string {
+  const p = run.params ?? {};
+  const bits = [
+    // Scope first: two runs launched from one batch with different scopes saw
+    // different data, and nothing else in the row would tell them apart. A row
+    // with no scope recorded is from before the choice existed — per-batch.
+    p.scope === "all" ? "all corrections so far" : "this batch only",
+    `${p.epochs ?? "?"} epoch${p.epochs === 1 ? "" : "s"} max`,
+    `lr ${p.lr ?? "?"}`,
+    `batch ${p.batch_size ?? "?"}`,
+    p.replay_dir
+      ? `${p.replay_size ?? 0} replay discs`
+      : "no replay set (weaker)",
+    `on ${p.device ?? "cpu"}`,
+  ];
+  return bits.join(" · ");
+}
+
+function RunCard({ run, job }: { run: RetrainRunOut; job: JobOut | null }) {
+  const live = run.status === "running" && job?.id === run.job_id ? job : null;
+  return (
+    <article className="mb-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex flex-wrap items-center gap-2">
+        <RunBadge run={run} />
+        <span className="text-[11px] text-slate-500">
+          launched from{" "}
+          <span className="font-mono text-slate-700">{run.batch_id}</span>
+        </span>
+        <span className="text-[11px] text-slate-500">
+          started {formatDate(run.started_at)}
+          {run.duration_seconds != null && (
+            <> · took {formatDuration(run.duration_seconds)}</>
+          )}
+        </span>
+      </div>
+
+      <p className="mt-1 text-[11px] text-slate-500">
+        {paramSummary(run)}
+        {run.n_rows != null && (
+          <>
+            {" · "}
+            {run.n_corrections ?? 0} correction
+            {run.n_corrections === 1 ? "" : "s"} → {run.n_rows} disc
+            {run.n_rows === 1 ? "" : "s"} rebuilt
+          </>
+        )}
+        {run.params?.base_checkpoint != null && (
+          <>
+            {" · from "}
+            <span className="font-mono">{String(run.params.base_checkpoint)}</span>
+          </>
+        )}
+      </p>
+
+      {live && <RunningPanel job={live} />}
+
+      <RunMetrics run={run} />
+
+      {run.status === "done" && run.improved && run.checkpoint_name && (
+        <p className="mt-2 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] text-emerald-800">
+          Candidate <span className="font-mono">{run.checkpoint_name}</span>{" "}
+          {run.checkpoint_exists ? "written" : "was written but is gone"} ·{" "}
+          {run.checkpoint_active ? (
+            <>it was since approved and is now in service.</>
+          ) : (
+            <>
+              it grades nobody until someone approves it on{" "}
+              <Link to="/models" className="font-semibold underline">
+                Model versions
+              </Link>
+              .
+            </>
+          )}
+        </p>
+      )}
+
+      {run.status === "done" && run.improved === false && (
+        <p className="mt-2 rounded-md bg-slate-50 px-2 py-1 text-[11px] leading-snug text-slate-600">
+          Held-out macro-F1 did not improve, so no checkpoint was written. That
+          is the run working as intended, not a failure: the gate in{" "}
+          <code className="rounded bg-slate-100 px-1">retrain_head</code> only
+          keeps a model that measures better.
+          {unchangedMetrics(run) && (
+            <>
+              {" "}
+              Every measure is identical because the run ended on the weights it
+              started from — it keeps the best-scoring state it saw, and no
+              epoch scored better than the start.
+            </>
+          )}
+        </p>
+      )}
+
+      {run.error && (
+        <p className="mt-2 rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] leading-snug text-rose-700">
+          {run.error}
+        </p>
+      )}
+
+      {run.skipped != null && run.skipped.length > 0 && (
+        <details className="mt-2">
+          <summary className="cursor-pointer text-[11px] font-medium text-slate-500">
+            {run.skipped.length} disc
+            {run.skipped.length === 1 ? "" : "s"} skipped when rebuilding
+          </summary>
+          <ul className="mt-1 space-y-0.5 text-[11px] text-slate-500">
+            {run.skipped.map((reason) => (
+              <li key={reason} className="font-mono">
+                {reason}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </article>
+  );
+}
+
+// --- The page --------------------------------------------------------------
 
 export default function Admin() {
   const [queue, setQueue] = useState<CorrectionQueue | null>(null);
@@ -422,6 +1134,15 @@ export default function Admin() {
   const [batchesDerived, setBatchesDerived] = useState(false);
   const [activeCheckpoint, setActiveCheckpoint] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const [readiness, setReadiness] = useState<RetrainReadiness | null>(null);
+  const [runs, setRuns] = useState<RetrainRunOut[] | null>(null);
+  const [job, setJob] = useState<JobOut | null>(null);
+  const [jobBatchId, setJobBatchId] = useState<string | null>(null);
+  const [starting, setStarting] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
+  /** Guards against adopting a run twice while the first poll is in flight. */
+  const adopted = useRef<string | null>(null);
 
   const load = useCallback(() => {
     // The counts are global; `status` only narrows which rows come back. Asking
@@ -469,7 +1190,87 @@ export default function Admin() {
       .catch(() => setActiveCheckpoint(null));
   }, []);
 
+  /** Readiness + the run log. Cheap, and re-read on every poll tick. */
+  const loadRetraining = useCallback(() => {
+    // A backend without these endpoints simply has no trigger; the rest of the
+    // page still works, so the failure is recorded as "no readiness" and the
+    // button stays disabled with its reason.
+    getRetrainReadiness()
+      .then(setReadiness)
+      .catch(() => setReadiness(null));
+    return getRetrainRuns(20)
+      .then((list) => {
+        setRuns(list);
+        return list;
+      })
+      .catch(() => {
+        setRuns(null);
+        return null;
+      });
+  }, []);
+
   useEffect(load, [load]);
+  useEffect(() => {
+    loadRetraining();
+  }, [loadRetraining]);
+
+  // Adopt a run that was already going when this page opened — started from
+  // another tab, or before a reload. Leaving the page must not lose the run.
+  useEffect(() => {
+    const running = runs?.find((r) => r.status === "running" && r.job_id);
+    if (!running?.job_id || adopted.current === running.job_id) return;
+    adopted.current = running.job_id;
+    setJobBatchId(running.batch_id);
+    getJob(running.job_id)
+      .then(setJob)
+      .catch(() => setJob(null));
+  }, [runs]);
+
+  // Poll while a run is in flight, then refresh everything once it settles.
+  useEffect(() => {
+    if (!job || job.status !== "running") return;
+    const timer = setInterval(() => {
+      getJob(job.id)
+        .then((next) => {
+          setJob(next);
+          if (next.status !== "running") loadRetraining();
+        })
+        .catch(() => {
+          // The server restarted, or the job aged out of the in-memory
+          // registry. The run log is the durable record; fall back to it.
+          setJob(null);
+          loadRetraining();
+        });
+      loadRetraining();
+    }, POLL_MS);
+    return () => clearInterval(timer);
+  }, [job, loadRetraining]);
+
+  async function handleStart(
+    batchId: string,
+    params: RetrainParams,
+    withoutReplay: boolean,
+  ) {
+    setStarting(true);
+    setStartError(null);
+    try {
+      const started = await startBatchRetrain(batchId, {
+        scope: params.scope,
+        epochs: params.epochs,
+        replay_size: params.replay_size,
+        without_replay: withoutReplay,
+      });
+      adopted.current = started.id;
+      setJobBatchId(batchId);
+      setJob(started);
+      loadRetraining();
+    } catch (err: unknown) {
+      setStartError(err instanceof Error ? err.message : String(err));
+      loadRetraining();
+    } finally {
+      setStarting(false);
+    }
+  }
 
   const checkpointForCommands = activeCheckpoint ?? "phase2_cbam.pth";
   const rowsByBatch = new Map<string, CorrectionOut[]>();
@@ -478,6 +1279,11 @@ export default function Admin() {
     const list = rowsByBatch.get(row.batch_id);
     if (list) list.push(row);
     else rowsByBatch.set(row.batch_id, [row]);
+  }
+
+  const latestRunByBatch = new Map<string, RetrainRunOut>();
+  for (const run of runs ?? []) {
+    if (!latestRunByBatch.has(run.batch_id)) latestRunByBatch.set(run.batch_id, run);
   }
 
   const pendingRows = queue?.recent ?? [];
@@ -497,7 +1303,8 @@ export default function Admin() {
           <div className="leading-tight text-white">
             <div className="text-sm font-bold">Feedback operations</div>
             <div className="text-xs text-teal-50/90">
-              What doctors corrected, and what went out in which batch
+              What doctors corrected, what went out in which batch, and what
+              re-training made of it
             </div>
           </div>
           <Link
@@ -511,10 +1318,10 @@ export default function Admin() {
 
       <main className="mx-auto max-w-4xl px-6 py-8">
         <p className="mb-4 text-[11px] leading-relaxed text-slate-400">
-          Operator view. There is no access control on this page — anyone who
+          Developer view. There is no access control on this page — anyone who
           can open the app can open it, and the API answers the same requests
-          directly. That is a deliberate choice for a demo, not a security
-          boundary.
+          directly, including the one that starts a training run. That is a
+          deliberate choice for a demo, not a security boundary.
         </p>
 
         {error && (
@@ -633,8 +1440,8 @@ export default function Admin() {
               <p className="mt-2 text-xs leading-relaxed text-slate-500">
                 A batch appears here the moment a doctor sends the queue. Each
                 one shows its id, when it was sealed, how many corrections it
-                holds, which studies they came from, and the two commands that
-                rebuild and re-train from exactly those corrections.
+                holds, which studies they came from, and the button that
+                re-trains on exactly those corrections.
               </p>
             </div>
           ) : (
@@ -644,72 +1451,139 @@ export default function Admin() {
                 batch={batch}
                 rows={rowsByBatch.get(batch.batch_id) ?? []}
                 activeCheckpoint={checkpointForCommands}
+                readiness={readiness}
+                job={job}
+                jobBatchId={jobBatchId}
+                lastRun={latestRunByBatch.get(batch.batch_id) ?? null}
+                starting={starting}
+                error={jobBatchId === batch.batch_id ? startError : null}
+                onStart={handleStart}
               />
             ))
           )}
         </section>
 
-        {/* What re-training needs, and what this app has ------------------- */}
+        {/* Run history ---------------------------------------------------- */}
+        <section className="mt-6">
+          <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-slate-800">
+            <span className="h-4 w-1 rounded bg-gradient-to-b from-indigo-500 to-violet-500" />
+            Re-training runs
+          </h2>
+
+          {runs === null ? (
+            <div className="rounded-xl border border-dashed border-slate-300 bg-white p-5 text-sm shadow-sm">
+              <p className="font-medium text-slate-700">
+                This backend does not keep a run log.
+              </p>
+              <p className="mt-2 text-xs leading-relaxed text-slate-500">
+                It predates <code>/retraining/runs</code>, so re-training can
+                only be started from a terminal here, and nothing on this page
+                can say whether it ever was.
+              </p>
+            </div>
+          ) : runs.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-300 bg-white p-5 text-sm shadow-sm">
+              <p className="font-medium text-slate-700">
+                No run has been started on this server.
+              </p>
+              <p className="mt-2 text-xs leading-relaxed text-slate-500">
+                Every attempt lands here — which batch it used, when it started
+                and finished, the parameters, the before/after numbers on the
+                frozen held-out set, and whether a candidate came out of it.
+                Runs that found no improvement are kept too; they are the
+                normal case, and a loop with no record of them cannot be
+                audited.
+              </p>
+            </div>
+          ) : (
+            runs.map((run) => <RunCard key={run.id} run={run} job={job} />)
+          )}
+        </section>
+
+        {/* What a run needs ------------------------------------------------ */}
         <section className="mt-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-slate-800">
             <span className="h-4 w-1 rounded bg-gradient-to-b from-slate-400 to-slate-500" />
-            Before running those commands
+            What a run needs, and what this machine has
           </h2>
 
-          <p className="text-xs leading-relaxed text-slate-600">
-            The app cannot run re-training, and the commands above are not a
-            button in disguise: they are run by an engineer, on a machine that
-            has the training data. Two of the three things they need do not live
-            in this repo in the same way.
-          </p>
-
-          <dl className="mt-3 space-y-3 text-xs leading-relaxed">
+          <dl className="mt-1 space-y-3 text-xs leading-relaxed">
             <div>
               <dt className="font-semibold text-slate-700">
-                The held-out set — in this app
+                The held-out set —{" "}
+                {readiness?.holdout_present ? (
+                  <span className="text-emerald-700">present</span>
+                ) : (
+                  <span className="text-rose-700">missing or changed</span>
+                )}
               </dt>
               <dd className="text-slate-600">
                 <code className="rounded bg-slate-100 px-1">
                   backend/{HOLDOUT_DIR}
                 </code>{" "}
-                holds 200 rows frozen before any correction was collected, with
-                a checksum in its <code>MANIFEST.json</code>. It is what the
-                before/after numbers on{" "}
+                holds {readiness?.holdout_rows ?? 200} rows frozen before any
+                correction was collected, with a checksum in its{" "}
+                <code>MANIFEST.json</code>. Every before/after number on this
+                page and on{" "}
                 <Link to="/models" className="text-indigo-600 hover:underline">
                   Model versions
                 </Link>{" "}
-                are measured on. Re-freezing it would invalidate every
-                comparison ever made against it — verify rather than rebuild:
-                <br />
-                <code className="mt-1 inline-block rounded bg-slate-100 px-1">
-                  python -m app.feedback.freeze_holdout --verify {HOLDOUT_DIR}
-                </code>
+                is measured on it, and a run refuses to start if it is not
+                intact — re-freezing it would invalidate every comparison ever
+                made against it.
+                {readiness && (
+                  <>
+                    <br />
+                    <span className="text-[11px] text-slate-500">
+                      Server says: {readiness.holdout_message}
+                    </span>
+                  </>
+                )}
               </dd>
             </div>
 
             <div>
               <dt className="font-semibold text-slate-700">
-                The replay set — not in this app
+                The replay set —{" "}
+                {readiness?.replay_present ? (
+                  <span className="text-emerald-700">
+                    present ({readiness.replay_rows ?? "?"} discs)
+                  </span>
+                ) : (
+                  <span className="text-amber-700">
+                    {readiness?.replay_configured
+                      ? "configured but not on this machine"
+                      : "not configured"}
+                  </span>
+                )}
               </dt>
               <dd className="text-slate-600">
-                <code className="rounded bg-slate-100 px-1">
-                  --replay-dir
-                </code>{" "}
-                wants about 200 <em>original</em> discs mixed in alongside the
+                A run mixes about 200 <em>original</em> discs in alongside the
                 corrections, so the heads stay anchored to the distribution the
-                deployed checkpoint learned; training on a few dozen corrections
-                alone is the standard way to make a model forget. Those discs
-                are the preprocessed RSNA set (
+                deployed checkpoint learned; training on a few dozen
+                corrections alone is the standard way to make a model forget.
+                Those discs are the preprocessed RSNA set (
                 <code className="rounded bg-slate-100 px-1">
                   rsna_preprocessed
                 </code>
                 , ~8.2 GB) produced by the research repo. It is not part of this
-                application and its path differs per machine, which is why the
-                commands above carry{" "}
-                <code className="rounded bg-slate-100 px-1">
-                  {REPLAY_DIR_PLACEHOLDER}
+                application, so the path is a setting:
+                <br />
+                <code className="mt-1 inline-block rounded bg-slate-100 px-1">
+                  {readiness?.replay_setting ?? "RETRAIN_REPLAY_DIR"}=
+                  {readiness?.replay_dir ?? REPLAY_DIR_PLACEHOLDER}
                 </code>{" "}
-                rather than a path that might not exist. Substitute your copy.
+                in <code className="rounded bg-slate-100 px-1">backend/.env</code>
+                .
+                {readiness && !readiness.replay_present && (
+                  <>
+                    {" "}
+                    Until it is set, the ordinary button is refused rather than
+                    quietly running the weaker, replay-free experiment — that
+                    one has its own labelled button, and the run log records
+                    which of the two was used.
+                  </>
+                )}
               </dd>
             </div>
 
@@ -723,28 +1597,44 @@ export default function Admin() {
                 other eight conditions are recorded and batched, but they come
                 from the vendored upstream SpineNet, so{" "}
                 <code className="rounded bg-slate-100 px-1">build_dataset</code>{" "}
-                skips them and prints them as skipped rows. They are marked{" "}
+                skips them and the run reports them as skipped. They are marked{" "}
                 <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">
                   not re-trained
                 </span>{" "}
                 in the tables above.
               </dd>
             </div>
+
+            <div>
+              <dt className="font-semibold text-slate-700">
+                Time, and one run at a time
+              </dt>
+              <dd className="text-slate-600">
+                Fine-tuning runs on{" "}
+                <code className="rounded bg-slate-100 px-1">
+                  {String(readiness?.defaults?.device ?? "cpu")}
+                </code>{" "}
+                and takes tens of minutes: most of it is scoring the 200
+                held-out discs once before training and once after every epoch.
+                A second run is refused while one is going, because they would
+                fight over the same machine. The page can be closed while a run
+                is in progress — it keeps going on the server, and the run log
+                above is what survives, not the browser tab.
+              </dd>
+            </div>
           </dl>
 
           <p className="mt-4 rounded-md bg-slate-50 px-2.5 py-2 text-xs leading-relaxed text-slate-500">
-            There is no automatic trigger anywhere in this app: sealing a batch
-            does not start a training run, and a finished training run does not
-            put itself into service. A person runs the commands, and another
-            person reads the held-out numbers on{" "}
+            Nothing here is automatic. Sealing a batch does not start a run — a
+            person presses the button. A finished run does not put itself into
+            service — it leaves a candidate file and the numbers it measured,
+            and a person reads them on{" "}
             <Link to="/models" className="text-indigo-600 hover:underline">
               Model versions
             </Link>{" "}
-            and decides. Both gaps are deliberate — they are what stops a
-            correction made on one patient from changing what the next patient
-            is graded by. The dashed step on each batch above is the first of
-            them, drawn the way this project draws every part of the flow that
-            is not built into the software.
+            and decides. That second gap is the one that matters: it is what
+            stops a correction made on one patient from changing what the next
+            patient is graded by.
           </p>
         </section>
       </main>

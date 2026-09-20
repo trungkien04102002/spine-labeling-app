@@ -65,6 +65,12 @@ cat > "$REPO_DIR/backend/.env" <<EOF
 MYSQL_DSN=sqlite:///./spine.db
 TOTALSPINESEG_BIN=$TSS_BIN
 SEG_DEVICE=cuda
+# Re-training from /admin mixes ~200 ORIGINAL discs in so the heads do not
+# forget. That set is rsna_preprocessed from the research repo (~8.2 GB) and is
+# NOT copied to this box, so the setting is left empty on purpose: /admin then
+# shows the run as blocked, with the reason, instead of running the weaker
+# replay-free experiment by accident. Point it at a copy to enable runs here.
+RETRAIN_REPLAY_DIR=
 EOF
 echo "   wrote $REPO_DIR/backend/.env"
 
