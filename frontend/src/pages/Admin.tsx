@@ -1364,14 +1364,9 @@ export default function Admin() {
               Sending corrections is app-wide, not per-study.
             </p>
             <p className="mt-1">
-              The button in a patient's viewer hands over{" "}
-              <strong>every correction waiting anywhere in the app</strong>,
-              from every patient, and seals them into one batch — the counts
-              beside it are global too, even though it sits inside one study's
-              screen. That is correct behaviour rather than a bug: a batch from
-              a single study would be a handful of discs, far too few to
-              fine-tune on. It is worth knowing before you press it, which is
-              why this page lists the whole queue in one place.
+              The button in any patient's viewer seals{" "}
+              <strong>every correction waiting anywhere</strong> into one batch.
+              Intended: a single study is too few discs to fine-tune on.
             </p>
             {pendingStudies.size > 1 && (
               <p className="mt-1 font-semibold">
@@ -1388,13 +1383,9 @@ export default function Admin() {
               <p className="font-medium text-slate-700">
                 Nothing is waiting to be sent.
               </p>
-              <p className="mt-2 text-xs leading-relaxed text-slate-500">
-                This is the normal resting state. When a doctor changes a grade
-                in the viewer and presses “Save corrections”, one row appears
-                here per changed grade — the study, the disc level, the
-                condition, the old value, the new value and the time. Rows stay
-                here, unused, until someone presses “Send corrections” in a
-                viewer; that seals them into a batch, which then shows up below.
+              <p className="mt-2 text-xs text-slate-500">
+                The normal resting state. A saved grade change adds a row here;
+                “Send corrections” seals the rows into a batch, listed below.
               </p>
             </div>
           ) : (
@@ -1500,141 +1491,105 @@ export default function Admin() {
           )}
         </section>
 
-        {/* What a run needs ------------------------------------------------ */}
+        {/* Preconditions ---------------------------------------------------- */}
         <section className="mt-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-slate-800">
             <span className="h-4 w-1 rounded bg-gradient-to-b from-slate-400 to-slate-500" />
-            What a run needs, and what this machine has
+            What a run needs
           </h2>
 
-          <dl className="mt-1 space-y-3 text-xs leading-relaxed">
-            <div>
-              <dt className="font-semibold text-slate-700">
-                The held-out set —{" "}
-                {readiness?.holdout_present ? (
-                  <span className="text-emerald-700">present</span>
-                ) : (
-                  <span className="text-rose-700">missing or changed</span>
-                )}
+          {/* Two facts a run depends on, as status rows rather than prose. The
+              long-form reasoning lives in DEPLOY_VAST.md and the thesis report;
+              this page only has to say whether the machine is ready. */}
+          <dl className="space-y-2 text-xs">
+            <div className="flex items-baseline gap-2">
+              <dt className="w-32 shrink-0 font-semibold text-slate-700">
+                Held-out set
               </dt>
               <dd className="text-slate-600">
-                <code className="rounded bg-slate-100 px-1">
-                  backend/{HOLDOUT_DIR}
-                </code>{" "}
-                holds {readiness?.holdout_rows ?? 200} rows frozen before any
-                correction was collected, with a checksum in its{" "}
-                <code>MANIFEST.json</code>. Every before/after number on this
-                page and on{" "}
-                <Link to="/models" className="text-indigo-600 hover:underline">
-                  Model versions
-                </Link>{" "}
-                is measured on it, and a run refuses to start if it is not
-                intact — re-freezing it would invalidate every comparison ever
-                made against it.
-                {readiness && (
-                  <>
-                    <br />
-                    <span className="text-[11px] text-slate-500">
-                      Server says: {readiness.holdout_message}
-                    </span>
-                  </>
+                {readiness?.holdout_present ? (
+                  <span className="font-medium text-emerald-700">present</span>
+                ) : (
+                  <span className="font-medium text-rose-700">
+                    missing or changed
+                  </span>
+                )}
+                {" — "}
+                {readiness?.holdout_rows ?? 200} rows, frozen before any
+                correction. Every before/after number is measured on it.
+                {readiness?.holdout_message && (
+                  <span className="block text-[11px] text-slate-400">
+                    {readiness.holdout_message}
+                  </span>
                 )}
               </dd>
             </div>
 
-            <div>
-              <dt className="font-semibold text-slate-700">
-                The replay set —{" "}
+            <div className="flex items-baseline gap-2">
+              <dt className="w-32 shrink-0 font-semibold text-slate-700">
+                Replay set
+              </dt>
+              <dd className="text-slate-600">
                 {readiness?.replay_present ? (
-                  <span className="text-emerald-700">
+                  <span className="font-medium text-emerald-700">
                     present ({readiness.replay_rows ?? "?"} discs)
                   </span>
                 ) : (
-                  <span className="text-amber-700">
+                  <span className="font-medium text-amber-700">
                     {readiness?.replay_configured
                       ? "configured but not on this machine"
                       : "not configured"}
                   </span>
                 )}
-              </dt>
-              <dd className="text-slate-600">
-                A run mixes about 200 <em>original</em> discs in alongside the
-                corrections, so the heads stay anchored to the distribution the
-                deployed checkpoint learned; training on a few dozen
-                corrections alone is the standard way to make a model forget.
-                Those discs are the preprocessed RSNA set (
+                {" — "}~200 original discs mixed in so the heads do not forget.
+                Set{" "}
                 <code className="rounded bg-slate-100 px-1">
-                  rsna_preprocessed
-                </code>
-                , ~8.2 GB) produced by the research repo. It is not part of this
-                application, so the path is a setting:
-                <br />
-                <code className="mt-1 inline-block rounded bg-slate-100 px-1">
-                  {readiness?.replay_setting ?? "RETRAIN_REPLAY_DIR"}=
-                  {readiness?.replay_dir ?? REPLAY_DIR_PLACEHOLDER}
+                  {readiness?.replay_setting ?? "RETRAIN_REPLAY_DIR"}
                 </code>{" "}
                 in <code className="rounded bg-slate-100 px-1">backend/.env</code>
                 .
-                {readiness && !readiness.replay_present && (
-                  <>
-                    {" "}
-                    Until it is set, the ordinary button is refused rather than
-                    quietly running the weaker, replay-free experiment — that
-                    one has its own labelled button, and the run log records
-                    which of the two was used.
-                  </>
-                )}
               </dd>
             </div>
 
-            <div>
-              <dt className="font-semibold text-slate-700">
-                Only three conditions are re-trained
+            <div className="flex items-baseline gap-2">
+              <dt className="w-32 shrink-0 font-semibold text-slate-700">
+                Scope
               </dt>
               <dd className="text-slate-600">
-                The loop fine-tunes canal stenosis and left/right foraminal
-                narrowing — the heads of the app's own model. Corrections to the
-                other eight conditions are recorded and batched, but they come
-                from the vendored upstream SpineNet, so{" "}
-                <code className="rounded bg-slate-100 px-1">build_dataset</code>{" "}
-                skips them and the run reports them as skipped. They are marked{" "}
+                Canal and left/right foraminal only. The other eight come from
+                upstream SpineNet and are marked{" "}
                 <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">
                   not re-trained
-                </span>{" "}
-                in the tables above.
+                </span>
+                .
               </dd>
             </div>
 
-            <div>
-              <dt className="font-semibold text-slate-700">
-                Time, and one run at a time
+            <div className="flex items-baseline gap-2">
+              <dt className="w-32 shrink-0 font-semibold text-slate-700">
+                Cost
               </dt>
               <dd className="text-slate-600">
-                Fine-tuning runs on{" "}
+                Tens of minutes on{" "}
                 <code className="rounded bg-slate-100 px-1">
                   {String(readiness?.defaults?.device ?? "cpu")}
-                </code>{" "}
-                and takes tens of minutes: most of it is scoring the 200
-                held-out discs once before training and once after every epoch.
-                A second run is refused while one is going, because they would
-                fight over the same machine. The page can be closed while a run
-                is in progress — it keeps going on the server, and the run log
-                above is what survives, not the browser tab.
+                </code>
+                . One run at a time. Closing the page does not stop it.
               </dd>
             </div>
           </dl>
 
-          <p className="mt-4 rounded-md bg-slate-50 px-2.5 py-2 text-xs leading-relaxed text-slate-500">
-            Nothing here is automatic. Sealing a batch does not start a run — a
-            person presses the button. A finished run does not put itself into
-            service — it leaves a candidate file and the numbers it measured,
-            and a person reads them on{" "}
+          <p className="mt-4 rounded-md bg-slate-50 px-2.5 py-2 text-xs text-slate-500">
+            <span className="font-semibold text-slate-600">
+              Nothing here is automatic.
+            </span>{" "}
+            Sealing a batch does not start a run; a finished run does not go
+            into service. It leaves a candidate for a person to approve on{" "}
             <Link to="/models" className="text-indigo-600 hover:underline">
               Model versions
-            </Link>{" "}
-            and decides. That second gap is the one that matters: it is what
-            stops a correction made on one patient from changing what the next
-            patient is graded by.
+            </Link>
+            . That gap is what stops one patient's correction from changing the
+            next patient's result.
           </p>
         </section>
       </main>
