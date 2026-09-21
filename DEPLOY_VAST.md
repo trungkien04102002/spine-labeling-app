@@ -11,6 +11,21 @@ instance's "Connect" panel.
 > are faster to copy from the laptop than to download. Skipping that section
 > is what turned a 20-minute deploy into a two-hour one on 2026-09-20.
 
+**Measured end to end on 2026-09-21** (RTX 4090, Vast PyTorch image), following
+this file step by step:
+
+| Step | Time |
+|---|---|
+| §1 code onto the box (`rsync`) | 55 s |
+| §2 weights + §6b held-out set (~1.4 GB) | 65 s |
+| §3 `vast_setup.sh --skip-download` | **10.6 min** |
+| §4 supervisor + first health check | ~30 s |
+| §6b two studies and their database rows | 2 s |
+| **Total to a box that grades a real study** | **~13 min** |
+
+A full grading on that box then took **86 s** (TotalSpineSeg on CUDA 48 s,
+SpineNet on CPU 38 s), against about ten minutes on a laptop CPU.
+
 ---
 
 ## 0. The weight stores — copy, don't download
@@ -56,7 +71,12 @@ ssh -p <PORT> root@<HOST> 'cd /workspace &&
   git clone https://github.com/trungkien04102002/spine-labeling-app.git'
 ```
 
-No credentials needed (public repo). `rsync` also works if GitHub is out:
+No credentials needed (public repo) — **but a clone gives you what is pushed,
+not what is on the laptop.** On 2026-09-21 that was a month-old `main`: the
+clone came back without the model-approval screen, the operator page, or the
+mask-editing work, all of which existed only in unpushed local commits. Check
+`git log --oneline -1` on both sides before trusting a clone, and use `rsync`
+when they differ:
 
 ```bash
 rsync -az -e "ssh -p <PORT>" \
@@ -82,8 +102,8 @@ cd ~/spine-labeling-app/backend/spinenet &&
 # 5 -- TotalSpineSeg nnUNet models into the venv the CLI will run from
 cd ~/totalspineseg/totalspineseg/models/nnUNet &&
   tar czf - results | ssh -p <PORT> root@<HOST> \
-  "mkdir -p /workspace/tss-venv/lib/python3.12/site-packages/totalspineseg/models/nnUNet &&
-   tar xzf - -C /workspace/tss-venv/lib/python3.12/site-packages/totalspineseg/models/nnUNet"
+  "mkdir -p /workspace/spine-labeling-app/tss-venv/lib/python3.12/site-packages/totalspineseg/models/nnUNet &&
+   tar xzf - -C /workspace/spine-labeling-app/tss-venv/lib/python3.12/site-packages/totalspineseg/models/nnUNet"
 ```
 
 macOS `tar` writes `._*` AppleDouble files into the archive. Harmless, but
@@ -149,13 +169,13 @@ restarts it after a crash and keeps the log in one place.
 ```bash
 cat > /workspace/spine-labeling-app/backend/.env <<'EOF'
 MYSQL_DSN=sqlite:///./spine.db
-TOTALSPINESEG_BIN=/workspace/tss-venv/bin/totalspineseg
+TOTALSPINESEG_BIN=/workspace/spine-labeling-app/tss-venv/bin/totalspineseg
 SEG_DEVICE=cuda
 EOF
 
 cat > /etc/supervisor/conf.d/spine_backend.conf <<'EOF'
 [program:spine_backend]
-command=/venv/main/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+command=/workspace/spine-labeling-app/backend/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
 directory=/workspace/spine-labeling-app/backend
 ; nnunetv2 2.4.2 predates torch 2.6, where torch.load flipped weights_only to
 ; True by default. Without this the TotalSpineSeg subprocess cannot load its
@@ -173,6 +193,12 @@ EOF
 supervisorctl reread && supervisorctl update
 supervisorctl status spine_backend && curl -s localhost:8000/health
 ```
+
+**The interpreter path depends on which §3 you took.** `vast_setup.sh` builds
+its own `backend/.venv`, which is what the command above uses. If you installed
+by hand into `/venv/main`, use `/venv/main/bin/uvicorn` instead. Getting this
+wrong shows up as `FATAL can't find command …` in `supervisorctl status`, with
+no log file written at all — which reads like the service never existed.
 
 `supervisorctl restart spine_backend` after changing `.env`; the log is
 `/var/log/spine_backend.log`.
@@ -317,6 +343,8 @@ laptop) is the same in reverse, rewriting the prefix the other way.
 | `FileNotFoundError: .../Dataset101_.../fold_0/checkpoint_best.pth` | store 5 missing or partially deleted. |
 | Grading job stuck at 70%, GPU idle | normal. SpineNet runs on CPU (`device="cpu"` in `spinenet_grading.py`); only TotalSpineSeg uses CUDA. |
 | MRI canvas black in headless Chrome | needs software WebGL: `--use-gl=angle --use-angle=swiftshader --enable-unsafe-swiftshader`. |
+| `supervisorctl status` says `FATAL can't find command .../uvicorn`, no log file | the supervisor command names the wrong venv for the §3 path you took (§4). |
+| A fresh clone is missing screens that exist on the laptop | `main` is not pushed; rsync instead (§1). |
 | `/admin` blocked: "No replay set is configured" | expected on a box without the 8.2 GB replay set (§6b). Copy it, or run without replay deliberately. |
 | `/retraining/readiness` answers 500 | a backend older than 2026-09-21 with no `data/holdout_frozen`. Copy the held-out set (§6b); newer builds report it as a blocker instead. |
 | Google Drive download quota | Drive counts per **account**, not per file; re-uploading does not lift it. `scp` instead. |

@@ -137,6 +137,27 @@ print("torch", torch.__version__, "| CUDA available:", torch.cuda.is_available()
 print("GPU:", torch.cuda.get_device_name(0) if torch.cuda.is_available() else "none — set SEG_DEVICE=cpu in backend/.env")
 EOF
 
+# --- Data this script cannot fetch ----------------------------------------
+# Neither of these travels with the code: backend/spinenet/weights/ and
+# backend/data/ are both gitignored. The script cannot download them either --
+# the SpineNet weights are 685MB from robots.ox.ac.uk (slow, and it has failed
+# mid-transfer), and the frozen held-out set only exists on the laptop that
+# froze it. Copy both from there. Without the first, grading dies three stages
+# in with "save path .../detect-vfr could not be found"; without the second,
+# /admin cannot evaluate anything.
+echo ">> checking data that must be copied from the laptop…"
+SPINENET_PT=$(ls "$REPO_DIR"/backend/spinenet/weights/*/*.pt 2>/dev/null | wc -l)
+if [ "$SPINENET_PT" -lt 4 ]; then
+  WARN+=("SpineNet weights incomplete ($SPINENET_PT/4 .pt files in backend/spinenet/weights/) — grading will fail at the SpineNet stage. From the laptop: cd backend/spinenet && tar czf - weights | ssh <BOX> 'tar xzf - -C /workspace/spine-labeling-app/backend/spinenet'")
+else
+  echo "   SpineNet weights OK (4 .pt files)"
+fi
+if [ ! -f "$REPO_DIR/backend/data/holdout_frozen/train_metadata.csv" ]; then
+  WARN+=("frozen held-out set missing (backend/data/holdout_frozen) — /admin cannot evaluate a re-training run. From the laptop: cd backend && tar czf - data/holdout_frozen | ssh <BOX> 'cd /workspace/spine-labeling-app/backend && tar xzf -'")
+else
+  echo "   frozen held-out set OK"
+fi
+
 # --- Summary ---------------------------------------------------------------
 echo ""
 echo "=== Setup summary ==="
