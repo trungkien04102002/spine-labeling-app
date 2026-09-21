@@ -214,6 +214,49 @@ python3 tools/build_validation_set.py --api http://localhost:8000
 python3 tools/compare_validation_set.py
 ```
 
+## 6b. What `/admin` and re-training need on a box
+
+The operator page checks three things before it will let a run start, and a box
+that has only the code has none of them. `data/` is gitignored, so like the
+weight stores in §0 it does not travel.
+
+| What | Where | Without it |
+|---|---|---|
+| Frozen held-out set | `backend/data/holdout_frozen` (173 MB) | `/admin` reports it as a blocker; no run can start |
+| Replay set | a copy of `rsna_preprocessed` (**8.2 GB**, from the research repo) | the run is blocked, with a replay-free run behind its own labelled button |
+| `RETRAIN_REPLAY_DIR` | `backend/.env` | as above — the setting is empty by default |
+
+```bash
+# held-out set, from the laptop (seconds)
+cd ~/spine-labeling-app/backend && tar czf - data/holdout_frozen \
+  | ssh -p <PORT> root@<HOST> \
+    'cd /workspace/spine-labeling-app/backend && tar xzf -'
+
+# replay set, only if the box should actually re-train (~5 min at 29 MB/s)
+cd ~/spinet-v2 && tar czf - rsna_preprocessed \
+  | ssh -p <PORT> root@<HOST> 'cd /workspace && tar xzf -'
+# then in backend/.env on the box:
+#   RETRAIN_REPLAY_DIR=/workspace/rsna_preprocessed
+```
+
+Leaving the replay set off is a legitimate deployment: `/admin` then shows the
+trigger blocked and says which setting is missing and why it matters, which is
+the honest state rather than a broken one. Skipping the **held-out** set is not
+— nothing can be evaluated without it, so copy that one always.
+
+Check it landed: `curl -s localhost:8000/retraining/readiness` should report
+`holdout_present: true` with a message like `"OK -- 200 rows, unchanged since
+2026-07-26"`. That string is the checksum verifying the set is the one that was
+frozen; if it says anything else, the set is not the one past numbers were
+measured against.
+
+On 2026-09-20 this section did not exist, the box was deployed without either
+directory, and `/retraining/readiness` answered **500** rather than naming what
+was missing — the page whose job is to report gaps was the first thing to fall
+over. That is fixed, but the copying still has to happen.
+
+---
+
 ## 7. Moving graded studies between the box and the laptop
 
 A box with no host volume loses everything when it is recycled or destroyed
@@ -274,4 +317,6 @@ laptop) is the same in reverse, rewriting the prefix the other way.
 | `FileNotFoundError: .../Dataset101_.../fold_0/checkpoint_best.pth` | store 5 missing or partially deleted. |
 | Grading job stuck at 70%, GPU idle | normal. SpineNet runs on CPU (`device="cpu"` in `spinenet_grading.py`); only TotalSpineSeg uses CUDA. |
 | MRI canvas black in headless Chrome | needs software WebGL: `--use-gl=angle --use-angle=swiftshader --enable-unsafe-swiftshader`. |
+| `/admin` blocked: "No replay set is configured" | expected on a box without the 8.2 GB replay set (§6b). Copy it, or run without replay deliberately. |
+| `/retraining/readiness` answers 500 | a backend older than 2026-09-21 with no `data/holdout_frozen`. Copy the held-out set (§6b); newer builds report it as a blocker instead. |
 | Google Drive download quota | Drive counts per **account**, not per file; re-uploading does not lift it. `scp` instead. |
