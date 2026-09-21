@@ -1,5 +1,42 @@
 # Hướng dẫn chạy — spine-labeling-app
 
+## ▶ Chạy lại sau phiên 2026-09-21 — đọc phần này trước
+
+Máy thuê Vast **đã huỷ**. Toàn bộ dữ liệu đã kéo về laptop, **không cần tunnel,
+không cần box**. Mở lại chỉ một lệnh:
+
+```bash
+cd ~/spine-labeling-app && ./run.sh        # backend :8000 + frontend :5173
+```
+
+Rồi mở **http://localhost:5173**. Worklist có sẵn **12 ca**: 8 ca `VAL-*` (RSNA,
+đã chấm sẵn 11 nhãn), 3 ca `DEMO-*`, và `Case-113`.
+
+Dừng: `./run.sh stop` · Log: `./run.sh logs`
+
+**Ba màn hình:**
+
+| Đường dẫn | Nội dung |
+|---|---|
+| `/` | Worklist |
+| `/viewer/<study_id>` | Đọc ảnh, sửa mask, sửa bảng 11 nhãn |
+| `/models` | Duyệt / kích hoạt / hoàn tác checkpoint, có nhật ký ai đổi |
+| `/admin` | Hàng đợi chỉnh sửa, các lô, sổ chạy retrain, nút chạy retrain |
+
+**Retrain chạy được ở local**, vì `backend/.env` đã trỏ `RETRAIN_REPLAY_DIR` vào
+`~/spinet-v2/rsna_preprocessed`. Một lượt tốn **~14 phút trên CPU** (đo thật,
+1 epoch; mặc định 5 epoch sẽ là ~45–50 phút). Kết quả *"No improvement"* là
+**chạy đúng**, không phải lỗi: cổng macro-F1 chỉ giữ checkpoint nào đo tốt hơn.
+
+**Không có gì tự động.** Bác sĩ sửa → "Send corrections" niêm phong lô → người
+bấm chạy retrain trên `/admin` → checkpoint mới chờ **người duyệt** ở `/models`
+rồi mới phục vụ. Khoảng ngắt đó là chủ ý, là claim của luận văn — đừng nối tự động.
+
+**Nếu muốn dựng lại máy thuê GPU:** xem `DEPLOY_VAST.md`, đọc §0 trước (5 kho
+weights, `data/` không đi theo git nên phải chép tay). Dựng lại mất ~20 phút.
+
+---
+
 Runbook 1 trang. Hai cách chạy: **(A) tất cả trên laptop** và **(B) frontend ở
 laptop gọi backend chạy trên máy thuê GPU (Vast.ai)**.
 
