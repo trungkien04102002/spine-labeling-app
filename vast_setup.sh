@@ -65,7 +65,12 @@ fi
 # on the CPU roughly ten times slower. Nothing errors, so it is invisible.
 # Detect it and refetch the build this driver can actually run.
 if [ -x ./.venv/bin/python ] && command -v nvidia-smi >/dev/null 2>&1    && nvidia-smi -L >/dev/null 2>&1; then
-  if ! ./.venv/bin/python -c 'import torch,sys; sys.exit(0 if torch.cuda.is_available() else 1)' 2>/dev/null; then
+  # The trigger imports torchvision too. Asking torch alone misses the state
+  # where torch is right and torchvision is not: cuda_is_available() answers
+  # True and the refetch never runs, while the first grading dies on import.
+  if ! ./.venv/bin/python -c 'import sys, torch, torchvision
+from torchvision.ops import nms
+sys.exit(0 if torch.cuda.is_available() else 1)' 2>/dev/null; then
     DRIVER_CUDA=$(nvidia-smi | grep -oE 'CUDA Version: [0-9]+\.[0-9]+' | awk '{print $3}' | head -1)
     CU_TAG="cu$(echo "${DRIVER_CUDA:-}" | tr -d '.')"
     echo "   torch reports no GPU; driver supports CUDA ${DRIVER_CUDA:-?} → refetching $CU_TAG"
@@ -75,9 +80,15 @@ if [ -x ./.venv/bin/python ] && command -v nvidia-smi >/dev/null 2>&1    && nvid
     # until something imports it, then raises "operator torchvision::nms does
     # not exist" -- so force it, and IMPORT it in the check below.
     # torch.cuda.is_available() answers True over a broken torchvision.
-    if [ -n "$DRIVER_CUDA" ] \
+    # Name the exact +cuNNN version. Plain "torch" is reported as already
+    # satisfied by the wheel that is there -- pip compares versions, and
+    # 2.14.0 and 2.14.0+cu126 only differ once the local tag is spelled out.
+    # This is the same trap as torchvision below, in the other direction.
+    TORCH_VER=$(./.venv/bin/python -c 'import torch; print(torch.__version__.split("+")[0])' 2>/dev/null)
+    if [ -n "$DRIVER_CUDA" ] && [ -n "$TORCH_VER" ] \
        && ./.venv/bin/pip install -q \
-            --index-url "https://download.pytorch.org/whl/$CU_TAG" torch 2>/dev/null \
+            --index-url "https://download.pytorch.org/whl/$CU_TAG" \
+            "torch==${TORCH_VER}+${CU_TAG}" 2>/dev/null \
        && ./.venv/bin/pip install -q --force-reinstall --no-deps \
             --index-url "https://download.pytorch.org/whl/$CU_TAG" torchvision 2>/dev/null \
        && ./.venv/bin/python -c 'import sys, torch, torchvision
