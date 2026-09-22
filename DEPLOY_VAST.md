@@ -1,8 +1,37 @@
 # Deploy on a Vast.ai GPU box
 
-Backend + models on the GPU VM, frontend on the laptop, SSH tunnel between
-them. GPU cuts a full grading run from ~10 min/volume to **~84 s** (measured,
-RTX 4090, 2026-09-20: TotalSpineSeg + SpineNet + CBAM end to end).
+> **Do not follow this file by hand.** `tools/deploy_box.sh <PORT> <HOST>`
+> does every step below in one command and verifies the result. This file
+> exists to explain *why* each step is there, and to be read when the script
+> reports something unexpected. Serving the app to other people is the one
+> part the script does not do — that is §8.
+
+Backend + models on the GPU VM. The frontend can either run on the laptop
+behind an SSH tunnel (one user, §5) or be served by the backend itself on a
+public port (anyone with the URL, §8).
+
+## Which box to rent
+
+Measured 2026-09-22, same studies, same code, 2–3 runs each (±2 s):
+
+| | RTX 4090 `$0.434/h` | RTX 3060 `$0.076/h` |
+|---|---|---|
+| Segmentation only | 72.2 s | 107.4 s (**1.49x**) |
+| Full 11-label grading | **77.5 s** | **195.8 s** (**2.53x**) |
+| Output | 63 rows, 11 labels | identical |
+| 72 hours | $31.2 | **$5.5** |
+
+A 3060 is enough: peak GPU memory is **1453 MiB**, so 12 GB is eight times
+what the job needs, and paying 5.7x more buys 118 seconds per study. Note the
+grading models lean on the GPU harder than the segmentation does (2.53x vs
+1.49x) — the opposite of what the near-zero `nvidia-smi` utilisation suggests.
+Sampling every 0.5 s simply misses the bursts; removing the GPU entirely makes
+a run **more than ten times** slower, so it is not optional.
+
+Pick by, in order: **disk >= 1 GB/s**, then effective CPU cores, then the card.
+A listing reading `9.0/72 CPU` gives you 9 cores. Ampere or newer; Pascal cards
+(1080, 1080 Ti, P100) are cheap but current torch has been dropping their
+kernels. CUDA version no longer matters when choosing — §3 handles it.
 
 Placeholders: `<HOST>` and `<PORT>` are the Vast SSH host/port from the
 instance's "Connect" panel.
@@ -113,6 +142,20 @@ clean them so they never look like real checkpoints:
 Verify: `md5sum $APP/backend/models/weights/phase2_cbam.pth` →
 `50101203903b1aa3bcf3d6103daa650e`, and `ls $APP/backend/spinenet/weights/*/*.pt`
 → four files.
+
+## 2b. One line before any install: give pip a timeout
+
+pip has **no default network timeout**. When PyPI drops a connection mid-fetch,
+pip waits forever: 0% CPU, no error, the venv frozen at 13 MB, looking exactly
+like a slow install. It cost 25 minutes on 2026-09-22 before the symptom was
+recognised (`/proc/<pid>/wchan` reads `do_poll`, and a socket sits in
+`CLOSE-WAIT`).
+
+```bash
+ssh -p <PORT> root@<HOST> 'printf "[global]\ntimeout = 30\nretries = 10\n" > /etc/pip.conf'
+```
+
+With that in place the same deploy ran start to finish in **10 min 23 s**.
 
 ## 3. Python on the VM — run `vast_setup.sh` first
 
@@ -331,6 +374,89 @@ laptop) is the same in reverse, rewriting the prefix the other way.
 
 ---
 
+## 8. Serving it to other people
+
+§5 puts the frontend on the laptop behind an SSH tunnel. That works for one
+person sitting at that laptop and for nobody else. To hand a URL to a doctor,
+the box has to serve both halves itself on a port that is open to the internet.
+
+Three steps, ~2 minutes. They are not in `deploy_box.sh`.
+
+**1 — take a port.** Vast fixes the set of open ports when the instance is
+created and will not add more later, so take one rather than ask for one. The
+*self-mapped* port is the same number inside and outside the container and
+bypasses Caddy, which is what lets the app answer without Vast's token — what a
+link handed to someone else needs. Syncthing ships with the image and squats on
+it:
+
+```bash
+ssh -p <PORT> root@<HOST>
+  echo $VAST_TCP_PORT_72299          # this is the public port number
+  supervisorctl stop syncthing
+  # remove the Syncthing block from /etc/portal.yaml, or supervisor restores it
+```
+
+**2 — build the frontend against the public address and ship it.** The API base
+is baked in at build time, so the build belongs to this box:
+
+```bash
+cd frontend && VITE_API_URL="http://<HOST>:<PUBPORT>" npx vite build
+rsync -az --delete -e "ssh -p <PORT>" dist/ root@<HOST>:/workspace/spine-labeling-app/frontend/dist/
+```
+
+**3 — rebind the backend to that port and let it serve the UI.** One process
+serves both, so there is no CORS to configure and no second port to explain.
+Binding `0.0.0.0` is what actually exposes it; `127.0.0.1` stays invisible
+however open the port is. In `/etc/supervisor/conf.d/spine_backend.conf`:
+
+```ini
+command=<repo>/backend/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port <PUBPORT>
+environment=TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD="1",FRONTEND_DIST="<repo>/frontend/dist"
+```
+
+then `supervisorctl reread && supervisorctl update && supervisorctl restart spine_backend`.
+
+### Verify from the laptop, not from the box
+
+Curling `localhost` on the box passes even when nothing outside can reach it,
+which is the failure this whole section exists to avoid. All six must answer:
+
+```bash
+U=http://<HOST>:<PUBPORT>
+curl -s -o /dev/null -w '%{http_code}\n' $U/                       # 200, text/html
+curl -s $U/health                                                   # {"status":"ok"}
+curl -s $U/patients | python3 -c 'import json,sys; print(sum(len(p["studies"]) for p in json.load(sys.stdin)))'
+curl -s -o /dev/null -w '%{http_code}\n' $U/viewer/DEMO-001        # 200 -- SPA fallback
+curl -s -o /dev/null -w '%{http_code}\n' $U/assets/index-*.css     # 200
+curl -s -o /dev/null -w '%{http_code} %{size_download}\n' $U/studies/DEMO-001/display.nii.gz
+```
+
+The last one matters most: ~4 MB means another machine opening the viewer sees
+a real image rather than a black frame.
+
+### A stable address instead of an IP and a port
+
+`http://IP:PORT` dies with the instance and is plain HTTP. For a trial where
+people bookmark the link, put a Cloudflare named tunnel in front:
+
+```bash
+/opt/instance-tools/bin/cloudflared tunnel run --token <TOKEN>   # under supervisor, autorestart=true
+```
+
+The token belongs to the **Cloudflare account, not the machine**: run it on a
+brand-new box and the same hostname keeps working, so the box can be replaced
+mid-trial without anyone's bookmark breaking. Do not run two boxes on one token
+— Cloudflare load-balances between them and half the requests reach the dead
+one. Needs a domain on Cloudflare DNS (a `.xyz` is about a dollar for the first
+year); nameserver changes can take up to 24 hours, so buy it before the day you
+need it, not on it.
+
+The no-domain fallback, `cloudflared tunnel --url http://localhost:<PUBPORT>`,
+issues a **new random hostname on every restart** and caps at 200 concurrent
+requests. Fine for a quick look, not for a link anyone saves.
+
+---
+
 ## Symptom → cause
 
 | Symptom | Cause |
@@ -347,4 +473,8 @@ laptop) is the same in reverse, rewriting the prefix the other way.
 | A fresh clone is missing screens that exist on the laptop | `main` is not pushed; rsync instead (§1). |
 | `/admin` blocked: "No replay set is configured" | expected on a box without the 8.2 GB replay set (§6b). Copy it, or run without replay deliberately. |
 | `/retraining/readiness` answers 500 | a backend older than 2026-09-21 with no `data/holdout_frozen`. Copy the held-out set (§6b); newer builds report it as a blocker instead. |
+| Everything works but each grading takes minutes longer than the table above | torch is on the CPU. `requirements.txt` pins no torch, so pip serves whichever CUDA build is current (cu130); a driver capped at 12.6 imports it happily and reports no GPU, and **nothing errors**. §3 now refetches a matching build; check `torch GPU` in the script's verification. |
+| `RuntimeError: operator torchvision::nms does not exist`, ~73 s into a grading run | torch was replaced but torchvision was not: pip leaves it alone because its version still satisfies the requirement, while its compiled ops link against the torch that went. Reinstall it from the **same** index with `--force-reinstall --no-deps`. Note `torch.cuda.is_available()` answers `True` over this — the check has to import torchvision and touch a compiled op. |
+| `pip install` sits at 0% CPU, venv frozen, no error | pip has no default network timeout and is waiting on a dropped PyPI connection forever. `/proc/<pid>/wchan` reads `do_poll`. See §2b; set `/etc/pip.conf` before deploying. |
+| A study opens with the previous patient's mask and grades | fixed 2026-09-22: re-upload used to replace only the series rows. On an older build, delete the study and re-create it. |
 | Google Drive download quota | Drive counts per **account**, not per file; re-uploading does not lift it. `scp` instead. |
