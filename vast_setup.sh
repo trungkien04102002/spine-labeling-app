@@ -59,6 +59,24 @@ else
   WARN+=("backend deps failed — the API will not start; check pip output above")
 fi
 
+# requirements.txt pins no torch, so pip serves whichever CUDA build is current
+# on PyPI -- cu130 as of 2026-09. A box whose driver only reaches 12.6 imports
+# that wheel happily and reports no GPU, and everything downstream keeps working
+# on the CPU roughly ten times slower. Nothing errors, so it is invisible.
+# Detect it and refetch the build this driver can actually run.
+if [ -x ./.venv/bin/python ] && command -v nvidia-smi >/dev/null 2>&1    && nvidia-smi -L >/dev/null 2>&1; then
+  if ! ./.venv/bin/python -c 'import torch,sys; sys.exit(0 if torch.cuda.is_available() else 1)' 2>/dev/null; then
+    DRIVER_CUDA=$(nvidia-smi | grep -oE 'CUDA Version: [0-9]+\.[0-9]+' | awk '{print $3}' | head -1)
+    CU_TAG="cu$(echo "${DRIVER_CUDA:-}" | tr -d '.')"
+    echo "   torch reports no GPU; driver supports CUDA ${DRIVER_CUDA:-?} → refetching $CU_TAG"
+    if [ -n "$DRIVER_CUDA" ] && ./.venv/bin/pip install -q          --index-url "https://download.pytorch.org/whl/$CU_TAG" torch 2>/dev/null        && ./.venv/bin/python -c 'import torch,sys; sys.exit(0 if torch.cuda.is_available() else 1)'; then
+      echo "   torch now sees the GPU ($CU_TAG)"
+    else
+      WARN+=("torch cannot use this GPU (driver CUDA ${DRIVER_CUDA:-unknown}); grading will run on CPU")
+    fi
+  fi
+fi
+
 # --- backend/.env (write EARLY so the app can boot regardless) -------------
 echo ">> [3/6] Writing backend/.env (SQLite — no MySQL needed)…"
 cat > "$REPO_DIR/backend/.env" <<EOF

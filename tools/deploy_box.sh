@@ -126,6 +126,7 @@ cd $REMOTE/backend
 echo -n '   checkpoint md5 : '; md5sum models/weights/phase2_cbam.pth | cut -d' ' -f1
 echo -n '   spinenet .pt    : '; ls spinenet/weights/*/*.pt 2>/dev/null | wc -l
 echo -n '   tss weights     : '; find ../tss-venv -name 'checkpoint_final.pth' 2>/dev/null | wc -l
+echo -n '   torch GPU       : '; .venv/bin/python -c 'import torch; print(torch.cuda.is_available(), torch.__version__)' 2>/dev/null || echo 'torch not importable'
 echo -n '   health          : '; curl -s -m 10 localhost:8000/health
 echo
 echo -n '   studies         : '; curl -s -m 15 localhost:8000/patients | python3 -c 'import json,sys; print(sum(len(p[\"studies\"]) for p in json.load(sys.stdin)))'
@@ -135,7 +136,14 @@ echo ""
 echo "══ done in $(( ($(date +%s) - T0) / 60 ))m $(( ($(date +%s) - T0) % 60 ))s ══"
 cat <<EOF
 
-Expected above: md5 $CKPT_MD5 · 4 .pt · 2 tss · {"status":"ok"} · 12 studies.
+Expected above: md5 $CKPT_MD5 · 4 .pt · 2 tss · torch GPU True ·
+{"status":"ok"} · 12 studies.
+
+A False on "torch GPU" is the one that looks harmless and is not: the box
+keeps working, about ten times slower, and nothing errors. It happens when
+the driver is older than the CUDA build pip served (requirements.txt pins no
+torch); vast_setup.sh now refetches a matching build, so False here means
+that fallback also failed.
 Anything else means a step did not take -- re-run this script, it is idempotent.
 
 From the laptop:
