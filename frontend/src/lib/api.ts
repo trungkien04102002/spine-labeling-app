@@ -473,3 +473,59 @@ export function startBatchRetrain(
     body: JSON.stringify(options),
   });
 }
+
+
+// ---------------------------------------------------------------- survey ---
+
+export type SurveyQuestion = {
+  id: number;
+  text: string;
+  kind: "sus_positive" | "sus_negative" | "domain";
+};
+
+export type SurveyForm = {
+  questions: SurveyQuestion[];
+  scale: { min: number; max: number; labels: string[] };
+};
+
+export type SurveyQuestionStat = SurveyQuestion & {
+  n: number;
+  mean: number | null;
+  distribution: Record<string, number>;
+};
+
+export type SurveySummary = {
+  responses: number;
+  sus: {
+    n: number;
+    mean: number | null;
+    min: number | null;
+    max: number | null;
+    benchmark_mean: number;
+  };
+  domain_mean: number | null;
+  questions: SurveyQuestionStat[];
+  comments: { at: string; role: string | null; text: string }[];
+};
+
+/** The questionnaire itself. Served, not duplicated here, so it cannot drift. */
+export function getSurveyForm(): Promise<SurveyForm> {
+  return apiFetch<SurveyForm>("/survey/questions");
+}
+
+export function submitSurvey(payload: {
+  answers: Record<number, number>;
+  respondent?: string;
+  role?: string;
+  comment?: string;
+}): Promise<{ id: number; sus_score: number }> {
+  return apiFetch("/survey/responses", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function getSurveySummary(): Promise<SurveySummary> {
+  return apiFetch<SurveySummary>("/survey/summary");
+}

@@ -14,6 +14,8 @@ import {
   type JobOut,
   type RetrainReadiness,
   type RetrainRunOut,
+  getSurveySummary,
+  type SurveySummary,
 } from "../lib/api";
 
 /**
@@ -1592,8 +1594,165 @@ export default function Admin() {
             next patient's result.
           </p>
         </section>
+        {/* Clinician survey ---------------------------------------------- */}
+        <section className="mt-6">
+          <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-slate-800">
+            <span className="h-4 w-1 rounded bg-gradient-to-b from-teal-500 to-cyan-500" />
+            Clinician survey
+          </h2>
+          <SurveyPanel />
+        </section>
       </main>
     </div>
+  );
+}
+
+/**
+ * What the clinicians said, in the form the report needs.
+ *
+ * Shows the SUS score against its published mean, because 74 means nothing on
+ * its own and "above the 68 average" is the sentence that ends up in the
+ * write-up. Every row carries its own n and a 1-5 distribution: at five
+ * respondents a mean hides whether people agreed or split, and two clinicians
+ * at 1 and 5 average to the same 3 as two at 3.
+ */
+function SurveyPanel() {
+  const [data, setData] = useState<SurveySummary | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    getSurveySummary()
+      .then(setData)
+      .catch(() => setFailed(true));
+  }, []);
+
+  if (failed) {
+    return (
+      <p className="text-sm text-slate-500">
+        This backend does not serve <code>/survey/summary</code>.
+      </p>
+    );
+  }
+  if (!data) return <p className="text-sm text-slate-500">Loading…</p>;
+  if (data.responses === 0) {
+    return (
+      <p className="text-sm text-slate-500">
+        No responses yet. The form is at{" "}
+        <Link to="/survey" className="text-teal-700 underline">
+          /survey
+        </Link>
+        .
+      </p>
+    );
+  }
+
+  const sus = data.sus;
+  const above = sus.mean != null && sus.mean >= sus.benchmark_mean;
+
+  return (
+    <>
+      <div className="mb-4 flex flex-wrap items-end gap-6 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+        <div>
+          <div className="text-3xl font-bold text-slate-800">
+            {sus.mean ?? "—"}
+            <span className="ml-1 text-base font-normal text-slate-400">
+              / 100
+            </span>
+          </div>
+          <div className="text-xs text-slate-500">
+            SUS, n={sus.n}
+            {sus.min != null && ` · ${sus.min}–${sus.max}`}
+          </div>
+        </div>
+        <div
+          className={
+            "rounded-lg px-3 py-1.5 text-xs font-medium " +
+            (above
+              ? "bg-teal-50 text-teal-800"
+              : "bg-amber-50 text-amber-800")
+          }
+        >
+          {above ? "at or above" : "below"} the published average of{" "}
+          {sus.benchmark_mean}
+        </div>
+        {data.domain_mean != null && (
+          <div>
+            <div className="text-2xl font-bold text-slate-800">
+              {data.domain_mean}
+              <span className="ml-1 text-base font-normal text-slate-400">
+                / 5
+              </span>
+            </div>
+            <div className="text-xs text-slate-500">
+              mean of the five clinical questions
+            </div>
+          </div>
+        )}
+        <div className="ml-auto text-xs text-slate-500">
+          {data.responses} response{data.responses === 1 ? "" : "s"}
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+        <table className="w-full text-sm">
+          <tbody>
+            {data.questions.map((q) => (
+              <tr key={q.id} className="border-b border-slate-100 last:border-0">
+                <td className="w-8 px-3 py-2 text-right align-top text-xs text-slate-400">
+                  {q.id}
+                </td>
+                <td className="px-2 py-2 align-top text-slate-700">
+                  {q.text}
+                  {q.kind !== "domain" && (
+                    <span className="ml-2 text-[10px] uppercase tracking-wide text-slate-400">
+                      SUS
+                    </span>
+                  )}
+                </td>
+                <td className="w-32 px-3 py-2 align-top">
+                  <div className="flex h-4 items-end gap-0.5">
+                    {[1, 2, 3, 4, 5].map((v) => {
+                      const count = q.distribution[String(v)] ?? 0;
+                      const height = q.n ? (count / q.n) * 100 : 0;
+                      return (
+                        <div
+                          key={v}
+                          title={`${v}: ${count}`}
+                          className="w-3 rounded-sm bg-teal-500/70"
+                          style={{ height: `${Math.max(height, count ? 12 : 3)}%` }}
+                        />
+                      );
+                    })}
+                  </div>
+                </td>
+                <td className="w-16 px-3 py-2 text-right align-top font-mono text-slate-800">
+                  {q.mean ?? "—"}
+                  <div className="text-[10px] font-sans text-slate-400">
+                    n={q.n}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {data.comments.length > 0 && (
+        <ul className="mt-3 space-y-2">
+          {data.comments.map((c, i) => (
+            <li
+              key={i}
+              className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700"
+            >
+              &ldquo;{c.text}&rdquo;
+              <span className="ml-2 text-xs text-slate-400">
+                {c.role ?? "unattributed"}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
   );
 }
 

@@ -217,6 +217,17 @@ export default function PatientList() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            {/* Solid white against the header's two translucent buttons: the
+                other two are for whoever runs the trial, this one is the only
+                thing here a visiting clinician is asked to do, and it is
+                labelled in the language they read. */}
+            <Link
+              to="/survey"
+              title="Phiếu đánh giá 15 câu, khoảng 3 phút"
+              className="flex items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-teal-700 shadow-sm transition hover:bg-teal-50"
+            >
+              <span>★ Đánh giá phần mềm</span>
+            </Link>
             <Link
               to="/admin"
               title="The correction queue, the batches already sent, and what to run next"

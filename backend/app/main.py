@@ -15,6 +15,7 @@ from app.routers import (
     patients,
     retraining,
     studies,
+    survey,
 )
 
 
@@ -52,6 +53,7 @@ app.include_router(infer.router)
 app.include_router(full_grading.router)
 app.include_router(feedback.router)
 app.include_router(retraining.router)
+app.include_router(survey.router)
 
 
 @app.get("/health")

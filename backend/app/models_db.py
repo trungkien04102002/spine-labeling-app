@@ -5,6 +5,7 @@ from sqlalchemy import (
     JSON,
     Boolean,
     DateTime,
+    Float,
     ForeignKey,
     Integer,
     String,
@@ -286,3 +287,29 @@ def mark_interrupted_runs(db: Session, is_alive: "Callable[[str | None], bool]")
     if stale:
         db.commit()
     return len(stale)
+
+
+class SurveyResponse(Base):
+    """One clinician's answers to the questionnaire in app/survey_questions.py.
+
+    Answers are stored as {question_id: 1..5} rather than fifteen columns, so
+    the questionnaire can gain or lose an item without a schema change; the
+    question text lives in code, and a stored id is meaningless without it.
+    ``sus_score`` is denormalised because it is what gets reported, and
+    recomputing it later would silently change published numbers if the
+    scoring ever moved.
+    """
+
+    __tablename__ = "survey_response"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    # Optional: the trial is small enough that a name identifies someone, and
+    # an unsigned answer is worth more than no answer.
+    respondent: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    role: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    answers_json: Mapped[dict] = mapped_column(JSON, nullable=False)
+    comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sus_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    submitted_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, default=datetime.datetime.utcnow
+    )
