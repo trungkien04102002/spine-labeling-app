@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import datetime
+import logging
 import shutil
+import traceback
 import zipfile
 from pathlib import Path
 
@@ -33,6 +35,8 @@ from app.schemas import (
     StudyDetail,
     StudyUpdate,
 )
+
+logger = logging.getLogger("uvicorn.error")
 
 router = APIRouter(tags=["studies"])
 
@@ -170,6 +174,16 @@ def upload_study(
     dest = study_dir / filename
     with dest.open("wb") as out:
         shutil.copyfileobj(file.file, out)
+    # Logged before anything can fail: when a doctor's study will not open, the
+    # first question is always what they actually sent, and the upload is the
+    # only place that knows. The file itself stays on disk for postmortem.
+    logger.info(
+        "[upload %s] received %s (%.1f MB, content-type %s)",
+        study_id,
+        filename,
+        dest.stat().st_size / 1048576,
+        file.content_type or "unset",
+    )
 
     # Replace any previous upload's series rows for this study.
     db.query(Series).filter_by(study_id=study_id).delete()
@@ -179,7 +193,34 @@ def upload_study(
         try:
             found = extract_dicom_zip(str(dest), str(study_dir))
         except (ValueError, zipfile.BadZipFile) as exc:
+            logger.error("[upload %s] %s rejected: %s", study_id, filename, exc)
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except Exception as exc:  # noqa: BLE001 - unknown formats reach here
+            # Anything not anticipated would otherwise surface as a bare 500
+            # with no trace of which file caused it, on a machine nobody is
+            # watching. Keep the traceback; hand back something answerable.
+            logger.error(
+                "[upload %s] %s failed to unpack\n%s",
+                study_id,
+                filename,
+                traceback.format_exc(),
+            )
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Could not read {filename}: {type(exc).__name__}: {exc}"
+                ),
+            ) from exc
+        logger.info(
+            "[upload %s] %d series: %s",
+            study_id,
+            len(found),
+            "; ".join(
+                f"{i.description or '(no description)'} "
+                f"[{i.orientation}, {i.num_slices} slices]"
+                for i in found
+            ),
+        )
         rows = [
             Series(
                 study_id=study_id,
@@ -212,7 +253,27 @@ def upload_study(
     # extract_dicom_zip) -- only it needs a display volume built up front;
     # the others are converted lazily when the user switches to them.
     active = rows[0]
-    active.display_path = to_web_form(active.volume_path, out_dir=str(study_dir))
+    try:
+        active.display_path = to_web_form(
+            active.volume_path, out_dir=str(study_dir)
+        )
+    except Exception as exc:  # noqa: BLE001 - conversion, not validation
+        # Reached when a series parses but will not convert (odd geometry,
+        # single slice, unsupported pixel format). Distinguishing this from a
+        # failed unpack is the whole point of logging both separately.
+        logger.error(
+            "[upload %s] %s unpacked but would not convert\n%s",
+            study_id,
+            filename,
+            traceback.format_exc(),
+        )
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Series read, but could not be converted for viewing: "
+                f"{type(exc).__name__}: {exc}"
+            ),
+        ) from exc
     study.volume_path = active.volume_path
     study.display_path = active.display_path
     db.commit()

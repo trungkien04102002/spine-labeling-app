@@ -18,6 +18,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
+import logging
+from collections import Counter
+
 import pydicom
 import SimpleITK as sitk
 
@@ -55,6 +58,49 @@ def orientation_of(image: sitk.Image) -> str:
     normal = (direction[2], direction[5], direction[8])
     axis = max(range(3), key=lambda i: abs(normal[i]))
     return ("sagittal", "coronal", "axial")[axis]
+
+
+logger = logging.getLogger("uvicorn.error")
+
+
+def describe_unreadable(directory: Path, sample: int = 3) -> str:
+    """Summarise files that failed to parse as a DICOM series.
+
+    When someone uploads a study from a hospital PACS and it does not open, the
+    bare message "no DICOM series" is useless from the other end of a phone
+    call: it cannot distinguish a renamed .rar from a perfectly valid study
+    whose pixels are JPEG2000-compressed (which GDCM here refuses without extra
+    plugins). This reports what the archive actually held, so the answer is
+    visible in the log instead of requiring the file to be sent over.
+    """
+    files = sorted(p for p in directory.iterdir() if p.is_file())
+    exts = Counter("".join(p.suffixes).lower() or "<no extension>" for p in files)
+    parts = [
+        f"{len(files)} file(s)",
+        "extensions: "
+        + ", ".join(f"{ext} x{n}" for ext, n in exts.most_common(5)),
+    ]
+    for path in files[:sample]:
+        # Read strictly first. force=True would happily "parse" a JPEG and
+        # report empty fields, which hides the one distinction that matters
+        # here: a real DICOM the reader refused (compressed pixels) versus a
+        # file that was never DICOM.
+        try:
+            ds = pydicom.dcmread(str(path), stop_before_pixels=True)
+        except pydicom.errors.InvalidDicomError:
+            parts.append(f"{path.name}: not a DICOM file")
+            continue
+        except Exception as exc:  # noqa: BLE001 - reporting, never re-raised
+            parts.append(
+                f"{path.name}: unreadable ({type(exc).__name__}: {exc})"
+            )
+            continue
+        syntax = getattr(getattr(ds, "file_meta", None), "TransferSyntaxUID", None)
+        parts.append(
+            f"{path.name}: Modality={ds.get('Modality', '?')} "
+            f"TransferSyntax={getattr(syntax, 'name', None) or syntax or 'missing'}"
+        )
+    return " | ".join(parts)
 
 
 def extract_dicom_zip(zip_path: str, out_dir: str) -> list[SeriesInfo]:
@@ -101,11 +147,20 @@ def extract_dicom_zip(zip_path: str, out_dir: str) -> list[SeriesInfo]:
 
     if not any(p.is_file() for p in staging.iterdir()):
         raise ValueError("Zip archive contains no readable files.")
+    logger.info(
+        "[upload] unpacked %d file(s) from %s",
+        sum(1 for p in staging.iterdir() if p.is_file()),
+        Path(zip_path).name,
+    )
 
     # Group by SeriesInstanceUID (read from headers, not filenames/extensions).
     series_ids = sitk.ImageSeriesReader.GetGDCMSeriesIDs(str(staging))
     if not series_ids:
-        raise ValueError("Zip archive contains no DICOM series.")
+        diagnosis = describe_unreadable(staging)
+        logger.error("[upload] no DICOM series -- %s", diagnosis)
+        raise ValueError(
+            f"Zip archive contains no DICOM series. Contents: {diagnosis}"
+        )
 
     found: list[SeriesInfo] = []
     for index, uid in enumerate(series_ids):

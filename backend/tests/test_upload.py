@@ -170,6 +170,36 @@ def test_upload_rejects_non_dicom_zip(client):
     assert "DICOM" in resp.json()["detail"]
 
 
+def test_rejection_names_what_the_archive_held(client):
+    """A refusal has to be answerable without asking for the file.
+
+    When a doctor's study will not open, the only person who can see the
+    archive is the doctor. A message that just says "no DICOM series" starts a
+    round trip; one that reports the file count, the extensions and why the
+    first files did not parse usually ends the question immediately.
+    """
+    import io
+    import zipfile
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("scan.jpg", "not a dicom at all")
+        zf.writestr("notes.txt", "nor this")
+
+    test_client, _, _ = client
+    resp = test_client.post(
+        "/studies/s1/upload",
+        files={"file": ("study.zip", buf.getvalue(), "application/zip")},
+    )
+
+    assert resp.status_code == 400
+    detail = resp.json()["detail"]
+    assert "2 file(s)" in detail
+    assert ".jpg" in detail and ".txt" in detail
+    # and it says why a specific file failed, not merely that one did
+    assert "scan.jpg" in detail
+
+
 _SAMPLE_DICOM_ZIP = Path(
     "/Users/kienha/spine-labeling-app/sample_volumes/sample_dicom.zip"
 )
