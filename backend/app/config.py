@@ -11,6 +11,13 @@ class Settings(BaseSettings):
     mysql_dsn: str = "mysql+pymysql://root@localhost:3306/spine_labeling"
     data_dir: str = "./data"
 
+    # Built frontend (Vite `dist/`) to serve from this same app. Serving both
+    # from one port is what lets a remote user open a single URL; the split
+    # localhost:5173 + localhost:8000 setup only works on the developer's own
+    # machine. Empty -> look for ../frontend/dist, and if that is absent serve
+    # no UI at all, which is what local dev and the test suite expect.
+    frontend_dist: str = ""
+
     # Browser origins allowed to call the API (comma-separated). The Vite dev
     # server is always allowed; add more when the frontend runs on another host
     # (e.g. laptop UI hitting a backend exposed directly, without an SSH tunnel).
