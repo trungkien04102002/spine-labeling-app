@@ -69,8 +69,21 @@ if [ -x ./.venv/bin/python ] && command -v nvidia-smi >/dev/null 2>&1    && nvid
     DRIVER_CUDA=$(nvidia-smi | grep -oE 'CUDA Version: [0-9]+\.[0-9]+' | awk '{print $3}' | head -1)
     CU_TAG="cu$(echo "${DRIVER_CUDA:-}" | tr -d '.')"
     echo "   torch reports no GPU; driver supports CUDA ${DRIVER_CUDA:-?} → refetching $CU_TAG"
-    if [ -n "$DRIVER_CUDA" ] && ./.venv/bin/pip install -q          --index-url "https://download.pytorch.org/whl/$CU_TAG" torch 2>/dev/null        && ./.venv/bin/python -c 'import torch,sys; sys.exit(0 if torch.cuda.is_available() else 1)'; then
-      echo "   torch now sees the GPU ($CU_TAG)"
+    # torchvision must come from the same index: its compiled ops link against
+    # one torch build, and pip leaves the installed wheel alone because the
+    # version still "satisfies" the requirement. The mismatch stays silent
+    # until something imports it, then raises "operator torchvision::nms does
+    # not exist" -- so force it, and IMPORT it in the check below.
+    # torch.cuda.is_available() answers True over a broken torchvision.
+    if [ -n "$DRIVER_CUDA" ] \
+       && ./.venv/bin/pip install -q \
+            --index-url "https://download.pytorch.org/whl/$CU_TAG" torch 2>/dev/null \
+       && ./.venv/bin/pip install -q --force-reinstall --no-deps \
+            --index-url "https://download.pytorch.org/whl/$CU_TAG" torchvision 2>/dev/null \
+       && ./.venv/bin/python -c 'import sys, torch, torchvision
+from torchvision.ops import nms
+sys.exit(0 if torch.cuda.is_available() else 1)'; then
+      echo "   torch + torchvision now see the GPU ($CU_TAG)"
     else
       WARN+=("torch cannot use this GPU (driver CUDA ${DRIVER_CUDA:-unknown}); grading will run on CPU")
     fi

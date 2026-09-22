@@ -126,7 +126,9 @@ cd $REMOTE/backend
 echo -n '   checkpoint md5 : '; md5sum models/weights/phase2_cbam.pth | cut -d' ' -f1
 echo -n '   spinenet .pt    : '; ls spinenet/weights/*/*.pt 2>/dev/null | wc -l
 echo -n '   tss weights     : '; find ../tss-venv -name 'checkpoint_final.pth' 2>/dev/null | wc -l
-echo -n '   torch GPU       : '; .venv/bin/python -c 'import torch; print(torch.cuda.is_available(), torch.__version__)' 2>/dev/null || echo 'torch not importable'
+echo -n '   torch GPU       : '; .venv/bin/python -c 'import torch, torchvision
+from torchvision.ops import nms
+print(torch.cuda.is_available(), torch.__version__, torchvision.__version__)' 2>/dev/null || echo 'BROKEN -- torch/torchvision will not import together'
 echo -n '   health          : '; curl -s -m 10 localhost:8000/health
 echo
 echo -n '   studies         : '; curl -s -m 15 localhost:8000/patients | python3 -c 'import json,sys; print(sum(len(p[\"studies\"]) for p in json.load(sys.stdin)))'
