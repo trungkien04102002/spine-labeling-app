@@ -13,7 +13,7 @@ from sqlalchemy.pool import StaticPool
 from app.config import Settings, get_settings
 from app.db import Base, get_db
 from app.main import app
-from app.models_db import Patient, Study
+from app.models_db import Annotation, Patient, Study
 
 
 @pytest.fixture
@@ -168,6 +168,60 @@ def test_upload_rejects_non_dicom_zip(client):
     )
     assert resp.status_code == 400
     assert "DICOM" in resp.json()["detail"]
+
+
+def test_reupload_clears_the_previous_image_s_results(client, tmp_path):
+    """A second upload must not leave the first image's mask and grades behind.
+
+    Replacing the volume in a study is how someone fixes sending the wrong
+    file. If the mask, the grading JSON and the annotation rows survive, the
+    viewer draws one patient's segmentation over another's scan and shows
+    grades that were never computed from it -- wrong, and plausible enough that
+    nobody questions it.
+    """
+    test_client, TestingSession, data_dir = client
+
+    volume = tmp_path / "first.nii.gz"
+    image = sitk.GetImageFromArray(np.zeros((4, 8, 8), dtype=np.int16))
+    sitk.WriteImage(image, str(volume))
+    test_client.post(
+        "/studies/s1/upload",
+        files={"file": ("first.nii.gz", volume.read_bytes(), "application/gzip")},
+    )
+
+    # Stand in for what a grading run leaves behind.
+    study_dir = Path(data_dir) / "s1"
+    (study_dir / "mask.nii.gz").write_bytes(b"old mask")
+    (study_dir / "grade_full.json").write_text('{"grading": []}')
+    session = TestingSession()
+    session.add(
+        Annotation(
+            study_id="s1",
+            version=1,
+            kind="ai",
+            payload_json={"from": "the first image"},
+            mask_path=str(study_dir / "mask.nii.gz"),
+        )
+    )
+    session.commit()
+    session.close()
+
+    second = tmp_path / "second.nii.gz"
+    sitk.WriteImage(
+        sitk.GetImageFromArray(np.ones((4, 8, 8), dtype=np.int16)), str(second)
+    )
+    resp = test_client.post(
+        "/studies/s1/upload",
+        files={"file": ("second.nii.gz", second.read_bytes(), "application/gzip")},
+    )
+    assert resp.status_code == 200
+
+    assert not (study_dir / "mask.nii.gz").exists()
+    assert not (study_dir / "grade_full.json").exists()
+    assert not (study_dir / "first.nii.gz").exists()
+    session = TestingSession()
+    assert session.query(Annotation).filter_by(study_id="s1").count() == 0
+    session.close()
 
 
 def test_rejection_names_what_the_archive_held(client):

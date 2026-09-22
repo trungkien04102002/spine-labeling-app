@@ -788,7 +788,19 @@ export default function Viewer() {
                 not the grading.
               </div>
             )}
-            {result ? (
+            {result && detail && !detail.has_mask ? (
+              /* Grades are cut from the segmentation: each disc crop comes
+                 from a label in the mask. A table sitting next to a viewport
+                 with no segmentation drawn on it invites the reader to treat
+                 the numbers as belonging to the image in front of them, which
+                 they do not -- they are left over from an image that is gone.
+                 Say so instead of showing them. */
+              <p className="text-sm text-slate-500">
+                No segmentation for this study, so there is nothing these
+                grades were measured from. Click &ldquo;✨ Run AI grading&rdquo;
+                to segment and grade the current image.
+              </p>
+            ) : result ? (
               <>
                 <GradeTable
                   grading={result.grading}

@@ -185,8 +185,49 @@ def upload_study(
         file.content_type or "unset",
     )
 
-    # Replace any previous upload's series rows for this study.
+    # Everything already held about this study describes the PREVIOUS image:
+    # the mask, the grades, the rendered slice, the converted volumes. Left
+    # behind, the viewer would draw the old patient's segmentation over the new
+    # scan and show grades that were never computed from it -- wrong in a way
+    # that looks plausible. Clear it here rather than hoping each consumer
+    # notices the image changed.
+    for stale in study_dir.iterdir():
+        if stale == dest:
+            continue
+        if stale.is_dir():
+            shutil.rmtree(stale, ignore_errors=True)
+        else:
+            stale.unlink(missing_ok=True)
+
     db.query(Series).filter_by(study_id=study_id).delete()
+    db.query(Annotation).filter_by(study_id=study_id).delete()
+    # Corrections already handed to a training batch are not ours to retract --
+    # the batch is sealed and the retraining side reasons about it. Unsubmitted
+    # ones refer to grades that no longer exist, so they go.
+    dropped = (
+        db.query(CorrectionLog)
+        .filter(
+            CorrectionLog.study_id == study_id,
+            CorrectionLog.batch_id.is_(None),
+        )
+        .delete(synchronize_session=False)
+    )
+    kept = (
+        db.query(CorrectionLog)
+        .filter(
+            CorrectionLog.study_id == study_id,
+            CorrectionLog.batch_id.isnot(None),
+        )
+        .count()
+    )
+    if dropped or kept:
+        logger.info(
+            "[upload %s] cleared %d unsubmitted correction(s); "
+            "%d already in a batch were kept",
+            study_id,
+            dropped,
+            kept,
+        )
     study.analyzed_series_id = None
 
     if dest.suffix.lower() == ".zip":
