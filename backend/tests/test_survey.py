@@ -43,7 +43,7 @@ def _ideal() -> dict[int, int]:
 
 def test_questions_are_served_with_their_scale(client):
     body = client.get("/survey/questions").json()
-    assert len(body["questions"]) == 15
+    assert len(body["questions"]) == 17
     assert len(body["scale"]["labels"]) == 5
     # Served, not duplicated in the frontend, so the text can only live here.
     assert body["questions"][0]["text"].startswith("Tôi nghĩ")

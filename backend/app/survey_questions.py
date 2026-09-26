@@ -42,10 +42,17 @@ QUESTIONS: list[Question] = [
     Question(10, "Tôi cần học rất nhiều thứ trước khi có thể bắt đầu dùng hệ thống này.", "sus_negative"),
     # --- About this tool in particular -----------------------------------
     Question(11, "Kết quả phân vùng đốt sống và đĩa đệm khớp với đánh giá của tôi.", "domain"),
-    Question(12, "Điểm chẩn đoán của AI đủ tin cậy để tham khảo khi đọc phim.", "domain"),
-    Question(13, "Việc sửa mask và sửa điểm diễn ra đúng như tôi mong đợi.", "domain"),
-    Question(14, "Công cụ này rút ngắn thời gian đọc một ca.", "domain"),
-    Question(15, "Tôi sẵn sàng sử dụng công cụ này trong công việc thường ngày.", "domain"),
+    Question(12, "Điểm chẩn đoán của AI khớp với đánh giá của tôi ở phần lớn các ca.", "domain"),
+    # Asked separately from accuracy because they are different failures. A
+    # model that is one grade out on a borderline disc is usable; one that
+    # calls a severe stenosis normal is not, and both can sit at the same
+    # accuracy. Which of the two it does is what decides whether a radiologist
+    # can leave it running.
+    Question(13, "Khi AI sai, mức sai lệch thường nhỏ và tôi dễ nhận ra.", "domain"),
+    Question(14, "Điểm chẩn đoán của AI đủ tin cậy để tham khảo khi đọc phim.", "domain"),
+    Question(15, "Việc sửa mask và sửa điểm diễn ra đúng như tôi mong đợi.", "domain"),
+    Question(16, "Công cụ này rút ngắn thời gian đọc một ca.", "domain"),
+    Question(17, "Tôi sẵn sàng sử dụng công cụ này trong công việc thường ngày.", "domain"),
 ]
 
 SUS_IDS = [q.id for q in QUESTIONS if q.kind != "domain"]

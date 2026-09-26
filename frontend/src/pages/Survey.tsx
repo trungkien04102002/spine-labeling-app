@@ -127,8 +127,8 @@ export default function Survey() {
     <div className="mx-auto max-w-3xl px-4 py-8">
       <h1 className="text-xl font-bold text-slate-800">Phiếu đánh giá phần mềm</h1>
       <p className="mt-2 text-sm text-slate-600">
-        15 câu, khoảng 3 phút. Mười câu đầu về mức dễ dùng, năm câu sau về kết
-        quả chẩn đoán. {SCALE_HINT}.
+        17 câu, khoảng 4 phút. Mười câu đầu về mức dễ dùng, bảy câu sau về độ
+        chính xác và tính hữu ích của kết quả. {SCALE_HINT}.
       </p>
       <p className="mt-1 text-sm text-slate-500">
         Không có câu trả lời đúng hay sai — đánh giá thấp cũng có ích như đánh
