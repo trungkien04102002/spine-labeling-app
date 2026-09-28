@@ -165,8 +165,6 @@ export default function GradeTable({ grading, onJump, onEditSeverity }: Props) {
   // Transposed: one row per condition, one column per level. Eleven
   // conditions as columns overflowed every laptop screen; six or seven levels
   // as columns fit, and a row reads as one finding followed down the spine.
-  const thesis = conditions.filter((c) => CONDITIONS[c]?.source === "CBAM");
-  const upstream = conditions.filter((c) => CONDITIONS[c]?.source !== "CBAM");
 
   const sticky = {
     position: "sticky" as const,
@@ -261,26 +259,6 @@ export default function GradeTable({ grading, onJump, onEditSeverity }: Props) {
     );
   }
 
-  function groupRow(label: string) {
-    return (
-      <tr key={`group-${label}`}>
-        <td
-          colSpan={levels.length + 1}
-          style={{
-            padding: "10px 0 2px",
-            fontSize: "0.7rem",
-            fontWeight: 700,
-            letterSpacing: "0.04em",
-            textTransform: "uppercase",
-            color: "#0f766e",
-          }}
-        >
-          {label}
-        </td>
-      </tr>
-    );
-  }
-
   return (
     <>
     {(more.left || more.right) && (
@@ -344,10 +322,9 @@ export default function GradeTable({ grading, onJump, onEditSeverity }: Props) {
         </tr>
       </thead>
       <tbody>
-        {thesis.length > 0 && groupRow(t("Thesis model (CBAM)"))}
-        {thesis.map(conditionRow)}
-        {upstream.length > 0 && groupRow("SpineNet")}
-        {upstream.map(conditionRow)}
+        {/* No "which model" headings: a clinician reads findings, not
+            provenance. The order still puts canal and foraminal first. */}
+        {conditions.map(conditionRow)}
       </tbody>
     </table>
     </div>
