@@ -21,7 +21,10 @@ from app.db import get_db
 from app.export import build_export_zip
 from app.inference.volume_io import (
     _read_image,
+    MIN_SLICES,
+    SKIPPED_SERIES,
     extract_dicom_zip,
+    slice_axis,
     orientation_of,
     read_dicom_tags,
     read_metadata,
@@ -172,8 +175,20 @@ def upload_study(
     # (A bare DICOM series is a directory of slices, which HTTP upload can't
     # carry file-by-file -- zip it, that's what the .zip path is for.)
     suffixes = "".join(Path(filename).suffixes).lower()
-    accepted = (".zip", ".mha", ".nii", ".nii.gz")
-    if not (suffixes.endswith(accepted) or filename.lower().endswith(".dcm")):
+    # .ima is how Siemens scanners name DICOM files; a single one is refused a
+    # few lines on for being one slice, with advice, instead of here as an
+    # "unsupported type" that sends the doctor looking for a converter.
+    accepted = (".zip", ".mha", ".nii", ".nii.gz", ".dcm", ".ima")
+    if suffixes.endswith(".mhd"):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "A .mhd file is only a header -- its pixels are in the .raw file "
+                "beside it. Put both in one .zip and upload that, or save the "
+                "volume as a single .mha."
+            ),
+        )
+    if not suffixes.endswith(accepted):
         raise HTTPException(
             status_code=400,
             detail=(
@@ -241,9 +256,21 @@ def upload_study(
         )
     study.analyzed_series_id = None
 
+    # A zip that holds a volume file rather than DICOM slices -- a NIfTI zipped
+    # for email, or a .mhd with its .raw -- is unwrapped and treated as that
+    # file. Both were refused as "no DICOM series" before.
+    if dest.suffix.lower() == ".zip":
+        inner = _volume_inside_zip(dest, study_dir)
+        if inner is not None:
+            logger.info("[upload %s] %s holds a volume file: %s", study_id, filename, inner.name)
+            dest.unlink(missing_ok=True)
+            dest, filename = inner, inner.name
+
+    skipped: list[str] = []
     if dest.suffix.lower() == ".zip":
         try:
             found = extract_dicom_zip(str(dest), str(study_dir))
+            skipped = SKIPPED_SERIES.get()
         except (ValueError, zipfile.BadZipFile) as exc:
             logger.error("[upload %s] %s rejected: %s", study_id, filename, exc)
             raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -287,6 +314,7 @@ def upload_study(
     else:
         # MHA/NIfTI carry no series concept: the file is the one "series".
         volume_path = str(dest.resolve())
+        _refuse_single_slice(volume_path, filename)
         rows = [
             Series(
                 study_id=study_id,
@@ -335,6 +363,9 @@ def upload_study(
         "volume_path": study.volume_path,
         "display_path": study.display_path,
         "series_count": len(rows),
+        # Series left out of a DICOM archive, and why, so the page can say so
+        # rather than let a missing series look like a bug.
+        "skipped": skipped,
     }
 
 
@@ -610,3 +641,55 @@ def export_study(
             "Content-Disposition": f'attachment; filename="{study_id}_export.zip"'
         },
     )
+
+
+_VOLUME_SUFFIXES = (".nii.gz", ".nii", ".mha", ".mhd")
+
+
+def _volume_inside_zip(zip_path: Path, out_dir: Path) -> Path | None:
+    """Extract and return the one volume file a zip holds, if that is all it is.
+
+    Only when the archive has no DICOM in it at all: a DICOM export that also
+    carries a stray .nii must still be read as DICOM. A .mhd comes out with its
+    .raw beside it, since the header is useless alone.
+    """
+    try:
+        with zipfile.ZipFile(zip_path) as zf:
+            names = [n for n in zf.namelist() if not n.endswith("/") and "__MACOSX" not in n]
+            volumes = [n for n in names if n.lower().endswith(_VOLUME_SUFFIXES)]
+            if len(volumes) != 1:
+                return None
+            others = [n for n in names if n not in volumes and not n.lower().endswith((".raw", ".zraw", ".json", ".txt"))]
+            if others:
+                return None  # something else in there; let the DICOM path judge it
+            target = None
+            for n in names:
+                dst = out_dir / Path(n).name
+                with zf.open(n) as src, dst.open("wb") as fh:
+                    shutil.copyfileobj(src, fh)
+                if n == volumes[0]:
+                    target = dst
+            return target
+    except zipfile.BadZipFile:
+        return None
+
+
+def _refuse_single_slice(volume_path: str, filename: str) -> None:
+    """Refuse a file that is one image rather than a volume.
+
+    A single .dcm used to be accepted as a one-slice "study" that nothing
+    downstream can segment or grade, failing much later and far from the
+    cause. The fix a doctor needs is always the same, so say it here.
+    """
+    try:
+        image = sitk.ReadImage(volume_path)
+    except Exception as exc:  # noqa: BLE001 - reported as unreadable
+        raise HTTPException(400, f"Could not read {filename}: {exc}") from exc
+    size = image.GetSize()
+    slices = size[slice_axis(image)] if len(size) == 3 else 1
+    if slices < MIN_SLICES:
+        raise HTTPException(
+            400,
+            f"{filename} is {slices} image(s), not a scan. Zip the whole series "
+            f"folder -- every image of the sagittal T2 -- and upload the .zip.",
+        )

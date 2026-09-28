@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
+import contextvars
 import logging
 from collections import Counter
 
@@ -54,10 +55,28 @@ def orientation_of(image: sitk.Image) -> str:
     direction = image.GetDirection()
     if len(direction) != 9:
         return "unknown"
-    # GetDirection() is row-major; its third column is the slice normal.
-    normal = (direction[2], direction[5], direction[8])
+    stack = slice_axis(image)
+    # GetDirection() is row-major; column `stack` is that axis in patient space.
+    normal = (direction[stack], direction[3 + stack], direction[6 + stack])
     axis = max(range(3), key=lambda i: abs(normal[i]))
     return ("sagittal", "coronal", "axial")[axis]
+
+
+def slice_axis(image: sitk.Image) -> int:
+    """Which array axis the slices are stacked along.
+
+    For a DICOM series it is always the last, which is what this code used to
+    assume everywhere. A NIfTI or MetaImage file makes no such promise: the
+    public SPIDER and Zenodo lumbar T2 volumes store 24 and 39 sagittal slices
+    along the FIRST axis, so reading the third column labelled both "axial".
+    The stacking axis is the one sampled most coarsely -- slice thickness is
+    what a 2D acquisition has in excess -- with the fewest samples breaking a
+    tie (an isotropic 3D scan), and the last axis breaking that.
+    """
+    spacing, size = image.GetSpacing(), image.GetSize()
+    if len(spacing) != 3:
+        return 2
+    return max(range(3), key=lambda i: (round(spacing[i], 3), -size[i], i))
 
 
 logger = logging.getLogger("uvicorn.error")
@@ -163,6 +182,7 @@ def extract_dicom_zip(zip_path: str, out_dir: str) -> list[SeriesInfo]:
         )
 
     found: list[SeriesInfo] = []
+    skipped: list[str] = []
     for index, uid in enumerate(series_ids):
         files = sitk.ImageSeriesReader.GetGDCMSeriesFileNames(str(staging), uid)
         if not files:
@@ -172,13 +192,73 @@ def extract_dicom_zip(zip_path: str, out_dir: str) -> list[SeriesInfo]:
         series_dir.mkdir(parents=True, exist_ok=True)
         for path in files:
             shutil.move(path, series_dir / Path(path).name)
-        found.append(_describe_series(uid, series_dir))
+        # One bad series must not sink the rest. A real Siemens lumbar export
+        # (Mendeley 10.17632/k57fr854j2) carries a POSDISP series of three
+        # differently sized reference images that ITK cannot stack; it used to
+        # fail the whole upload while five good series sat beside it.
+        label = _series_label(series_dir) or uid[-12:]
+        reason = _not_diagnostic(series_dir, len(files))
+        if reason:
+            skipped.append(f"{label} ({reason})")
+            shutil.rmtree(series_dir, ignore_errors=True)
+            continue
+        try:
+            found.append(_describe_series(uid, series_dir))
+        except Exception as exc:  # noqa: BLE001 - one series, reported below
+            skipped.append(f"{label} (unreadable: {str(exc).splitlines()[-1][:80]})")
+            shutil.rmtree(series_dir, ignore_errors=True)
 
     shutil.rmtree(staging, ignore_errors=True)
+    if skipped:
+        logger.info("[upload] skipped %d series: %s", len(skipped), "; ".join(skipped))
     if not found:
-        raise ValueError("Zip archive contains no DICOM series.")
+        detail = f" Skipped: {'; '.join(skipped)}." if skipped else ""
+        raise ValueError(f"Zip archive contains no usable DICOM series.{detail}")
     found.sort(key=_reading_order)
+    SKIPPED_SERIES.set(skipped)
     return found
+
+
+# Series the last extract_dicom_zip call left out, for the upload endpoint to
+# report. A context variable rather than a second return value, so the many
+# callers that only want the series list keep working unchanged.
+SKIPPED_SERIES: contextvars.ContextVar[list[str]] = contextvars.ContextVar(
+    "skipped_series", default=[]
+)
+
+# Scout and position-reference series: acquired to plan the scan, not to read
+# it. A 3-plane localizer even stacks into something ITK accepts -- eight
+# slices in three orientations -- and was then offered to the doctor, labelled
+# "sagittal", beside the real T2.
+_NON_DIAGNOSTIC = ("localizer", "localiser", "scout", "survey", "posdisp", "3-plane", "3plane")
+MIN_SLICES = 3
+
+
+def _series_label(series_dir: Path) -> str | None:
+    first = next((p for p in series_dir.iterdir() if p.is_file()), None)
+    if first is None:
+        return None
+    try:
+        ds = pydicom.dcmread(str(first), stop_before_pixels=True)
+    except Exception:  # noqa: BLE001
+        return None
+    return str(ds.get("SeriesDescription", "")).strip() or None
+
+
+def _not_diagnostic(series_dir: Path, n_files: int) -> str | None:
+    """Why a series should not be offered for reading, or None if it should."""
+    if n_files < MIN_SLICES:
+        return f"{n_files} image(s), too few to be a volume"
+    first = next((p for p in series_dir.iterdir() if p.is_file()), None)
+    try:
+        ds = pydicom.dcmread(str(first), stop_before_pixels=True)
+    except Exception:  # noqa: BLE001 - leave it to the reader to judge
+        return None
+    image_type = " ".join(str(v) for v in ds.get("ImageType", [])).lower()
+    words = f"{image_type} {ds.get('SeriesDescription', '')}".lower()
+    if "localizer" in image_type or any(w in words for w in _NON_DIAGNOSTIC):
+        return "localizer / position reference"
+    return None
 
 
 def _reading_order(info: SeriesInfo) -> tuple[int, str]:
