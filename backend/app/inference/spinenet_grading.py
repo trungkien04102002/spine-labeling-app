@@ -29,7 +29,7 @@ import SimpleITK as sitk
 import torch
 import torch.nn.functional as F
 
-from app.inference.volume_io import _orient_slices_last, _read_image
+from app.inference.volume_io import _read_image, to_model_orientation
 from app.schemas import GradingItem
 
 # backend/app/inference/spinenet_grading.py -> parents[2] == backend/
@@ -157,7 +157,7 @@ def _load_volume_for_spinenet(volume_path: str) -> tuple[np.ndarray, float]:
     upstream's own `test_spinenet.py` uses -- which is what has actually been
     verified end to end (see `run_spinenet_grading_on_dicom_folder`).
     """
-    image = _orient_slices_last(_read_image(volume_path))
+    image = to_model_orientation(_read_image(volume_path))
     arr = sitk.GetArrayFromImage(image).astype(np.float32)  # (S, H, W)
     volume_hws = np.transpose(arr, (1, 2, 0))  # (H, W, S)
     sx, sy, _sz = image.GetSpacing()

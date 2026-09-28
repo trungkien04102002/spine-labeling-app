@@ -500,6 +500,32 @@ def _orient_slices_last(image: sitk.Image) -> sitk.Image:
     return sitk.PermuteAxes(image, order)
 
 
+# The orientation every model input must arrive in: array columns run toward
+# Posterior, rows toward Inferior, slices toward the patient's Right. It is not
+# a preference but a measurement -- all 16 sagittal RSNA training series read
+# this way, as does a clinical Siemens export, because that is how a DICOM
+# sagittal series stacks.
+MODEL_ORIENTATION = "PIR"
+
+
+def to_model_orientation(image: sitk.Image) -> sitk.Image:
+    """Flip and permute a volume into the orientation the models were trained on.
+
+    The models read raw arrays and never look at the direction matrix. A DICOM
+    series already arrives in MODEL_ORIENTATION, which is why the RSNA
+    validation cases grade correctly. A NIfTI or MetaImage file does not: the
+    public Zenodo lumbar T2 reached the models upside down and mirrored front to
+    back, and a SPIDER volume upside down with its slices in reverse -- which
+    swaps LEFT and RIGHT foraminal stenosis without any error. The viewer showed
+    all of them correctly all along, because it does read the direction matrix;
+    only the models were being handed a different picture.
+
+    DICOMOrient only permutes and flips axes, never interpolates, so every
+    voxel value is unchanged and a labelmap stays a labelmap.
+    """
+    return sitk.DICOMOrient(image, MODEL_ORIENTATION)
+
+
 def to_web_form(path: str, out_dir: str) -> str:
     """Convert a volume to a Cornerstone3D-friendly NIfTI (``.nii.gz``).
 

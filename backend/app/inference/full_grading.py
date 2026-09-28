@@ -26,7 +26,7 @@ from app.inference.spinenet_grading import (
     render_labelled_slice_png,
     run_spinenet_grading_on_study_volume,
 )
-from app.inference.volume_io import _orient_slices_last, _read_image
+from app.inference.volume_io import _read_image, to_model_orientation
 from app.schemas import FullGradingResult, GradingItem
 
 
@@ -56,8 +56,11 @@ def run_cbam_grading(
     for the viewer instead of discarding the segmentation this already ran.
     """
     mask_path, labels = run_segmentation(volume_path)
-    vol_arr = sitk.GetArrayFromImage(_orient_slices_last(_read_image(volume_path)))
-    mask_arr = sitk.GetArrayFromImage(_orient_slices_last(_read_image(mask_path)))
+    # Image and labelmap through the same reorientation, so the crops are cut
+    # from the model's orientation and still line up voxel for voxel. The
+    # labelmap shares its input's geometry, which is what makes that hold.
+    vol_arr = sitk.GetArrayFromImage(to_model_orientation(_read_image(volume_path)))
+    mask_arr = sitk.GetArrayFromImage(to_model_orientation(_read_image(mask_path)))
     crops = extract_disc_crops(vol_arr, mask_arr)
     return grade_crops(crops), mask_path, labels
 

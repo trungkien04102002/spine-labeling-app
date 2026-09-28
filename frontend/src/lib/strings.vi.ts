@@ -105,7 +105,7 @@ registerVi({
   "series. Browse any series freely — switching does not change the grades.":
     "— có thể xem các chuỗi khác thoải mái, đổi chuỗi không làm đổi điểm.",
   "Browse any plane freely. “Run AI grading” always grades the sagittal series, whichever one you are viewing.":
-    "Có thể xem mọi mặt cắt. “Chấm điểm bằng AI” luôn chấm trên chuỗi sagittal, bất kể đang xem chuỗi nào.",
+    "Có thể xem mọi mặt cắt. “Chạy chẩn đoán AI” luôn chấm trên chuỗi sagittal, bất kể đang xem chuỗi nào.",
   "Saved as a new corrected version.":
     "Đã lưu thành một phiên bản hiệu chỉnh mới.",
   "No corrections are waiting to be sent.":
@@ -119,7 +119,7 @@ registerVi({
   "Grading…":
     "Đang chấm…",
   "✨ Run AI grading":
-    "✨ Chấm điểm bằng AI",
+    "✨ Chạy chẩn đoán AI",
   "Grading progress":
     "Tiến độ chấm",
   "Usually 2–4 minutes on the GPU server. You can leave this page — the run continues on the server and the result is saved.":
@@ -173,7 +173,7 @@ registerVi({
   "Those three come from the fine-tuned CBAM model, which grades crops cut from the lumbar disc labels in the segmentation. The mask for this study has no lumbar discs, so there was nothing to grade — only the 8 upstream SpineNet labels are shown. Re-upload the study and run again; if it persists, the segmentation is wrong, not the grading.":
     "Ba nhãn này do mô hình CBAM chấm, trên các vùng cắt từ nhãn đĩa đệm thắt lưng trong phân vùng. Phân vùng của ca này không có đĩa đệm thắt lưng nên không có gì để chấm — chỉ hiện 8 nhãn của SpineNet. Hãy tải ảnh lên lại và chấm lại; nếu vẫn vậy thì lỗi nằm ở phân vùng, không phải ở phần chấm điểm.",
   "No segmentation for this study, so there is nothing these grades were measured from. Click “✨ Run AI grading” to segment and grade the current image.":
-    "Ca này chưa có phân vùng, nên các điểm này không có căn cứ trên ảnh hiện tại. Bấm “✨ Chấm điểm bằng AI” để phân vùng và chấm lại ảnh này.",
+    "Ca này chưa có phân vùng, nên các điểm này không có căn cứ trên ảnh hiện tại. Bấm “✨ Chạy chẩn đoán AI” để phân vùng và chấm lại ảnh này.",
   "Undo mask edit (Ctrl+Z)":
     "Hoàn tác sửa mask (Ctrl+Z)",
   "Undo (Ctrl+Z)":
@@ -195,7 +195,7 @@ registerVi({
   "SpineNet-labelled mid-sagittal slice":
     "Lát cắt sagittal giữa có nhãn của SpineNet",
   "No AI results yet — click “✨ Run AI grading” (top right).":
-    "Chưa có kết quả AI — bấm “✨ Chấm điểm bằng AI” (góc trên bên phải).",
+    "Chưa có kết quả AI — bấm “✨ Chạy chẩn đoán AI” (góc trên bên phải).",
   "Level":
     "Tầng",
   "Graded by the vendored upstream SpineNet. Corrections here are saved and exported, but re-training does not use them.":
