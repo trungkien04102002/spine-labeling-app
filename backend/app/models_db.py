@@ -295,9 +295,9 @@ class SurveyResponse(Base):
     Answers are stored as {question_id: 1..5} rather than fifteen columns, so
     the questionnaire can gain or lose an item without a schema change; the
     question text lives in code, and a stored id is meaningless without it.
-    ``sus_score`` is denormalised because it is what gets reported, and
+    ``clinical_mean`` is denormalised because it is what gets reported, and
     recomputing it later would silently change published numbers if the
-    scoring ever moved.
+    question set ever moved.
     """
 
     __tablename__ = "survey_response"
@@ -309,7 +309,7 @@ class SurveyResponse(Base):
     role: Mapped[str | None] = mapped_column(String(128), nullable=True)
     answers_json: Mapped[dict] = mapped_column(JSON, nullable=False)
     comment: Mapped[str | None] = mapped_column(Text, nullable=True)
-    sus_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    clinical_mean: Mapped[float | None] = mapped_column(Float, nullable=True)
     submitted_at: Mapped[datetime.datetime] = mapped_column(
         DateTime, default=datetime.datetime.utcnow
     )

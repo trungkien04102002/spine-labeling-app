@@ -480,11 +480,14 @@ export function startBatchRetrain(
 export type SurveyQuestion = {
   id: number;
   text: string;
-  kind: "sus_positive" | "sus_negative" | "domain";
+  kind: "usability" | "core" | "detail";
+  group: string;
+  required: boolean;
 };
 
 export type SurveyForm = {
   questions: SurveyQuestion[];
+  groups: string[];
   scale: { min: number; max: number; labels: string[] };
 };
 
@@ -494,16 +497,13 @@ export type SurveyQuestionStat = SurveyQuestion & {
   distribution: Record<string, number>;
 };
 
+type Block = { mean: number | null; answers: number };
+
 export type SurveySummary = {
   responses: number;
-  sus: {
-    n: number;
-    mean: number | null;
-    min: number | null;
-    max: number | null;
-    benchmark_mean: number;
-  };
-  domain_mean: number | null;
+  clinical: Block;
+  usability: Block;
+  groups: (Block & { name: string })[];
   questions: SurveyQuestionStat[];
   comments: { at: string; role: string | null; text: string }[];
 };
@@ -518,7 +518,7 @@ export function submitSurvey(payload: {
   respondent?: string;
   role?: string;
   comment?: string;
-}): Promise<{ id: number; sus_score: number }> {
+}): Promise<{ id: number; clinical_mean: number | null }> {
   return apiFetch("/survey/responses", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

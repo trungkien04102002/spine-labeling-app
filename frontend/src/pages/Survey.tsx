@@ -33,7 +33,7 @@ function QuestionRow({
   value: number | undefined;
   onChange: (value: number) => void;
 }) {
-  const required = question.kind !== "domain";
+  const required = question.required;
   return (
     <fieldset className="border-t border-slate-200 py-4 first:border-t-0">
       <legend className="sr-only">{question.text}</legend>
@@ -87,7 +87,7 @@ export default function Survey() {
       .catch(() => setError("Không tải được bộ câu hỏi. Thử tải lại trang."));
   }, []);
 
-  const required = (form?.questions ?? []).filter((q) => q.kind !== "domain");
+  const required = (form?.questions ?? []).filter((q) => q.required);
   const answeredRequired = required.filter((q) => answers[q.id] != null).length;
   const canSubmit = form != null && answeredRequired === required.length && !sending;
 
@@ -127,8 +127,8 @@ export default function Survey() {
     <div className="mx-auto max-w-3xl px-4 py-8">
       <h1 className="text-xl font-bold text-slate-800">Phiếu đánh giá phần mềm</h1>
       <p className="mt-2 text-sm text-slate-600">
-        17 câu, khoảng 4 phút. Mười câu đầu về mức dễ dùng, bảy câu sau về độ
-        chính xác và tính hữu ích của kết quả. {SCALE_HINT}.
+        16 câu, khoảng 4 phút. Phần lớn hỏi về kết quả AI đưa ra — mức chính
+        xác, kiểu sai, và mức tin cậy khi đọc phim. {SCALE_HINT}.
       </p>
       <p className="mt-1 text-sm text-slate-500">
         Không có câu trả lời đúng hay sai — đánh giá thấp cũng có ích như đánh
@@ -141,19 +141,34 @@ export default function Survey() {
         </div>
       )}
 
-      <div className="mt-6 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-        {(form?.questions ?? []).map((q, i) => (
-          <QuestionRow
-            key={q.id}
-            question={q}
-            index={i}
-            labels={form!.scale.labels}
-            value={answers[q.id]}
-            onChange={(v) => setAnswers((prev) => ({ ...prev, [q.id]: v }))}
-          />
-        ))}
+      {(form?.groups ?? []).map((group) => (
+        <section
+          key={group}
+          className="mt-5 rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
+        >
+          {/* Grouped so sixteen questions read as four short topics rather
+              than one long column: a clinician can see where they are. */}
+          <h2 className="mb-1 flex items-center gap-2 text-sm font-bold text-slate-800">
+            <span className="h-4 w-1 rounded bg-gradient-to-b from-teal-500 to-cyan-500" />
+            {group}
+          </h2>
+          {(form?.questions ?? [])
+            .filter((q) => q.group === group)
+            .map((q) => (
+              <QuestionRow
+                key={q.id}
+                question={q}
+                index={q.id - 1}
+                labels={form!.scale.labels}
+                value={answers[q.id]}
+                onChange={(v) => setAnswers((prev) => ({ ...prev, [q.id]: v }))}
+              />
+            ))}
+        </section>
+      ))}
 
-        <div className="border-t border-slate-200 pt-4">
+      <div className="mt-5 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="pt-1">
           <label className="block text-sm text-slate-800" htmlFor="comment">
             Góp ý thêm (không bắt buộc)
           </label>

@@ -12,13 +12,15 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.models_db import SurveyResponse
 from app.survey_questions import (
-    DOMAIN_IDS,
+    CLINICAL_IDS,
+    GROUPS,
     QUESTIONS,
+    REQUIRED_IDS,
     SCALE_LABELS,
     SCALE_MAX,
     SCALE_MIN,
-    SUS_IDS,
-    sus_score,
+    USABILITY_IDS,
+    mean_of,
 )
 
 router = APIRouter()
@@ -38,6 +40,7 @@ def get_questions() -> dict[str, object]:
     """The questionnaire, in presentation order, with its rating scale."""
     return {
         "questions": [q.as_dict() for q in QUESTIONS],
+        "groups": GROUPS,
         "scale": {
             "min": SCALE_MIN,
             "max": SCALE_MAX,
@@ -52,11 +55,10 @@ def submit_response(
 ) -> dict[str, object]:
     """Record one clinician's answers.
 
-    Every SUS item is required: the score is only comparable to published
-    means when all ten are answered, and a partial set silently scores lower
-    because unanswered items cannot contribute. The five tool-specific items
-    are optional -- a clinician who never edited a mask should be able to skip
-    question 13 rather than invent an answer.
+    Six questions are required and the other ten may be skipped. The required
+    six are the ones anybody who opened two studies can answer; the rest ask
+    about one condition, or one screen, and a blank there is worth more than a
+    guess. Means are taken over what was answered, so skipping costs nothing.
     """
     unknown = sorted(set(payload.answers) - _VALID_IDS)
     if unknown:
@@ -70,12 +72,10 @@ def submit_response(
             400, f"Answers must be {SCALE_MIN}-{SCALE_MAX}; bad: {out_of_range}"
         )
 
-    missing = sorted(set(SUS_IDS) - set(payload.answers))
+    missing = sorted(set(REQUIRED_IDS) - set(payload.answers))
     if missing:
         raise HTTPException(
-            400,
-            "The ten usability questions must all be answered for the score to "
-            f"mean anything; missing: {missing}",
+            400, f"These questions are required; missing: {missing}"
         )
 
     row = SurveyResponse(
@@ -83,64 +83,76 @@ def submit_response(
         role=(payload.role or None),
         answers_json={str(k): v for k, v in payload.answers.items()},
         comment=(payload.comment or None),
-        sus_score=sus_score(payload.answers),
+        # Kept on the row rather than recomputed later: it is what gets
+        # reported, and a change to the question set would otherwise rewrite
+        # numbers that have already been published.
+        clinical_mean=mean_of(payload.answers, CLINICAL_IDS),
     )
     db.add(row)
     db.commit()
     db.refresh(row)
-    return {"id": row.id, "sus_score": row.sus_score}
+    return {"id": row.id, "clinical_mean": row.clinical_mean}
 
 
 @router.get("/survey/summary")
 def summary(db: Session = Depends(get_db)) -> dict[str, object]:
     """Aggregate for the operator page and for the report.
 
-    Reports the per-question mean and the count behind it, because with a
-    handful of clinicians the count is as important as the mean and a figure
-    quoting one without the other is not honest.
+    Every row carries its own n and its 1-5 spread. At this sample size the
+    mean alone misleads -- two clinicians at 1 and 5 average to the same 3 as
+    two at 3 -- and questions differ in how many people answered them, because
+    ten of the sixteen can be skipped.
     """
     rows = db.query(SurveyResponse).order_by(SurveyResponse.submitted_at).all()
-    scores = [r.sus_score for r in rows if r.sus_score is not None]
+
+    def answers_of(row: SurveyResponse) -> dict[int, int]:
+        raw = row.answers_json if isinstance(row.answers_json, dict) else {}
+        return {int(k): v for k, v in raw.items()}
 
     per_question = []
     for q in QUESTIONS:
-        values = [
-            r.answers_json[str(q.id)]
-            for r in rows
-            if isinstance(r.answers_json, dict) and str(q.id) in r.answers_json
-        ]
+        values = [a[q.id] for a in map(answers_of, rows) if q.id in a]
         per_question.append(
             {
                 "id": q.id,
                 "text": q.text,
                 "kind": q.kind,
+                "group": q.group,
+                "required": q.kind in ("usability", "core"),
                 "n": len(values),
                 "mean": round(sum(values) / len(values), 2) if values else None,
-                # The spread matters more than the mean at this sample size:
-                # two clinicians at 1 and 5 average to the same 3 as two at 3.
                 "distribution": {
                     str(v): values.count(v) for v in range(SCALE_MIN, SCALE_MAX + 1)
                 },
             }
         )
 
-    domain_means = [
-        p["mean"] for p in per_question if p["id"] in DOMAIN_IDS and p["mean"] is not None
-    ]
+    by_id = {p["id"]: p for p in per_question}
+
+    def block_mean(ids: list[int]) -> dict[str, object]:
+        answered = [by_id[i] for i in ids if by_id[i]["mean"] is not None]
+        total = sum(by_id[i]["n"] for i in ids)
+        return {
+            "mean": round(
+                sum(p["mean"] * p["n"] for p in answered) / sum(p["n"] for p in answered),
+                2,
+            )
+            if total
+            else None,
+            "answers": total,
+        }
 
     return {
         "responses": len(rows),
-        "sus": {
-            "n": len(scores),
-            "mean": round(sum(scores) / len(scores), 1) if scores else None,
-            "min": min(scores) if scores else None,
-            "max": max(scores) if scores else None,
-            # Published SUS benchmark, so a reader does not have to look it up.
-            "benchmark_mean": 68.0,
-        },
-        "domain_mean": round(sum(domain_means) / len(domain_means), 2)
-        if domain_means
-        else None,
+        "clinical": block_mean(CLINICAL_IDS),
+        "usability": block_mean(USABILITY_IDS),
+        "groups": [
+            {
+                "name": g,
+                **block_mean([q.id for q in QUESTIONS if q.group == g]),
+            }
+            for g in GROUPS
+        ],
         "questions": per_question,
         "comments": [
             {"at": r.submitted_at.isoformat(), "role": r.role, "text": r.comment}

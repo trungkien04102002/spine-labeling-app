@@ -1646,51 +1646,50 @@ function SurveyPanel() {
     );
   }
 
-  const sus = data.sus;
-  const above = sus.mean != null && sus.mean >= sus.benchmark_mean;
+  const clinical = data.clinical;
 
   return (
     <>
-      <div className="mb-4 flex flex-wrap items-end gap-6 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="mb-4 flex flex-wrap items-end gap-8 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
         <div>
           <div className="text-3xl font-bold text-slate-800">
-            {sus.mean ?? "—"}
-            <span className="ml-1 text-base font-normal text-slate-400">
-              / 100
-            </span>
+            {clinical.mean ?? "—"}
+            <span className="ml-1 text-base font-normal text-slate-400">/ 5</span>
           </div>
           <div className="text-xs text-slate-500">
-            SUS, n={sus.n}
-            {sus.min != null && ` · ${sus.min}–${sus.max}`}
+            the fourteen clinical questions · {clinical.answers} answers
           </div>
         </div>
-        <div
-          className={
-            "rounded-lg px-3 py-1.5 text-xs font-medium " +
-            (above
-              ? "bg-teal-50 text-teal-800"
-              : "bg-amber-50 text-amber-800")
-          }
-        >
-          {above ? "at or above" : "below"} the published average of{" "}
-          {sus.benchmark_mean}
-        </div>
-        {data.domain_mean != null && (
+        {data.usability.mean != null && (
           <div>
-            <div className="text-2xl font-bold text-slate-800">
-              {data.domain_mean}
-              <span className="ml-1 text-base font-normal text-slate-400">
-                / 5
-              </span>
+            <div className="text-2xl font-bold text-slate-600">
+              {data.usability.mean}
+              <span className="ml-1 text-base font-normal text-slate-400">/ 5</span>
             </div>
-            <div className="text-xs text-slate-500">
-              mean of the five clinical questions
-            </div>
+            <div className="text-xs text-slate-500">ease of use (2 questions)</div>
           </div>
         )}
         <div className="ml-auto text-xs text-slate-500">
           {data.responses} response{data.responses === 1 ? "" : "s"}
         </div>
+      </div>
+
+      {/* Per topic, because "the grades disagree" and "the segmentation
+          disagrees" are different findings and average into nothing. */}
+      <div className="mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {data.groups
+          .filter((g) => g.mean != null)
+          .map((g) => (
+            <div
+              key={g.name}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm"
+            >
+              <div className="text-lg font-bold text-slate-800">{g.mean}</div>
+              <div className="text-[11px] leading-tight text-slate-500">
+                {g.name} · {g.answers} answers
+              </div>
+            </div>
+          ))}
       </div>
 
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
@@ -1703,9 +1702,9 @@ function SurveyPanel() {
                 </td>
                 <td className="px-2 py-2 align-top text-slate-700">
                   {q.text}
-                  {q.kind !== "domain" && (
+                  {q.kind === "usability" && (
                     <span className="ml-2 text-[10px] uppercase tracking-wide text-slate-400">
-                      SUS
+                      UX
                     </span>
                   )}
                 </td>
