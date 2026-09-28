@@ -226,7 +226,7 @@ export default function PatientList() {
                 labelled in the language they read. */}
             <Link
               to="/survey"
-              title={t("A 19-question survey, about 5 minutes")}
+              title={t("A short survey, about 5 minutes")}
               className="flex items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-teal-700 shadow-sm transition hover:bg-teal-50"
             >
               <span>★ {t("Rate this software")}</span>

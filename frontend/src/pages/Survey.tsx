@@ -71,6 +71,86 @@ function QuestionRow({
   );
 }
 
+/**
+ * Several items on the same scale as one grid: a row per label, a column per
+ * score. Eight labels as eight separate button rows would triple the length of
+ * the page for no extra information, and a column is quicker to scan.
+ */
+function QuestionMatrix({
+  questions,
+  labels,
+  answers,
+  onChange,
+}: {
+  questions: SurveyQuestion[];
+  labels: string[];
+  answers: Record<number, number>;
+  onChange: (id: number, value: number) => void;
+}) {
+  return (
+    <div className="mt-3 border-t border-slate-200 pt-3">
+      <p className="mb-2 text-sm text-slate-800">
+        Độ chính xác theo từng nhãn{" "}
+        <span className="text-xs text-slate-400">
+          (bỏ qua nhãn bác sĩ chưa xem kỹ)
+        </span>
+      </p>
+      <div className="scroll-x-visible">
+        <table className="w-full min-w-[560px] text-sm">
+          <thead>
+            <tr>
+              <th />
+              {labels.map((label, i) => (
+                <th
+                  key={label}
+                  className="px-1 pb-1 text-center text-[11px] font-medium leading-tight text-slate-500"
+                >
+                  <div className="font-bold text-slate-700">{i + 1}</div>
+                  {label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {questions.map((q) => (
+              <tr key={q.id} className="border-t border-slate-100">
+                <th
+                  scope="row"
+                  className="py-2 pr-3 text-left text-[13px] font-normal text-slate-700"
+                >
+                  {q.text}
+                </th>
+                {labels.map((label, i) => {
+                  const score = i + 1;
+                  const selected = answers[q.id] === score;
+                  return (
+                    <td key={score} className="px-1 py-1 text-center">
+                      <button
+                        type="button"
+                        aria-pressed={selected}
+                        aria-label={`${q.text}: ${score} — ${label}`}
+                        onClick={() => onChange(q.id, score)}
+                        className={
+                          "h-8 w-full min-w-[44px] rounded-md border text-sm transition " +
+                          (selected
+                            ? "border-teal-500 bg-teal-500 font-bold text-white"
+                            : "border-slate-200 bg-white text-slate-500 hover:border-teal-300")
+                        }
+                      >
+                        {score}
+                      </button>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 /** Same teal bar as the worklist and viewer, with the way back. */
 function Shell({ children }: { children: ReactNode }) {
   return (
@@ -150,8 +230,8 @@ export default function Survey() {
     <div className="mx-auto max-w-3xl px-4 py-8">
       <h1 className="text-xl font-bold text-slate-800">Phiếu đánh giá phần mềm</h1>
       <p className="mt-2 text-sm text-slate-600">
-        19 mục, khoảng 5 phút. Bác sĩ chấm từng mặt của kết quả AI — vùng tô,
-        điểm chẩn đoán, kiểu sai, cách trình bày — {SCALE_HINT}.
+        Khoảng 5 phút. Bác sĩ chấm từng mặt của kết quả AI — vùng tô, điểm
+        chẩn đoán của cả 11 nhãn, kiểu sai, cách trình bày — {SCALE_HINT}.
       </p>
       <p className="mt-1 text-sm text-slate-500">
         Không có câu trả lời đúng hay sai — đánh giá thấp cũng có ích như đánh
@@ -176,7 +256,7 @@ export default function Survey() {
             {group}
           </h2>
           {(form?.questions ?? [])
-            .filter((q) => q.group === group)
+            .filter((q) => q.group === group && !q.matrix)
             .map((q) => (
               <QuestionRow
                 key={q.id}
@@ -187,6 +267,19 @@ export default function Survey() {
                 onChange={(v) => setAnswers((prev) => ({ ...prev, [q.id]: v }))}
               />
             ))}
+          {(() => {
+            const grid = (form?.questions ?? []).filter(
+              (q) => q.group === group && q.matrix,
+            );
+            return grid.length > 0 ? (
+              <QuestionMatrix
+                questions={grid}
+                labels={form!.scale.labels}
+                answers={answers}
+                onChange={(id, v) => setAnswers((prev) => ({ ...prev, [id]: v }))}
+              />
+            ) : null;
+          })()}
         </section>
       ))}
 

@@ -37,7 +37,7 @@ import {
   resetMaskHistory,
   undoMaskEdit,
 } from "../../lib/maskHistory";
-import { prettyName } from "../../lib/labels";
+import { useStructureName } from "../../lib/labels";
 import LabelPicker, { Swatch } from "./LabelPicker";
 
 const { ViewportType } = Enums;
@@ -180,6 +180,7 @@ export default function CornerstoneViewport({
   onLegend,
 }: Props) {
   const { t } = useT();
+  const structureName = useStructureName();
   const elementRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<Types.IStackViewport | null>(null);
   const engineRef = useRef<RenderingEngine | null>(null);
@@ -901,7 +902,7 @@ export default function CornerstoneViewport({
                   {hoverEntry ? (
                     <>
                       <Swatch color={hoverEntry.color} />
-                      {prettyName(hoverEntry.name)}
+                      {structureName(hoverEntry.name)}
                     </>
                   ) : pickMissed ? (
                     t("Nothing there — that is background.")

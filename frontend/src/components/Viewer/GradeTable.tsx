@@ -1,5 +1,7 @@
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { GradingItem } from "../../lib/api";
 import { useT } from "../../lib/i18n";
+import { CONDITIONS, conditionHeader, severityLabel } from "../../lib/clinicalTerms";
 import {
   isTrainableCondition,
   severityOptions,
@@ -91,8 +93,43 @@ interface Props {
  * severity; low-confidence predictions get a ⚠ marker (full score on hover).
  * Clicking a row scrolls the viewer to that disc.
  */
+/**
+ * True for a stored value its condition's head cannot produce -- a legacy
+ * correction or a merge that let the wrong model's value through. Such a cell
+ * used to look exactly like a valid one ("Absent" under right foraminal, whose
+ * scale is Normal/Mild · Moderate · Severe), so nobody fixed it; re-training
+ * then drops it silently. It is flagged where it is read instead.
+ */
+function outOfScale(condition: string, value: string): boolean {
+  const scale = CONDITIONS[condition]?.levels;
+  return scale != null && !scale.some((l) => l.value === value);
+}
+
 export default function GradeTable({ grading, onJump, onEditSeverity }: Props) {
-  const { t } = useT();
+  const { t, lang } = useT();
+  // Eleven condition columns do not fit a laptop screen. Track whether there
+  // is more to either side, so the controls and the edge fade only appear when
+  // they mean something.
+  const scroller = useRef<HTMLDivElement | null>(null);
+  const [more, setMore] = useState({ left: false, right: false });
+  const measure = useCallback(() => {
+    const el = scroller.current;
+    if (!el) return;
+    setMore({
+      left: el.scrollLeft > 4,
+      right: el.scrollLeft + el.clientWidth < el.scrollWidth - 4,
+    });
+  }, []);
+  useEffect(() => {
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [measure, grading, lang]);
+  const nudge = (direction: 1 | -1) =>
+    scroller.current?.scrollBy({
+      left: direction * scroller.current.clientWidth * 0.6,
+      behavior: "smooth",
+    });
   // Index by level+condition, and collect the distinct levels/conditions.
   const byLevel = new Map<string, Map<string, GradingItem>>();
   const conditionSet = new Set<string>();
@@ -127,7 +164,31 @@ export default function GradeTable({ grading, onJump, onEditSeverity }: Props) {
 
   return (
     <>
-    <div style={{ overflowX: "auto" }}>
+    {(more.left || more.right) && (
+      <div className="mb-1.5 flex items-center justify-end gap-2 text-[11px] text-slate-500">
+        <span className="mr-auto">{t("More columns to the side — use the arrows, drag the bar, or Shift + scroll.")}</span>
+        <button
+          type="button"
+          onClick={() => nudge(-1)}
+          disabled={!more.left}
+          aria-label={t("Scroll left")}
+          className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-30"
+        >
+          ◀
+        </button>
+        <button
+          type="button"
+          onClick={() => nudge(1)}
+          disabled={!more.right}
+          aria-label={t("Scroll right")}
+          className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-30"
+        >
+          ▶
+        </button>
+      </div>
+    )}
+    <div style={{ position: "relative" }}>
+    <div ref={scroller} onScroll={measure} className="scroll-x-visible">
     <table
       style={{
         borderCollapse: "collapse",
@@ -137,10 +198,24 @@ export default function GradeTable({ grading, onJump, onEditSeverity }: Props) {
     >
       <thead>
         <tr>
-          <th style={{ textAlign: "left", padding: "4px 8px" }}>{t("Level")}</th>
+          <th
+            style={{
+              textAlign: "left",
+              padding: "4px 8px",
+              position: "sticky",
+              left: 0,
+              background: "#fff",
+              zIndex: 1,
+            }}
+          >
+            {t("Level")}
+          </th>
           {conditions.map((c) => (
-            <th key={c} style={{ padding: "4px 8px" }}>
-              {conditionLabel(c)}
+            <th
+              key={c}
+              style={{ padding: "4px 8px", verticalAlign: "bottom", minWidth: 96 }}
+            >
+              {conditionHeader(c, lang, conditionLabel(c))}
               {!isTrainableCondition(c) && (
                 <span
                   title={t("Graded by the vendored upstream SpineNet. Corrections here are saved and exported, but re-training does not use them.")}
@@ -148,6 +223,16 @@ export default function GradeTable({ grading, onJump, onEditSeverity }: Props) {
                 >
                   {NOT_TRAINED_MARK}
                 </span>
+              )}
+              {/* The English term stays under the Vietnamese one: it is what
+                  radiologists write in reports, and what the reference card
+                  and the literature call it. */}
+              {lang === "vi" && CONDITIONS[c] && (
+                <div
+                  style={{ fontSize: "0.68rem", fontWeight: 400, color: "#868e96" }}
+                >
+                  {CONDITIONS[c].en}
+                </div>
               )}
             </th>
           ))}
@@ -165,7 +250,19 @@ export default function GradeTable({ grading, onJump, onEditSeverity }: Props) {
               style={{ cursor: bbox ? "pointer" : "default" }}
               title={bbox ? t("Jump to this disc") : undefined}
             >
-              <td style={{ padding: "4px 8px", fontWeight: 600 }}>{level}</td>
+              <td
+                style={{
+                  padding: "4px 8px",
+                  fontWeight: 600,
+                  whiteSpace: "nowrap",
+                  position: "sticky",
+                  left: 0,
+                  background: "#fff",
+                  zIndex: 1,
+                }}
+              >
+                {level}
+              </td>
               {conditions.map((c) => {
                 const item = row.get(c);
                 const low = item != null && item.score < LOW_CONFIDENCE;
@@ -208,16 +305,18 @@ export default function GradeTable({ grading, onJump, onEditSeverity }: Props) {
                           >
                             {cellOptions.map((s) => (
                               <option key={s} value={s}>
-                                {s}
+                                {outOfScale(c, s)
+                                  ? `⚠ ${s} (${t("not on this scale")})`
+                                  : severityLabel(c, s, lang)}
                               </option>
                             ))}
                           </select>
                         ) : (
-                          item.severity
+                          severityLabel(c, item.severity, lang)
                         )}
                         {low && (
                           <span
-                            title={`Low confidence (${(item.score * 100).toFixed(0)}%) — review`}
+                            title={t("Low confidence ({p}%) — review", { p: (item.score * 100).toFixed(0) })}
                             style={{ color: "#c60", cursor: "help" }}
                           >
                             ⚠
@@ -235,6 +334,21 @@ export default function GradeTable({ grading, onJump, onEditSeverity }: Props) {
         })}
       </tbody>
     </table>
+    </div>
+    {more.right && (
+      <div
+        aria-hidden
+        style={{
+          position: "absolute",
+          top: 0,
+          right: 0,
+          bottom: 10,
+          width: 40,
+          pointerEvents: "none",
+          background: "linear-gradient(to right, rgba(255,255,255,0), #fff)",
+        }}
+      />
+    )}
     </div>
     {hasUntrainedColumn && (
       <p

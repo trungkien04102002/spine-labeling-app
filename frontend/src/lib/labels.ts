@@ -1,3 +1,6 @@
+import { anatomyName } from "./clinicalTerms";
+import { useT } from "./i18n";
+
 /**
  * Prettify a TotalSpineSeg label name, e.g. "vertebrae_L1" -> "Vertebra L1".
  *
@@ -14,4 +17,14 @@ export function prettyName(name: string): string {
 /** CSS color for a legend/picker swatch, from the labelmap's rendered RGB. */
 export function swatchColor(color: [number, number, number]): string {
   return `rgb(${color[0]},${color[1]},${color[2]})`;
+}
+
+/**
+ * The structure's name in the reader's language. Every place that names a
+ * structure goes through this, for the reason prettyName exists at all: the
+ * legend and the brush picker must call a structure the same thing.
+ */
+export function useStructureName(): (raw: string) => string {
+  const { lang } = useT();
+  return (raw: string) => anatomyName(raw, prettyName(raw), lang);
 }

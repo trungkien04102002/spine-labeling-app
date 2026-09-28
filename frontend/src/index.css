@@ -19,3 +19,28 @@ body {
   text-align: left;
   border: none;
 }
+
+/* A horizontal scroller whose bar is always drawn. macOS hides overlay
+   scrollbars until the user is already scrolling, and a mouse wheel cannot
+   scroll sideways, so a table wider than its card looked like it simply ended
+   at whatever column was cut off. Declaring the webkit scrollbar makes Chrome
+   and Safari draw a persistent one. */
+.scroll-x-visible {
+  overflow-x: auto;
+  scrollbar-width: auto;
+  scrollbar-color: #94a3b8 #e2e8f0;
+}
+.scroll-x-visible::-webkit-scrollbar {
+  height: 10px;
+}
+.scroll-x-visible::-webkit-scrollbar-track {
+  background: #e2e8f0;
+  border-radius: 5px;
+}
+.scroll-x-visible::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 5px;
+}
+.scroll-x-visible::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}

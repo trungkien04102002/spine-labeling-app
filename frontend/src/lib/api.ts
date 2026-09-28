@@ -483,6 +483,7 @@ export type SurveyQuestion = {
   kind: "usability" | "core" | "detail";
   group: string;
   required: boolean;
+  matrix: boolean;
 };
 
 export type SurveyForm = {

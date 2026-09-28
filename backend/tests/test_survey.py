@@ -45,18 +45,18 @@ def _only_required(value: int = 4) -> dict[int, int]:
 def test_the_questionnaire_is_mostly_about_the_model(client):
     """The balance is the point: fourteen clinical questions against two.
 
-    An earlier draft spent ten of nineteen on usability to buy a comparable
+    An earlier draft spent ten questions on usability to buy a comparable
     score. This asserts the trade that replaced it, so a later edit cannot
     quietly drift back.
     """
     body = client.get("/survey/questions").json()
-    assert len(body["questions"]) == 19
-    assert len(CLINICAL_IDS) == 17 and len(USABILITY_IDS) == 2
+    assert len(body["questions"]) == 24
+    assert len(CLINICAL_IDS) == 22 and len(USABILITY_IDS) == 2
     assert body["groups"][0] == "Phân vùng"
 
 
 def test_only_the_six_answerable_by_anyone_are_required(client):
-    """Thirteen questions may be skipped, and skipping has to actually work."""
+    """Eighteen questions may be skipped, and skipping has to actually work."""
     resp = client.post("/survey/responses", json={"answers": _only_required()})
     assert resp.status_code == 201
     assert resp.json()["clinical_mean"] == 4.0
@@ -131,3 +131,18 @@ def test_summary_reports_spread_and_per_question_counts(client):
     )
     assert q["mean"] == 3.0 and q["n"] == 2
     assert q["distribution"]["1"] == 1 and q["distribution"]["5"] == 1
+
+
+def test_every_label_the_app_outputs_is_asked_about(client):
+    """The table shows eleven labels; the survey must cover all of them.
+
+    An earlier version asked only about the thesis model's three, which left
+    the eight SpineNet columns -- most of the table -- without a clinical
+    opinion. Each label's stem has to appear in some question.
+    """
+    text = " ".join(q["text"] for q in client.get("/survey/questions").json()["questions"])
+    for stem in (
+        "canal", "foraminal", "Pfirrmann", "disc narrowing", "herniation",
+        "spondylolisthesis", "endplate", "marrow",
+    ):
+        assert stem in text, f"no question covers {stem}"

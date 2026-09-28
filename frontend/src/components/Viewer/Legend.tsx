@@ -1,6 +1,6 @@
 import type { LegendEntry } from "./CornerstoneViewport";
 import { Swatch } from "./LabelPicker";
-import { prettyName } from "../../lib/labels";
+import { useStructureName } from "../../lib/labels";
 
 interface Props {
   entries: LegendEntry[];
@@ -18,6 +18,7 @@ interface Props {
  * into a name and hunting for that name in a separate dropdown.
  */
 export default function Legend({ entries, onSelect, activeId }: Props) {
+  const structureName = useStructureName();
   if (entries.length === 0) return null;
   return (
     <div
@@ -30,7 +31,7 @@ export default function Legend({ entries, onSelect, activeId }: Props) {
         const content = (
           <>
             <Swatch color={e.color} size={11} />
-            <span className="truncate">{prettyName(e.name)}</span>
+            <span className="truncate">{structureName(e.name)}</span>
           </>
         );
         return onSelect ? (

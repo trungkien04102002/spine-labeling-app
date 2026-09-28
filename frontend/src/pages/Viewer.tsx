@@ -5,6 +5,7 @@ import CornerstoneViewport, {
   type MaskEditApi,
 } from "../components/Viewer/CornerstoneViewport";
 import GradeTable from "../components/Viewer/GradeTable";
+import LabelReference from "../components/Viewer/LabelReference";
 import Legend from "../components/Viewer/Legend";
 import { useHistory } from "../lib/history";
 import {
@@ -112,9 +113,9 @@ const PREDICTION_GUIDE: { name: string; scale: string; meaning: string; src: "Sp
   { name: "Disc narrowing", scale: "Grade 1–4", meaning: "Loss of intervertebral disc height.", src: "SpineNet" },
   { name: "Central canal stenosis", scale: "Normal/Mild · Moderate · Severe", meaning: "Narrowing of the central spinal canal.", src: "CBAM" },
   { name: "Foraminal stenosis (L/R)", scale: "Normal/Mild · Moderate · Severe", meaning: "Narrowing of the left/right nerve-exit foramen.", src: "CBAM" },
-  { name: "Spondylolisthesis", scale: "None · Grade I · Grade II", meaning: "Forward slippage of one vertebra over another.", src: "SpineNet" },
+  { name: "Spondylolisthesis", scale: "None · Grade I · Grade II+", meaning: "Forward slippage of one vertebra over another. The last class covers grade II and worse.", src: "SpineNet" },
   { name: "Endplate defects (upper/lower)", scale: "Absent / Present", meaning: "Damage to the vertebral endplate.", src: "SpineNet" },
-  { name: "Marrow changes (upper/lower)", scale: "Absent / Present", meaning: "Modic vertebral bone-marrow signal changes.", src: "SpineNet" },
+  { name: "Marrow changes (upper/lower)", scale: "Absent / Present", meaning: "Vertebral bone-marrow signal change, Modic types 1, 2, 3 and mixed combined.", src: "SpineNet" },
   { name: "Disc herniation", scale: "Absent / Present", meaning: "Protrusion/extrusion of disc material.", src: "SpineNet" },
 ];
 
@@ -883,6 +884,18 @@ export default function Viewer() {
               )
             )}
           </div>
+
+          {/* Collapsed by default: the table is what a reader came for, and
+              the card is what they open when a grade needs checking. */}
+          <details className="w-full basis-full rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+            <summary className="flex cursor-pointer items-center gap-2 text-base font-bold text-slate-800">
+              <span className="h-4 w-1 rounded bg-gradient-to-b from-teal-500 to-cyan-500" />
+              {t("Label reference: what each grade means")}
+            </summary>
+            <div className="mt-3">
+              <LabelReference />
+            </div>
+          </details>
       </main>
     </div>
   );

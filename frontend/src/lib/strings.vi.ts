@@ -22,8 +22,8 @@ registerVi({
     "Spine Labeling",
   "Lumbar MRI · AI-assisted grading":
     "MRI cột sống thắt lưng · Chấm điểm có AI hỗ trợ",
-  "A 19-question survey, about 5 minutes":
-    "Phiếu 19 câu, khoảng 5 phút",
+  "A short survey, about 5 minutes":
+    "Phiếu đánh giá, khoảng 5 phút",
   "Rate this software":
     "Đánh giá phần mềm",
   "The correction queue, the batches already sent, and what to run next":
@@ -274,4 +274,18 @@ registerVi({
     "Thay đổi tín hiệu tuỷ xương đốt sống kiểu Modic.",
   "Protrusion/extrusion of disc material.":
     "Lồi/thoát vị nhân đệm.",
+  "not on this scale":
+    "sai thang",
+  "Low confidence ({p}%) — review":
+    "Độ tin cậy thấp ({p}%) — nên kiểm lại",
+  "Choose a structure…":
+    "Chọn cấu trúc…",
+  "Label reference: what each grade means":
+    "Bảng tra nhãn: mỗi mức điểm nghĩa là gì",
+  "More columns to the side — use the arrows, drag the bar, or Shift + scroll.":
+    "Còn cột ở bên cạnh — bấm mũi tên, kéo thanh cuộn, hoặc giữ Shift rồi cuộn chuột.",
+  "Scroll left":
+    "Cuộn sang trái",
+  "Scroll right":
+    "Cuộn sang phải",
 });

@@ -21,13 +21,18 @@ REQUIRED_KINDS = ("usability", "core")
 
 
 class Question:
-    __slots__ = ("id", "text", "kind", "group")
+    __slots__ = ("id", "text", "kind", "group", "matrix")
 
-    def __init__(self, id: int, text: str, kind: Kind, group: str) -> None:
+    def __init__(
+        self, id: int, text: str, kind: Kind, group: str, matrix: bool = False
+    ) -> None:
         self.id = id
         self.text = text
         self.kind = kind
         self.group = group
+        # Rendered as one row of a grid rather than as its own block: eight
+        # labels rated on the same scale are read faster down a column.
+        self.matrix = matrix
 
     def as_dict(self) -> dict[str, object]:
         return {
@@ -36,6 +41,7 @@ class Question:
             "kind": self.kind,
             "group": self.group,
             "required": self.kind in REQUIRED_KINDS,
+            "matrix": self.matrix,
         }
 
 
@@ -57,33 +63,40 @@ QUESTIONS: list[Question] = [
     Question(2, "Độ dễ nhìn của màu và đường viền vùng tô (không che mất chi tiết cần đọc)", "detail", SEG),
     Question(3, "Mức vùng tô giúp tôi xác định nhanh tầng cần xem", "detail", SEG),
 
-    # --- Whether the grades are right ------------------------------------
-    Question(4, "Độ khớp của điểm chẩn đoán AI với đánh giá của tôi", "core", GRADE),
-    # Split by condition on purpose: the model is measurably weaker on
-    # foraminal stenosis than on the others, so a single average would hide
-    # exactly the disagreement worth reporting.
-    Question(5, "Độ chính xác của mức hẹp ống sống (canal stenosis)", "detail", GRADE),
-    Question(6, "Độ chính xác của mức hẹp lỗ liên hợp (foraminal stenosis)", "detail", GRADE),
-    Question(7, "Độ chính xác của phân độ thoái hoá đĩa đệm (Pfirrmann)", "detail", GRADE),
+    # --- Whether the grades are right, overall and label by label -----------
+    Question(4, "Độ khớp chung của điểm chẩn đoán AI với đánh giá của tôi", "core", GRADE),
+    # One row per label the app actually outputs -- all eleven, with left and
+    # right foraminal, and upper and lower endplate and marrow, taken
+    # together because a reader judges a side or an edge as one finding.
+    # Asking only about the thesis model's three would leave the eight
+    # SpineNet columns, most of the table, with no clinical opinion at all.
+    Question(5, "Hẹp ống sống trung tâm (canal stenosis)", "detail", GRADE, matrix=True),
+    Question(6, "Hẹp lỗ liên hợp trái / phải (foraminal stenosis)", "detail", GRADE, matrix=True),
+    Question(7, "Thoái hoá đĩa đệm (Pfirrmann)", "detail", GRADE, matrix=True),
+    Question(8, "Hẹp khe đĩa (disc narrowing)", "detail", GRADE, matrix=True),
+    Question(9, "Thoát vị đĩa đệm (disc herniation)", "detail", GRADE, matrix=True),
+    Question(10, "Trượt đốt sống (spondylolisthesis)", "detail", GRADE, matrix=True),
+    Question(11, "Tổn thương tấm tận trên / dưới (endplate defect)", "detail", GRADE, matrix=True),
+    Question(12, "Thay đổi tuỷ xương trên / dưới — Modic (marrow)", "detail", GRADE, matrix=True),
 
     # --- Whether the presentation does any work ---------------------------
-    Question(8, "Mức bảng kết quả theo tầng giúp tôi nắm cả đoạn cột sống trong một lần nhìn", "detail", SHOW),
-    Question(9, "Mức tính năng bấm vào dòng để nhảy tới lát cắt giúp tôi kiểm chứng nhanh", "detail", SHOW),
-    Question(10, "Mức ảnh lát cắt AI đánh dấu giúp tôi hiểu AI căn cứ vào đâu", "detail", SHOW),
+    Question(13, "Mức bảng kết quả theo tầng giúp tôi nắm cả đoạn cột sống trong một lần nhìn", "detail", SHOW),
+    Question(14, "Mức tính năng bấm vào dòng để nhảy tới lát cắt giúp tôi kiểm chứng nhanh", "detail", SHOW),
+    Question(15, "Mức ảnh lát cắt AI đánh dấu giúp tôi hiểu AI căn cứ vào đâu", "detail", SHOW),
 
     # --- How it fails, which accuracy alone cannot say --------------------
-    Question(11, "Mức an toàn khi AI sai (sai lệch nhỏ, dễ nhận ra)", "core", ERRORS),
-    Question(12, "Khả năng phát hiện tổn thương nặng, không bỏ sót", "detail", ERRORS),
-    Question(13, "Khả năng tránh báo động giả ở ca bình thường", "detail", ERRORS),
+    Question(16, "Mức an toàn khi AI sai (sai lệch nhỏ, dễ nhận ra)", "core", ERRORS),
+    Question(17, "Khả năng phát hiện tổn thương nặng, không bỏ sót", "detail", ERRORS),
+    Question(18, "Khả năng tránh báo động giả ở ca bình thường", "detail", ERRORS),
 
     # --- Whether it survives contact with a working day -------------------
-    Question(14, "Mức thuận tiện khi sửa mask và sửa điểm", "detail", USE),
-    Question(15, "Độ tin cậy của kết quả AI khi tham khảo lúc đọc phim", "detail", USE),
-    Question(16, "Mức công cụ rút ngắn thời gian đọc một ca so với đọc thủ công", "detail", USE),
-    Question(17, "Mức phù hợp để đưa công cụ vào công việc thường ngày", "core", USE),
+    Question(19, "Mức thuận tiện khi sửa mask và sửa điểm", "detail", USE),
+    Question(20, "Độ tin cậy của kết quả AI khi tham khảo lúc đọc phim", "detail", USE),
+    Question(21, "Mức công cụ rút ngắn thời gian đọc một ca so với đọc thủ công", "detail", USE),
+    Question(22, "Mức phù hợp để đưa công cụ vào công việc thường ngày", "core", USE),
 
-    Question(18, "Mức phần mềm đáp ứng nhu cầu công việc của tôi", "usability", UX),
-    Question(19, "Mức dễ sử dụng của phần mềm", "usability", UX),
+    Question(23, "Mức phần mềm đáp ứng nhu cầu công việc của tôi", "usability", UX),
+    Question(24, "Mức dễ sử dụng của phần mềm", "usability", UX),
 ]
 
 CLINICAL_IDS = [q.id for q in QUESTIONS if q.kind in ("core", "detail")]

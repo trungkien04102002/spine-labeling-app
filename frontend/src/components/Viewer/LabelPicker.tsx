@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { LegendEntry } from "./CornerstoneViewport";
-import { prettyName, swatchColor } from "../../lib/labels";
+import { swatchColor, useStructureName } from "../../lib/labels";
+import { useT } from "../../lib/i18n";
 
 /** The colour square shown next to a structure's name. */
 export function Swatch({
@@ -51,6 +52,8 @@ export default function LabelPicker({
   disabled,
   autoOpen,
 }: Props) {
+  const structureName = useStructureName();
+  const { t } = useT();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -94,7 +97,7 @@ export default function LabelPicker({
       >
         <Swatch color={selected ? selected.color : null} />
         <span data-testid="label-picker-value">
-          {selected ? prettyName(selected.name) : "Choose a structure…"}
+          {selected ? structureName(selected.name) : t("Choose a structure…")}
         </span>
         <span aria-hidden className="text-[9px] opacity-60">
           ▼
@@ -125,7 +128,7 @@ export default function LabelPicker({
                 }
               >
                 <Swatch color={e.color} />
-                {prettyName(e.name)}
+                {structureName(e.name)}
               </button>
             </li>
           ))}
