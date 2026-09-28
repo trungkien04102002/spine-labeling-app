@@ -90,3 +90,12 @@ export function RoomProvider({ children }: { children: ReactNode }) {
 export function useRoom() {
   return useContext(RoomContext);
 }
+
+/**
+ * A study id as a person should read it. Ids made in a room carry a "p<n>-"
+ * prefix so two rooms can both have "ca1"; the prefix is bookkeeping, and a
+ * clinician who typed "ca1" should see "ca1".
+ */
+export function displayStudyId(id: string): string {
+  return id.replace(/^p\d+-/, "");
+}

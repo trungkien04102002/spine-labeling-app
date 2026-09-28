@@ -32,6 +32,7 @@ import {
   type StudyDetail,
 } from "../lib/api";
 import { LangToggle, useT } from "../lib/i18n";
+import { displayStudyId } from "../lib/room";
 
 /**
  * Translucent metadata overlay pinned to a corner of the image, the way a PACS
@@ -543,7 +544,7 @@ export default function Viewer() {
               {t("← Worklist")}
             </Link>
             <div className="leading-tight">
-              <div className="text-sm font-bold">{t("Study {id}", { id: studyId ?? "" })}</div>
+              <div className="text-sm font-bold">{t("Study {id}", { id: displayStudyId(studyId ?? "") })}</div>
               <div className="text-xs text-teal-50/90">
                 {detail?.patient_name ?? "…"}
               </div>

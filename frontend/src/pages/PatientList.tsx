@@ -14,7 +14,7 @@ import {
   type StudyOut,
 } from "../lib/api";
 import { LangToggle, useT } from "../lib/i18n";
-import { useRoom } from "../lib/room";
+import { displayStudyId, useRoom } from "../lib/room";
 
 type BackendStatus =
   | { state: "loading" }
@@ -458,7 +458,7 @@ export default function PatientList() {
                         className="flex items-center gap-3 border-b border-slate-50 px-4 py-2.5 pl-12 last:border-b-0 hover:bg-teal-50/40"
                       >
                         <span className="w-40 font-medium text-slate-800">
-                          {study.id}
+                          {displayStudyId(study.id)}
                         </span>
                         <span className="rounded-md bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-600">
                           {study.modality}
