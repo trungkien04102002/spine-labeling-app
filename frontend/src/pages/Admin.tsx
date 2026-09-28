@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { useT } from "../lib/i18n";
 import {
   getCorrectionBatches,
   getCorrections,
@@ -1128,7 +1129,7 @@ function RunCard({ run, job }: { run: RetrainRunOut; job: JobOut | null }) {
 
 // --- The page --------------------------------------------------------------
 
-export default function Admin() {
+export default function Admin({ embedded = false }: { embedded?: boolean } = {}) {
   const [queue, setQueue] = useState<CorrectionQueue | null>(null);
   const [sent, setSent] = useState<CorrectionOut[]>([]);
   const [batches, setBatches] = useState<BatchOut[] | null>(null);
@@ -1294,6 +1295,8 @@ export default function Admin() {
   return (
     <div className="min-h-screen">
       {/* Brand header, same as the worklist, the viewer and /models */}
+      {/* Inside /admin the hub draws the bar; standalone, this does. */}
+      {!embedded && (
       <header className="bg-gradient-to-r from-teal-600 to-cyan-500 shadow-md">
         <div className="mx-auto flex max-w-4xl items-center gap-3 px-6 py-3.5">
           <Link
@@ -1317,6 +1320,7 @@ export default function Admin() {
           </Link>
         </div>
       </header>
+      )}
 
       <main className="mx-auto max-w-4xl px-6 py-8">
         <p className="mb-4 text-[11px] leading-relaxed text-slate-400">
@@ -1594,14 +1598,6 @@ export default function Admin() {
             next patient's result.
           </p>
         </section>
-        {/* Clinician survey ---------------------------------------------- */}
-        <section className="mt-6">
-          <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-slate-800">
-            <span className="h-4 w-1 rounded bg-gradient-to-b from-teal-500 to-cyan-500" />
-            Clinician survey
-          </h2>
-          <SurveyPanel />
-        </section>
       </main>
     </div>
   );
@@ -1616,7 +1612,8 @@ export default function Admin() {
  * respondents a mean hides whether people agreed or split, and two clinicians
  * at 1 and 5 average to the same 3 as two at 3.
  */
-function SurveyPanel() {
+export function SurveyPanel() {
+  const { t } = useT();
   const [data, setData] = useState<SurveySummary | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -1657,7 +1654,7 @@ function SurveyPanel() {
             <span className="ml-1 text-base font-normal text-slate-400">/ 5</span>
           </div>
           <div className="text-xs text-slate-500">
-            the fourteen clinical questions · {clinical.answers} answers
+            {t("clinical questions · {n} answers", { n: clinical.answers })}
           </div>
         </div>
         {data.usability.mean != null && (
@@ -1666,11 +1663,11 @@ function SurveyPanel() {
               {data.usability.mean}
               <span className="ml-1 text-base font-normal text-slate-400">/ 5</span>
             </div>
-            <div className="text-xs text-slate-500">ease of use (2 questions)</div>
+            <div className="text-xs text-slate-500">{t("ease of use")}</div>
           </div>
         )}
         <div className="ml-auto text-xs text-slate-500">
-          {data.responses} response{data.responses === 1 ? "" : "s"}
+          {t("{n} response(s)", { n: data.responses })}
         </div>
       </div>
 

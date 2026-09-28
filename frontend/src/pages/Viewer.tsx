@@ -753,12 +753,6 @@ export default function Viewer() {
             <p className="mt-2 text-xs text-slate-400">
               {t("Sending only queues the corrections. Re-training runs offline, and a new model version has to be reviewed and switched on before it grades anyone — so this never changes the next patient's result.")}
             </p>
-            <Link
-              to="/models"
-              className="mt-2 inline-block text-xs font-medium text-indigo-600 hover:underline"
-            >
-              {t("Model versions — review and switch on →")}
-            </Link>
           </div>
         </aside>
 

@@ -288,4 +288,104 @@ registerVi({
     "Cuộn sang trái",
   "Scroll right":
     "Cuộn sang phải",
+  "Room":
+    "Phòng",
+  "Switch":
+    "Đổi",
+  "Hide samples":
+    "Ẩn ca mẫu",
+  "+ Sample case":
+    "+ Ca mẫu",
+  "Sample cases to try":
+    "Ca mẫu để thử",
+  "Already graded by the AI, from patients the model never saw in training. Your copy is yours alone — edit it freely.":
+    "Đã được AI chấm sẵn, lấy từ bệnh nhân mà mô hình chưa từng thấy khi huấn luyện. Bản sao là của riêng bác sĩ — cứ sửa thoải mái.",
+  "Adding…":
+    "Đang thêm…",
+  "Your room is empty. Add a sample case above, or create a study and upload your own scan.":
+    "Phòng của bác sĩ chưa có ca nào. Thêm một ca mẫu ở trên, hoặc tạo ca mới và tải phim của bác sĩ lên.",
+  "Your name":
+    "Tên của bác sĩ",
+  "e.g. Dr. Minh":
+    "vd. BS Minh",
+  "Entering…":
+    "Đang vào…",
+  "Enter my room":
+    "Vào phòng",
+  "Each person gets a private room: your studies, your corrections and your answers are seen by no other participant.":
+    "Mỗi người một phòng riêng: ca, hiệu chỉnh và câu trả lời của bác sĩ không người tham gia nào khác nhìn thấy.",
+  "Type the same name again, on any computer, to come back to your room.":
+    "Nhập lại đúng tên này, trên bất kỳ máy nào, để quay lại phòng của mình.",
+  "Pick a name others will not use — two people with the same name share one room.":
+    "Chọn tên không trùng người khác — hai người cùng tên sẽ vào chung một phòng.",
+  "Wrong passphrase.":
+    "Sai mật khẩu.",
+  "Admin":
+    "Quản trị",
+  "For whoever runs the trial.":
+    "Dành cho người điều hành thử nghiệm.",
+  "Passphrase":
+    "Mật khẩu",
+  "← Back to the clinician view":
+    "← Về giao diện bác sĩ",
+  "Clinician rooms":
+    "Phòng bác sĩ",
+  "Nobody has entered a room yet.":
+    "Chưa có ai vào phòng.",
+  "Name":
+    "Tên",
+  "Joined":
+    "Vào lúc",
+  "Studies":
+    "Ca",
+  "Corrections":
+    "Hiệu chỉnh",
+  "Surveys":
+    "Phiếu",
+  "Delete {who}'s response for good? Use this only for test submissions.":
+    "Xoá vĩnh viễn phiếu của {who}? Chỉ dùng cho phiếu thử nghiệm.",
+  "No responses yet.":
+    "Chưa có phiếu nào.",
+  "(no room)":
+    "(không có phòng)",
+  "Delete":
+    "Xoá",
+  "Survey results":
+    "Kết quả khảo sát",
+  "Each response":
+    "Từng phiếu",
+  "Export trial data":
+    "Xuất dữ liệu",
+  "Everything the trial produced, in one file, straight to this computer. Download it before destroying the rented box — its disk goes with it.":
+    "Toàn bộ dữ liệu thử nghiệm trong một tệp, tải thẳng về máy này. Tải trước khi huỷ máy thuê — ổ đĩa của nó mất theo.",
+  "Preparing…":
+    "Đang chuẩn bị…",
+  "⬇ Download everything (.zip)":
+    "⬇ Tải toàn bộ (.zip)",
+  "One row per room: name, when they joined, how much they did.":
+    "Mỗi dòng một phòng: tên, lúc vào, đã làm bao nhiêu.",
+  "One row per questionnaire; opens in Excel with Vietnamese intact.":
+    "Mỗi dòng một phiếu; mở bằng Excel không lỗi tiếng Việt.",
+  "The text of every Q column, so the answers stay readable.":
+    "Nội dung từng cột Q, để đọc được câu trả lời.",
+  "Every grade a clinician changed, with their room.":
+    "Mọi điểm bác sĩ đã sửa, kèm phòng.",
+  "A copy of the whole database, for anything the CSVs miss.":
+    "Bản sao toàn bộ cơ sở dữ liệu, cho những gì CSV không có.",
+  "Images clinicians uploaded are not in the zip — they can be hundreds of MB. Copy them off the box separately; see DEPLOY_VAST.md.":
+    "Ảnh bác sĩ tải lên không nằm trong tệp zip — có thể tới hàng trăm MB. Chép riêng khỏi máy thuê; xem DEPLOY_VAST.md.",
+  "Clinician view ↗":
+    "Giao diện bác sĩ ↗",
+  "Lock":
+    "Khoá",
+  "Feedback & re-training":
+    "Phản hồi & huấn luyện lại",
+  "Model versions":
+    "Phiên bản mô hình",
+  "clinical questions · {n} answers":
+    "câu lâm sàng · {n} câu trả lời",
+  "ease of use":
+    "mức dễ dùng",
+  "{n} response(s)":
+    "{n} phiếu",
 });

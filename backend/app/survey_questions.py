@@ -52,6 +52,12 @@ SHOW = "Cách trình bày kết quả"
 USE = "Sử dụng trong công việc"
 UX = "Mức dễ dùng"
 
+# QUESTION IDS ARE PERMANENT ONCE ANY RESPONSE EXISTS. Answers are stored as
+# {id: score}, so renumbering silently re-labels every answer already given:
+# on 2026-09-28 a response taken under the 19-question draft started showing
+# its "results table" score under "disc narrowing". To add a question, give it
+# a new id; to drop one, stop showing it but never hand its id to another. The
+# frozen ids below are pinned by tests/test_survey.py.
 QUESTIONS: list[Question] = [
     # Every item names an aspect to be rated from very poor to very good, and
     # every one is oriented so that 5 is the good end. A statement to agree

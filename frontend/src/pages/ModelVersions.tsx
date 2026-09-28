@@ -340,7 +340,7 @@ function ActivationHistory({ entries }: { entries: ActivationOut[] | null }) {
   );
 }
 
-export default function ModelVersions() {
+export default function ModelVersions({ embedded = false }: { embedded?: boolean } = {}) {
   const [checkpoints, setCheckpoints] = useState<CheckpointOut[] | null>(null);
   const [activations, setActivations] = useState<ActivationOut[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -410,6 +410,8 @@ export default function ModelVersions() {
   return (
     <div className="min-h-screen">
       {/* Brand header, same as the worklist and the viewer */}
+      {/* Inside /admin the hub draws the bar; standalone, this does. */}
+      {!embedded && (
       <header className="bg-gradient-to-r from-teal-600 to-cyan-500 shadow-md">
         <div className="mx-auto flex max-w-4xl items-center gap-3 px-6 py-3.5">
           <Link
@@ -426,6 +428,7 @@ export default function ModelVersions() {
           </div>
         </div>
       </header>
+      )}
 
       <main className="mx-auto max-w-4xl px-6 py-8">
         {error && (

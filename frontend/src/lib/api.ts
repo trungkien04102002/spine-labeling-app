@@ -1,3 +1,5 @@
+import { readAdminKey, readRoom, writeRoom } from "./room";
+
 export const API_BASE_URL: string =
   (import.meta.env.VITE_API_URL as string | undefined) ??
   "http://localhost:8000";
@@ -53,8 +55,22 @@ export interface StudyDetail {
   dicom_tags: Record<string, string>;
 }
 
+/** Room and operator headers for a request, read fresh from storage. */
+function contextHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {};
+  const room = readRoom();
+  if (room) headers["X-Reader-Id"] = String(room.id);
+  const adminKey = readAdminKey();
+  if (adminKey) headers["X-Admin-Key"] = adminKey;
+  return headers;
+}
+
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, init);
+  const headers = new Headers(init?.headers);
+  for (const [k, v] of Object.entries(contextHeaders())) {
+    if (!headers.has(k)) headers.set(k, v);
+  }
+  const response = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
   if (!response.ok) {
     // FastAPI puts the reason in `detail`, and some of this app's refusals are
     // the whole message — "no replay set is configured, set RETRAIN_REPLAY_DIR
@@ -66,6 +82,13 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
       if (typeof body.detail === "string") detail = body.detail;
     } catch {
       /* not JSON — the status line is all there is */
+    }
+    // The server no longer knows this browser's room (its database was
+    // reset, or the box replaced). Staying would show an empty room that
+    // cannot be written to; going back to the door lets them re-enter.
+    if (response.status === 401 && readRoom() && /room no longer exists/i.test(detail)) {
+      writeRoom(null);
+      window.location.reload();
     }
     throw new Error(
       detail ||
@@ -529,4 +552,98 @@ export function submitSurvey(payload: {
 
 export function getSurveySummary(): Promise<SurveySummary> {
   return apiFetch<SurveySummary>("/survey/summary");
+}
+
+// ------------------------------------------------------------------- rooms ---
+
+export type RoomOut = { id: number; name: string; created: boolean; studies: number };
+
+/** Enter a room by name; the same name always returns the same room. */
+export function joinRoom(name: string): Promise<RoomOut> {
+  return apiFetch<RoomOut>("/readers", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+}
+
+export type SampleOut = { id: string; added: boolean };
+
+export function getSamples(): Promise<SampleOut[]> {
+  return apiFetch<SampleOut[]>("/samples");
+}
+
+export function addSample(roomId: number, sampleId: string): Promise<{ id: string; created: boolean }> {
+  return apiFetch(`/readers/${roomId}/samples/${encodeURIComponent(sampleId)}`, { method: "POST" });
+}
+
+// ------------------------------------------------------------ operator ---
+
+export type RoomSummary = {
+  id: number;
+  name: string;
+  created_at: string;
+  studies: number;
+  corrections: number;
+  surveys: number;
+};
+
+export function getRooms(): Promise<RoomSummary[]> {
+  return apiFetch<RoomSummary[]>("/readers");
+}
+
+export function getAdminStatus(): Promise<{ locked: boolean }> {
+  return apiFetch("/admin/status");
+}
+
+export function adminLogin(password: string): Promise<{ ok: boolean }> {
+  return apiFetch("/admin/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ password }),
+  });
+}
+
+export type SurveyResponseOut = {
+  id: number;
+  reader_id: number | null;
+  submitted_at: string;
+  respondent: string | null;
+  role: string | null;
+  clinical_mean: number | null;
+  answers: Record<string, number>;
+  comment: string | null;
+};
+
+export function getSurveyResponses(): Promise<SurveyResponseOut[]> {
+  return apiFetch<SurveyResponseOut[]>("/survey/responses");
+}
+
+export async function deleteSurveyResponse(id: number): Promise<void> {
+  const key = readAdminKey();
+  const res = await fetch(`${API_BASE_URL}/survey/responses/${id}`, {
+    method: "DELETE",
+    headers: key ? { "X-Admin-Key": key } : {},
+  });
+  if (!res.ok) throw new Error(`Delete failed: ${res.status}`);
+}
+
+/**
+ * Download a locked file. A plain link cannot carry the passphrase header, so
+ * fetch it and hand the browser the bytes.
+ */
+export async function downloadLocked(path: string, fallbackName: string): Promise<void> {
+  const key = readAdminKey();
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    headers: key ? { "X-Admin-Key": key } : {},
+  });
+  if (!res.ok) throw new Error(`Download failed: ${res.status}`);
+  const disposition = res.headers.get("Content-Disposition") ?? "";
+  const name = /filename="([^"]+)"/.exec(disposition)?.[1] ?? fallbackName;
+  const url = URL.createObjectURL(await res.blob());
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(url);
 }

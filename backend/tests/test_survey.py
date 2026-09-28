@@ -146,3 +146,20 @@ def test_every_label_the_app_outputs_is_asked_about(client):
         "spondylolisthesis", "endplate", "marrow",
     ):
         assert stem in text, f"no question covers {stem}"
+
+
+# Frozen 2026-09-28, the day the trial questionnaire was settled. Changing an
+# entry here means answers already collected now mean something else.
+FROZEN = {
+    1: "vùng AI tô", 4: "điểm chẩn đoán", 5: "canal", 6: "foraminal",
+    7: "Pfirrmann", 8: "disc narrowing", 9: "herniation", 10: "spondylolisthesis",
+    11: "endplate", 12: "marrow", 16: "an toàn khi AI sai", 22: "công việc thường ngày",
+    23: "nhu cầu", 24: "dễ sử dụng",
+}
+
+
+def test_question_ids_keep_their_meaning():
+    """Stored answers are keyed by id, so an id must never change meaning."""
+    by_id = {q.id: q.text for q in QUESTIONS}
+    for qid, stem in FROZEN.items():
+        assert stem in by_id[qid], f"Q{qid} changed meaning: {by_id[qid]!r}"

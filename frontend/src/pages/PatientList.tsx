@@ -3,16 +3,18 @@ import { Link } from "react-router-dom";
 import {
   createStudy,
   deleteStudy,
-  getCorrections,
   getHealth,
-  getModelVersions,
   getPatients,
+  getSamples,
+  addSample,
+  type SampleOut,
   updateStudy,
   uploadStudy,
   type PatientOut,
   type StudyOut,
 } from "../lib/api";
 import { LangToggle, useT } from "../lib/i18n";
+import { useRoom } from "../lib/room";
 
 type BackendStatus =
   | { state: "loading" }
@@ -50,20 +52,11 @@ const fmtDate = (iso: string) => new Date(iso).toLocaleDateString();
 
 export default function PatientList() {
   const { t } = useT();
+  const { room, leave } = useRoom();
   const [backend, setBackend] = useState<BackendStatus>({ state: "loading" });
   const [patients, setPatients] = useState<PatientOut[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState<string | null>(null);
-  // Which checkpoint is grading, named in the header so the choice is visible
-  // from the worklist rather than buried behind a link labelled only "Model".
-  const [activeModel, setActiveModel] = useState<string | null>(null);
-  const [pendingModels, setPendingModels] = useState(0);
-  // Corrections waiting anywhere in the app. The queue is app-wide, so the
-  // worklist is the honest place to show its size -- inside one patient's
-  // viewer the same number reads as if it belonged to that patient.
-  const [pendingCorrections, setPendingCorrections] = useState<number | null>(
-    null,
-  );
   const fileInputs = useRef<Record<string, HTMLInputElement | null>>({});
 
   // Toolbar: search + modality filter.
@@ -83,6 +76,15 @@ export default function PatientList() {
   const [renamingId, setRenamingId] = useState<number | null>(null);
   const [renameValue, setRenameValue] = useState("");
 
+  // Graded sample cases a clinician can copy into their room to try the tool
+  // before bringing their own scans.
+  const [samples, setSamples] = useState<SampleOut[]>([]);
+  const [addingSample, setAddingSample] = useState<string | null>(null);
+  const [showSamples, setShowSamples] = useState(false);
+  const loadSamples = useCallback(() => {
+    getSamples().then(setSamples).catch(() => setSamples([]));
+  }, []);
+
   const loadPatients = useCallback(() => {
     getPatients()
       .then(setPatients)
@@ -101,19 +103,8 @@ export default function PatientList() {
         }),
       );
     loadPatients();
-    getModelVersions()
-      .then((versions) => {
-        setActiveModel(versions.find((v) => v.is_active)?.name ?? null);
-        // The baseline is a fallback, not something awaiting approval.
-        setPendingModels(
-          versions.filter((v) => !v.is_active && !v.is_baseline).length,
-        );
-      })
-      .catch(() => setActiveModel(null));
-    getCorrections(1)
-      .then((queue) => setPendingCorrections(queue.pending))
-      .catch(() => setPendingCorrections(null));
-  }, [loadPatients]);
+    loadSamples();
+  }, [loadPatients, loadSamples]);
 
   async function handleUpload(studyId: string, file: File) {
     setUploading(studyId);
@@ -170,6 +161,21 @@ export default function PatientList() {
     }
   }
 
+  async function handleAddSample(sampleId: string) {
+    if (!room) return;
+    setAddingSample(sampleId);
+    setError(null);
+    try {
+      await addSample(room.id, sampleId);
+      loadPatients();
+      loadSamples();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setAddingSample(null);
+    }
+  }
+
   function toggle(id: number) {
     setCollapsed((prev) => {
       const next = new Set(prev);
@@ -220,43 +226,27 @@ export default function PatientList() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            {/* Solid white against the header's two translucent buttons: the
-                other two are for whoever runs the trial, this one is the only
-                thing here a visiting clinician is asked to do, and it is
-                labelled in the language they read. */}
+            {/* The room, and the way out of it. The operator's buttons that
+                used to sit here (the correction queue, model versions) moved
+                behind /admin: a clinician has no business switching the model
+                that grades everyone else. */}
+            <span className="flex items-center gap-2 rounded-lg bg-white/15 px-3 py-1.5 text-xs text-white">
+              <span className="text-teal-50/80">{t("Room")}</span>
+              <span className="font-semibold">{room?.name}</span>
+              <button
+                type="button"
+                onClick={leave}
+                className="rounded border border-white/40 px-1.5 py-0.5 text-[10px] font-medium hover:bg-white/20"
+              >
+                {t("Switch")}
+              </button>
+            </span>
             <Link
               to="/survey"
               title={t("A short survey, about 5 minutes")}
               className="flex items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-teal-700 shadow-sm transition hover:bg-teal-50"
             >
               <span>★ {t("Rate this software")}</span>
-            </Link>
-            <Link
-              to="/admin"
-              title={t("The correction queue, the batches already sent, and what to run next")}
-              className="flex items-center gap-2 rounded-lg bg-white/15 px-3 py-1.5 text-xs font-medium text-white backdrop-blur transition hover:bg-white/25"
-            >
-              <span>{t("Feedback")}</span>
-              {pendingCorrections != null && pendingCorrections > 0 && (
-                <span className="rounded-full bg-indigo-200 px-1.5 py-0.5 text-[10px] font-bold text-indigo-900">
-                  {t("{n} waiting", { n: pendingCorrections })}
-                </span>
-              )}
-            </Link>
-            <Link
-              to="/models"
-              title={t("Which checkpoint grades new studies, and how a new one is approved")}
-              className="flex items-center gap-2 rounded-lg bg-white/15 px-3 py-1.5 text-xs font-medium text-white backdrop-blur transition hover:bg-white/25"
-            >
-              <span>
-                {t("Model:")}{" "}
-                <span className="font-mono">{activeModel ?? "unknown"}</span>
-              </span>
-              {pendingModels > 0 && (
-                <span className="rounded-full bg-amber-300 px-1.5 py-0.5 text-[10px] font-bold text-amber-900">
-                  {t("{n} to review", { n: pendingModels })}
-                </span>
-              )}
             </Link>
             <StatusPill backend={backend} />
             <LangToggle />
@@ -302,6 +292,15 @@ export default function PatientList() {
           >
             {showNew ? t("Cancel") : t("+ New study")}
           </button>
+          {samples.length > 0 && patients.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowSamples((v) => !v)}
+              className="rounded-lg border border-teal-300 bg-white px-3 py-2 text-sm font-medium text-teal-700 shadow-sm hover:bg-teal-50"
+            >
+              {showSamples ? t("Hide samples") : t("+ Sample case")}
+            </button>
+          )}
         </div>
 
         {showNew && (
@@ -343,6 +342,38 @@ export default function PatientList() {
             >
               {t("Create")}
             </button>
+          </div>
+        )}
+
+        {/* Sample cases: open by default in an empty room, where they are the
+            quickest way to see what the tool does; tucked away once the room
+            has work of its own. */}
+        {samples.length > 0 && (showSamples || patients.length === 0) && (
+          <div className="mb-4 rounded-xl border border-teal-200 bg-teal-50/60 p-4">
+            <div className="flex flex-wrap items-baseline gap-2">
+              <h3 className="text-sm font-bold text-slate-800">{t("Sample cases to try")}</h3>
+              <p className="text-xs text-slate-600">
+                {t("Already graded by the AI, from patients the model never saw in training. Your copy is yours alone — edit it freely.")}
+              </p>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {samples.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  disabled={s.added || addingSample !== null}
+                  onClick={() => handleAddSample(s.id)}
+                  className={
+                    "rounded-lg border px-3 py-1.5 text-xs font-medium transition " +
+                    (s.added
+                      ? "border-slate-200 bg-white text-slate-400"
+                      : "border-teal-300 bg-white text-teal-700 hover:bg-teal-50 disabled:opacity-50")
+                  }
+                >
+                  {s.added ? `✓ ${s.id}` : addingSample === s.id ? t("Adding…") : `+ ${s.id}`}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -501,7 +532,7 @@ export default function PatientList() {
           {groups.length === 0 && (
             <div className="rounded-xl border border-slate-200 bg-white px-5 py-12 text-center text-slate-400 shadow-sm">
               {patients.length === 0
-                ? t("No studies yet — create one to get started.")
+                ? t("Your room is empty. Add a sample case above, or create a study and upload your own scan.")
                 : t("No matches for the current search / filter.")}
             </div>
           )}
