@@ -408,4 +408,8 @@ registerVi({
     "Link riêng",
   "← Home":
     "← Trang chủ",
+  "Label":
+    "Nhãn",
+  "Thesis model (CBAM)":
+    "Mô hình đề tài (CBAM)",
 });

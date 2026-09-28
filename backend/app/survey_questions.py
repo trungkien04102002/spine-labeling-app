@@ -88,7 +88,8 @@ QUESTIONS: list[Question] = [
     # --- Whether the presentation does any work ---------------------------
     Question(13, "Mức bảng kết quả theo tầng giúp tôi nắm cả đoạn cột sống trong một lần nhìn", "detail", SHOW),
     Question(14, "Mức tính năng bấm vào dòng để nhảy tới lát cắt giúp tôi kiểm chứng nhanh", "detail", SHOW),
-    Question(15, "Mức ảnh lát cắt AI đánh dấu giúp tôi hiểu AI căn cứ vào đâu", "detail", SHOW),
+    # 15 asked about the SpineNet-labelled slice image, removed from the viewer
+    # 2026-09-28 as taking space for no value. Retired, never to be reused.
 
     # --- How it fails, which accuracy alone cannot say --------------------
     Question(16, "Mức an toàn khi AI sai (sai lệch nhỏ, dễ nhận ra)", "core", ERRORS),

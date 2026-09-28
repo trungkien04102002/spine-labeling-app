@@ -50,8 +50,8 @@ def test_the_questionnaire_is_mostly_about_the_model(client):
     quietly drift back.
     """
     body = client.get("/survey/questions").json()
-    assert len(body["questions"]) == 24
-    assert len(CLINICAL_IDS) == 22 and len(USABILITY_IDS) == 2
+    assert len(body["questions"]) == 23
+    assert len(CLINICAL_IDS) == 21 and len(USABILITY_IDS) == 2
     assert body["groups"][0] == "Phân vùng"
 
 

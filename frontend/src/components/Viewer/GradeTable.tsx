@@ -2,15 +2,17 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { GradingItem } from "../../lib/api";
 import { useT } from "../../lib/i18n";
 import { CONDITIONS, conditionHeader, severityLabel } from "../../lib/clinicalTerms";
-import {
-  isTrainableCondition,
-  severityOptions,
-} from "../../lib/severityVocabulary";
+import { severityOptions } from "../../lib/severityVocabulary";
 
 // Ordering *hints* only — anything the model returns that isn't listed still
 // shows, appended after the known ones. This keeps the table correct when the
 // model gains new levels or conditions (e.g. pfirrmann, disc_herniation).
+// Cranial to caudal. T11-T12 and T12-L1 were missing, so a study that had
+// them showed T12-L1 BELOW L5-S1, upside down against the spine.
 const LEVEL_ORDER = [
+  "T10-T11",
+  "T11-T12",
+  "T12-L1",
   "L1-L2",
   "L2-L3",
   "L3-L4",
@@ -46,8 +48,6 @@ const CONDITION_LABELS: Record<string, string> = {
   lower_marrow: "Lower marrow",
 };
 const LOW_CONFIDENCE = 0.5;
-/** Marks a column whose corrections the re-training loop does not consume. */
-const NOT_TRAINED_MARK = "†";
 
 /** Prettify an unknown condition key, e.g. "disc_herniation" -> "Disc herniation". */
 function conditionLabel(key: string): string {
@@ -88,10 +88,10 @@ interface Props {
 }
 
 /**
- * Per-disc abnormality grades: one row per level, one column per condition,
+ * Per-disc abnormality grades: one row per condition, one column per level,
  * derived dynamically from whatever the model returns. Cells are color-coded by
  * severity; low-confidence predictions get a ⚠ marker (full score on hover).
- * Clicking a row scrolls the viewer to that disc.
+ * Clicking a level, or any cell under it, scrolls the viewer to that disc.
  */
 /**
  * True for a stored value its condition's head cannot produce -- a legacy
@@ -159,8 +159,127 @@ export default function GradeTable({ grading, onJump, onEditSeverity }: Props) {
       severityOptions(c, seenByCondition.get(c) ?? []),
     ]),
   );
-  // Only worth a footnote when the table actually shows such a column.
-  const hasUntrainedColumn = conditions.some((c) => !isTrainableCondition(c));
+
+  const bboxOf = (level: string) =>
+    [...(byLevel.get(level)?.values() ?? [])].find((i) => i.bbox)?.bbox ?? null;
+  // Transposed: one row per condition, one column per level. Eleven
+  // conditions as columns overflowed every laptop screen; six or seven levels
+  // as columns fit, and a row reads as one finding followed down the spine.
+  const thesis = conditions.filter((c) => CONDITIONS[c]?.source === "CBAM");
+  const upstream = conditions.filter((c) => CONDITIONS[c]?.source !== "CBAM");
+
+  const sticky = {
+    position: "sticky" as const,
+    left: 0,
+    background: "#fff",
+    zIndex: 1,
+  };
+
+  function cell(level: string, c: string) {
+    const item = byLevel.get(level)?.get(c);
+    const low = item != null && item.score < LOW_CONFIDENCE;
+    // The cell's own value is unioned in last: a stored severity outside the
+    // condition's scale must still display and stay selected rather than
+    // silently become a neighbouring value.
+    const options =
+      item && !(optionsByCondition.get(c) ?? []).includes(item.severity)
+        ? [...(optionsByCondition.get(c) ?? []), item.severity]
+        : optionsByCondition.get(c) ?? [];
+    const bbox = bboxOf(level);
+    return (
+      <td
+        key={level}
+        onClick={() => bbox && onJump(bbox[0])}
+        title={item ? t("confidence {p}%", { p: (item.score * 100).toFixed(0) }) : undefined}
+        style={{
+          padding: "6px 10px",
+          borderRadius: 6,
+          background: item ? severityColor(item.severity) : "#f1f3f5",
+          cursor: bbox ? "pointer" : "default",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {item ? (
+          <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            {onEditSeverity ? (
+              <select
+                value={item.severity}
+                onClick={(e) => e.stopPropagation()}
+                onChange={(e) => onEditSeverity(level, c, e.target.value)}
+                style={{
+                  font: "inherit",
+                  background: "transparent",
+                  border: "none",
+                  width: "100%",
+                  cursor: "pointer",
+                }}
+              >
+                {options.map((s) => (
+                  <option key={s} value={s}>
+                    {outOfScale(c, s)
+                      ? `⚠ ${s} (${t("not on this scale")})`
+                      : severityLabel(c, s, lang)}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span style={{ flex: 1 }}>{severityLabel(c, item.severity, lang)}</span>
+            )}
+            {low && (
+              <span
+                title={t("Low confidence ({p}%) — review", { p: (item.score * 100).toFixed(0) })}
+                style={{ color: "#c60", cursor: "help" }}
+              >
+                ⚠
+              </span>
+            )}
+          </span>
+        ) : (
+          <span style={{ color: "#adb5bd", display: "block", textAlign: "center" }}>—</span>
+        )}
+      </td>
+    );
+  }
+
+  function conditionRow(c: string) {
+    return (
+      <tr key={c}>
+        <th scope="row" style={{ ...sticky, textAlign: "left", padding: "6px 10px 6px 0", fontWeight: 600 }}>
+          <span style={{ whiteSpace: "nowrap" }}>
+            {conditionHeader(c, lang, conditionLabel(c))}
+          </span>
+          {/* The English term stays under the Vietnamese one: it is what
+              radiologists write in reports, and what the literature says. */}
+          {lang === "vi" && CONDITIONS[c] && (
+            <div style={{ fontSize: "0.7rem", fontWeight: 400, color: "#868e96" }}>
+              {CONDITIONS[c].en}
+            </div>
+          )}
+        </th>
+        {levels.map((level) => cell(level, c))}
+      </tr>
+    );
+  }
+
+  function groupRow(label: string) {
+    return (
+      <tr key={`group-${label}`}>
+        <td
+          colSpan={levels.length + 1}
+          style={{
+            padding: "10px 0 2px",
+            fontSize: "0.7rem",
+            fontWeight: 700,
+            letterSpacing: "0.04em",
+            textTransform: "uppercase",
+            color: "#0f766e",
+          }}
+        >
+          {label}
+        </td>
+      </tr>
+    );
+  }
 
   return (
     <>
@@ -191,147 +310,44 @@ export default function GradeTable({ grading, onJump, onEditSeverity }: Props) {
     <div ref={scroller} onScroll={measure} className="scroll-x-visible">
     <table
       style={{
-        borderCollapse: "collapse",
-        fontSize: "0.85rem",
+        borderCollapse: "separate",
+        borderSpacing: 3,
+        fontSize: "0.9rem",
         width: "100%",
       }}
     >
       <thead>
         <tr>
-          <th
-            style={{
-              textAlign: "left",
-              padding: "4px 8px",
-              position: "sticky",
-              left: 0,
-              background: "#fff",
-              zIndex: 1,
-            }}
-          >
-            {t("Level")}
+          <th style={{ ...sticky, textAlign: "left", padding: "4px 10px 4px 0", fontSize: "0.75rem", color: "#868e96", fontWeight: 600 }}>
+            {t("Label")}
           </th>
-          {conditions.map((c) => (
-            <th
-              key={c}
-              style={{ padding: "4px 8px", verticalAlign: "bottom", minWidth: 96 }}
-            >
-              {conditionHeader(c, lang, conditionLabel(c))}
-              {!isTrainableCondition(c) && (
-                <span
-                  title={t("Graded by the vendored upstream SpineNet. Corrections here are saved and exported, but re-training does not use them.")}
-                  style={{ color: "#868e96", cursor: "help", marginLeft: 2 }}
-                >
-                  {NOT_TRAINED_MARK}
-                </span>
-              )}
-              {/* The English term stays under the Vietnamese one: it is what
-                  radiologists write in reports, and what the reference card
-                  and the literature call it. */}
-              {lang === "vi" && CONDITIONS[c] && (
-                <div
-                  style={{ fontSize: "0.68rem", fontWeight: 400, color: "#868e96" }}
-                >
-                  {CONDITIONS[c].en}
-                </div>
-              )}
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {levels.map((level) => {
-          const row = byLevel.get(level)!;
-          // Any cell's bbox works for jump; take the first present one.
-          const bbox = [...row.values()].find((i) => i.bbox)?.bbox ?? null;
-          return (
-            <tr
-              key={level}
-              onClick={() => bbox && onJump(bbox[0])}
-              style={{ cursor: bbox ? "pointer" : "default" }}
-              title={bbox ? t("Jump to this disc") : undefined}
-            >
-              <td
+          {levels.map((level) => {
+            const bbox = bboxOf(level);
+            return (
+              <th
+                key={level}
+                onClick={() => bbox && onJump(bbox[0])}
+                title={bbox ? t("Jump to this disc") : undefined}
                 style={{
-                  padding: "4px 8px",
-                  fontWeight: 600,
-                  whiteSpace: "nowrap",
-                  position: "sticky",
-                  left: 0,
-                  background: "#fff",
-                  zIndex: 1,
+                  padding: "4px 10px",
+                  minWidth: 118,
+                  textAlign: "center",
+                  cursor: bbox ? "pointer" : "default",
+                  color: "#334155",
                 }}
               >
                 {level}
-              </td>
-              {conditions.map((c) => {
-                const item = row.get(c);
-                const low = item != null && item.score < LOW_CONFIDENCE;
-                // The cell's own value is unioned in last: a stored severity
-                // outside the condition's scale must still display and stay
-                // selected rather than silently become a neighbouring value.
-                const cellOptions =
-                  item && !(optionsByCondition.get(c) ?? []).includes(item.severity)
-                    ? [...(optionsByCondition.get(c) ?? []), item.severity]
-                    : optionsByCondition.get(c) ?? [];
-                return (
-                  <td
-                    key={c}
-                    title={
-                      item ? t("confidence {p}%", { p: (item.score * 100).toFixed(0) }) : undefined
-                    }
-                    style={{
-                      padding: "4px 8px",
-                      textAlign: "center",
-                      background: item ? severityColor(item.severity) : "#eee",
-                      border: "1px solid #fff",
-                    }}
-                  >
-                    {item ? (
-                      <span
-                        style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
-                      >
-                        {onEditSeverity ? (
-                          <select
-                            value={item.severity}
-                            onClick={(e) => e.stopPropagation()}
-                            onChange={(e) =>
-                              onEditSeverity(level, c, e.target.value)
-                            }
-                            style={{
-                              font: "inherit",
-                              background: "transparent",
-                              border: "none",
-                            }}
-                          >
-                            {cellOptions.map((s) => (
-                              <option key={s} value={s}>
-                                {outOfScale(c, s)
-                                  ? `⚠ ${s} (${t("not on this scale")})`
-                                  : severityLabel(c, s, lang)}
-                              </option>
-                            ))}
-                          </select>
-                        ) : (
-                          severityLabel(c, item.severity, lang)
-                        )}
-                        {low && (
-                          <span
-                            title={t("Low confidence ({p}%) — review", { p: (item.score * 100).toFixed(0) })}
-                            style={{ color: "#c60", cursor: "help" }}
-                          >
-                            ⚠
-                          </span>
-                        )}
-                      </span>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                );
-              })}
-            </tr>
-          );
-        })}
+                {bbox && <span style={{ marginLeft: 4, color: "#14b8a6" }}>↧</span>}
+              </th>
+            );
+          })}
+        </tr>
+      </thead>
+      <tbody>
+        {thesis.length > 0 && groupRow(t("Thesis model (CBAM)"))}
+        {thesis.map(conditionRow)}
+        {upstream.length > 0 && groupRow("SpineNet")}
+        {upstream.map(conditionRow)}
       </tbody>
     </table>
     </div>
@@ -350,19 +366,6 @@ export default function GradeTable({ grading, onJump, onEditSeverity }: Props) {
       />
     )}
     </div>
-    {hasUntrainedColumn && (
-      <p
-        style={{
-          margin: "8px 0 0",
-          fontSize: "0.72rem",
-          lineHeight: 1.5,
-          color: "#868e96",
-        }}
-      >
-        {NOT_TRAINED_MARK}{" "}
-        {t("Graded by the vendored upstream SpineNet. Corrections to these columns are saved with the study and included in the export, but the re-training loop does not use them — it re-trains only Canal, L. foraminal and R. foraminal, the three heads of the app's own model.")}
-      </p>
-    )}
     </>
   );
 }

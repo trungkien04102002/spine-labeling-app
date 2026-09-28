@@ -13,7 +13,6 @@ import {
   exportUrl,
   fullGradingCsvUrl,
   fullGradingJsonUrl,
-  fullGradingSliceUrl,
   getAnnotation,
   getCorrections,
   getFullGrading,
@@ -268,8 +267,6 @@ export default function Viewer() {
   const [submittingCorrections, setSubmittingCorrections] = useState(false);
   const [submitMessage, setSubmitMessage] = useState<string | null>(null);
   const [job, setJob] = useState<JobOut | null>(null);
-  // Cache-busts the slice image <img> src (the URL itself never changes).
-  const [sliceNonce, setSliceNonce] = useState(0);
 
   // The correction queue spans every study, so it loads once, not per-study.
   useEffect(() => {
@@ -297,7 +294,6 @@ export default function Viewer() {
     getFullGrading(studyId)
       .then((r) => {
         setFullResult(r);
-        setSliceNonce((n) => n + 1);
       })
       .catch(() => setFullResult(null)); // 404 = full grading not run yet
     // gradeHistory identity is stable; only re-run when the study changes.
@@ -354,7 +350,6 @@ export default function Viewer() {
       setUndoKinds([]);
       setRedoKinds([]);
       setDirty(false);
-      setSliceNonce((n) => n + 1);
       getStudyDetail(studyId).then(setDetail).catch(() => {});
     } catch (err) {
       setRunError(err instanceof Error ? err.message : String(err));
@@ -862,13 +857,6 @@ export default function Viewer() {
                 <p className="mt-2 text-xs text-slate-400">
                   {t("Model: {v}. Click a level to jump; change a severity, then Save.", { v: result.model_version })}
                 </p>
-                {fullResult && (
-                  <img
-                    src={`${fullGradingSliceUrl(studyId!)}?v=${sliceNonce}`}
-                    alt={t("SpineNet-labelled mid-sagittal slice")}
-                    className="mt-3 w-full rounded-lg border border-slate-200"
-                  />
-                )}
               </>
             ) : (
               !running && (

@@ -30,7 +30,12 @@
 import { CONDITION_SEVERITIES } from "./severityVocabulary";
 import type { Lang } from "./i18n";
 
-export type Level = { value: string; vi: string; meaning: string };
+/**
+ * `short` is what a table cell shows when `vi` does not fit a dropdown. The
+ * reference card always uses `vi`, so the abbreviation is spelled out where
+ * the scale is explained.
+ */
+export type Level = { value: string; vi: string; short?: string; meaning: string };
 
 export type ConditionInfo = {
   /** Short Vietnamese header for the grade table. */
@@ -47,7 +52,7 @@ export type ConditionInfo = {
 };
 
 const CBAM_LEVELS: Level[] = [
-  { value: "Normal/Mild", vi: "Bình thường / Nhẹ", meaning: "Không hẹp hoặc hẹp nhẹ. Bộ RSNA 2024 gộp hai mức này làm một." },
+  { value: "Normal/Mild", vi: "Bình thường / Nhẹ", short: "BT / Nhẹ", meaning: "Không hẹp hoặc hẹp nhẹ. Bộ RSNA 2024 gộp hai mức này làm một." },
   { value: "Moderate", vi: "Vừa", meaning: "Hẹp mức độ vừa." },
   { value: "Severe", vi: "Nặng", meaning: "Hẹp nặng." },
 ];
@@ -188,7 +193,8 @@ export function conditionHeader(key: string, lang: Lang, fallback: string): stri
  */
 export function severityLabel(condition: string, value: string, lang: Lang): string {
   if (lang !== "vi") return value;
-  return CONDITIONS[condition]?.levels.find((l) => l.value === value)?.vi ?? value;
+  const level = CONDITIONS[condition]?.levels.find((l) => l.value === value);
+  return level ? (level.short ?? level.vi) : value;
 }
 
 /** Guards the claim above: every value a head can emit has a Vietnamese label. */
