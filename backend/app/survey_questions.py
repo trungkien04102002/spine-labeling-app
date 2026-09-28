@@ -45,12 +45,12 @@ class Question:
         }
 
 
-SEG = "Phân vùng"
+SEG = "Vùng AI tô trên phim"
 GRADE = "Điểm chẩn đoán"
 ERRORS = "Khi AI sai"
 SHOW = "Cách trình bày kết quả"
 USE = "Sử dụng trong công việc"
-UX = "Mức dễ dùng"
+UX = "Đánh giá chung về phần mềm"
 
 # QUESTION IDS ARE PERMANENT ONCE ANY RESPONSE EXISTS. Answers are stored as
 # {id: score}, so renumbering silently re-labels every answer already given:
@@ -59,18 +59,19 @@ UX = "Mức dễ dùng"
 # a new id; to drop one, stop showing it but never hand its id to another. The
 # frozen ids below are pinned by tests/test_survey.py.
 QUESTIONS: list[Question] = [
-    # Every item names an aspect to be rated from very poor to very good, and
-    # every one is oriented so that 5 is the good end. A statement to agree
-    # with ("the AI rarely misses severe lesions") reads oddly against a
-    # quality scale, and one worded negatively would silently invert its mean.
+    # Every item reads "aspect: what good looks like", rated from very poor to
+    # very good, so 5 is always the good end. Plain words a clinician uses --
+    # no "mask", no "Mức X giúp tôi..." constructions translated from English,
+    # which a doctor in the trial found hard to parse. Never word one
+    # negatively ("AI often misses..."): that would silently invert its mean.
 
     # --- What the segmentation drew -------------------------------------
-    Question(1, "Độ khớp của vùng AI tô với ranh giới đốt sống và đĩa đệm trên phim", "core", SEG),
-    Question(2, "Độ dễ nhìn của màu và đường viền vùng tô (không che mất chi tiết cần đọc)", "detail", SEG),
-    Question(3, "Mức vùng tô giúp tôi xác định nhanh tầng cần xem", "detail", SEG),
+    Question(1, "Vùng AI tô: bám đúng bờ đốt sống và đĩa đệm trên phim", "core", SEG),
+    Question(2, "Màu và đường viền vùng tô: dễ nhìn, không che mất chi tiết trên phim", "detail", SEG),
+    Question(3, "Vùng tô: giúp tìm nhanh tầng đĩa đệm cần xem", "detail", SEG),
 
     # --- Whether the grades are right, overall and label by label -----------
-    Question(4, "Độ khớp chung của điểm chẩn đoán AI với đánh giá của tôi", "core", GRADE),
+    Question(4, "Nhìn chung, điểm chẩn đoán của AI: khớp với đánh giá của tôi", "core", GRADE),
     # One row per label the app actually outputs -- all eleven, with left and
     # right foraminal, and upper and lower endplate and marrow, taken
     # together because a reader judges a side or an edge as one finding.
@@ -86,24 +87,24 @@ QUESTIONS: list[Question] = [
     Question(12, "Thay đổi tuỷ xương trên / dưới — Modic (marrow)", "detail", GRADE, matrix=True),
 
     # --- Whether the presentation does any work ---------------------------
-    Question(13, "Mức bảng kết quả theo tầng giúp tôi nắm cả đoạn cột sống trong một lần nhìn", "detail", SHOW),
-    Question(14, "Mức tính năng bấm vào dòng để nhảy tới lát cắt giúp tôi kiểm chứng nhanh", "detail", SHOW),
+    Question(13, "Bảng kết quả (mỗi cột là một tầng đĩa đệm): xem nhanh được cả cột sống thắt lưng", "detail", SHOW),
+    Question(14, "Bấm vào một tầng trong bảng để ảnh chuyển tới tầng đó: giúp đối chiếu kết quả với phim", "detail", SHOW),
     # 15 asked about the SpineNet-labelled slice image, removed from the viewer
     # 2026-09-28 as taking space for no value. Retired, never to be reused.
 
     # --- How it fails, which accuracy alone cannot say --------------------
-    Question(16, "Mức an toàn khi AI sai (sai lệch nhỏ, dễ nhận ra)", "core", ERRORS),
-    Question(17, "Khả năng phát hiện tổn thương nặng, không bỏ sót", "detail", ERRORS),
-    Question(18, "Khả năng tránh báo động giả ở ca bình thường", "detail", ERRORS),
+    Question(16, "Mức an toàn khi AI sai: chỉ lệch ít và tôi dễ nhận ra", "core", ERRORS),
+    Question(17, "Tổn thương nặng: AI phát hiện được, không bỏ sót", "detail", ERRORS),
+    Question(18, "Ca bình thường: AI không báo bệnh nhầm", "detail", ERRORS),
 
     # --- Whether it survives contact with a working day -------------------
-    Question(19, "Mức thuận tiện khi sửa mask và sửa điểm", "detail", USE),
-    Question(20, "Độ tin cậy của kết quả AI khi tham khảo lúc đọc phim", "detail", USE),
-    Question(21, "Mức công cụ rút ngắn thời gian đọc một ca so với đọc thủ công", "detail", USE),
-    Question(22, "Mức phù hợp để đưa công cụ vào công việc thường ngày", "core", USE),
+    Question(19, "Sửa lại vùng tô và sửa điểm AI chấm: thuận tiện", "detail", USE),
+    Question(20, "Kết quả AI: đủ tin cậy để tham khảo khi đọc phim", "detail", USE),
+    Question(21, "Thời gian đọc một ca: nhanh hơn so với tự đọc", "detail", USE),
+    Question(22, "Dùng trong công việc thường ngày: phù hợp", "core", USE),
 
-    Question(23, "Mức phần mềm đáp ứng nhu cầu công việc của tôi", "usability", UX),
-    Question(24, "Mức dễ sử dụng của phần mềm", "usability", UX),
+    Question(23, "Đáp ứng nhu cầu công việc của tôi", "usability", UX),
+    Question(24, "Phần mềm: dễ sử dụng", "usability", UX),
 ]
 
 CLINICAL_IDS = [q.id for q in QUESTIONS if q.kind in ("core", "detail")]

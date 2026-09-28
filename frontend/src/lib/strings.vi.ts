@@ -107,7 +107,7 @@ registerVi({
   "Browse any plane freely. “Run AI grading” always grades the sagittal series, whichever one you are viewing.":
     "Có thể xem mọi mặt cắt. “Chạy chẩn đoán AI” luôn chấm trên chuỗi sagittal, bất kể đang xem chuỗi nào.",
   "Saved as a new corrected version.":
-    "Đã lưu thành một phiên bản hiệu chỉnh mới.",
+    "Đã lưu các điểm bác sĩ vừa sửa.",
   "No corrections are waiting to be sent.":
     "Không có hiệu chỉnh nào đang chờ gửi.",
   "Sent {n} correction(s). Thank you — they are reviewed later and do not change any result right away.":
@@ -127,7 +127,7 @@ registerVi({
   "Saving…":
     "Đang lưu…",
   "Undo mask edit":
-    "Hoàn tác sửa mask",
+    "Hoàn tác sửa vùng tô",
   "Undo":
     "Hoàn tác",
   "Wheel: scroll slices · Left drag: window/level · Middle drag: pan · Right drag: zoom":
@@ -137,15 +137,15 @@ registerVi({
   "This tool automatically reads a lumbar spine MRI and produces radiological grades for each intervertebral disc level (T12–L1 down to L5–S1). Click a level in the table to jump to its slice; you can correct any grade and save it.":
     "Công cụ tự động đọc phim MRI cột sống thắt lưng và chấm điểm từng tầng đĩa đệm (từ T12–L1 đến L5–S1). Bấm vào một tầng trong bảng để nhảy tới lát cắt tương ứng; bác sĩ có thể sửa bất kỳ điểm nào rồi lưu lại.",
   "What it predicts":
-    "Các nhãn công cụ dự đoán",
+    "AI chấm những gì",
   "⚠ Research use only — this is not a diagnostic tool or a medical device.":
     "⚠ Chỉ dùng cho nghiên cứu — đây không phải công cụ chẩn đoán hay thiết bị y tế.",
   "Structures":
     "Cấu trúc giải phẫu",
   "Click it on the image, or pick it here — the fill tools are off until a structure is chosen.":
-    "Bấm vào cấu trúc trên ảnh, hoặc chọn ở đây — công cụ tô bị khoá cho tới khi chọn một cấu trúc.",
+    "Bấm lên ảnh hoặc chọn tên ở đây để chọn đốt sống / đĩa đệm cần tô — chưa chọn thì chưa tô được.",
   "Click a structure here, or point at it on the image, to switch what is painted.":
-    "Bấm vào một cấu trúc ở đây, hoặc chỉ vào nó trên ảnh, để đổi cấu trúc đang tô.",
+    "Bấm vào tên ở đây hoặc bấm lên ảnh để chọn đốt sống / đĩa đệm cần tô.",
   "Doctor feedback":
     "Phản hồi của bác sĩ",
   "When you fix a grade in the table above and press “Save corrections”, the change is recorded as expert feedback. Send them when you are ready.":
@@ -169,19 +169,19 @@ registerVi({
   "Canal and foraminal stenosis are missing.":
     "Thiếu nhãn hẹp ống sống và hẹp lỗ liên hợp.",
   "They are graded around the lumbar discs found by the segmentation, and the segmentation of this study has no lumbar discs — only the other 8 labels are shown. Re-upload the study and run again; if it persists, check the segmentation.":
-    "Ba nhãn này được chấm quanh các đĩa đệm thắt lưng tìm thấy trong phân vùng, mà phân vùng của ca này không có đĩa đệm thắt lưng — chỉ hiện 8 nhãn còn lại. Hãy tải ảnh lên lại và chấm lại; nếu vẫn vậy, hãy kiểm tra phân vùng.",
+    "Ba nhãn này được chấm quanh các đĩa đệm thắt lưng mà AI tô trên phim, nhưng ở ca này AI không tô được đĩa đệm thắt lưng nào — chỉ hiện 8 nhãn còn lại. Hãy tải ảnh lên lại và chạy lại; nếu vẫn vậy, hãy xem lại vùng tô.",
   "No segmentation for this study, so there is nothing these grades were measured from. Click “✨ Run AI grading” to segment and grade the current image.":
-    "Ca này chưa có phân vùng, nên các điểm này không có căn cứ trên ảnh hiện tại. Bấm “✨ Chạy chẩn đoán AI” để phân vùng và chấm lại ảnh này.",
+    "Ca này chưa có vùng tô, nên các điểm này không khớp với ảnh đang xem. Bấm “✨ Chạy chẩn đoán AI” để AI tô và chấm lại ảnh này.",
   "Undo mask edit (Ctrl+Z)":
-    "Hoàn tác sửa mask (Ctrl+Z)",
+    "Hoàn tác sửa vùng tô (Ctrl+Z)",
   "Undo (Ctrl+Z)":
     "Hoàn tác (Ctrl+Z)",
   "Redo mask edit (Ctrl+Shift+Z)":
-    "Làm lại sửa mask (Ctrl+Shift+Z)",
+    "Làm lại sửa vùng tô (Ctrl+Shift+Z)",
   "Redo (Ctrl+Shift+Z)":
     "Làm lại (Ctrl+Shift+Z)",
   "Redo mask edit":
-    "Làm lại sửa mask",
+    "Làm lại sửa vùng tô",
   "Redo":
     "Làm lại",
   "Export":
@@ -205,11 +205,11 @@ registerVi({
   "Graded by the vendored upstream SpineNet. Corrections to these columns are saved with the study and included in the export, but the re-training loop does not use them — it re-trains only Canal, L. foraminal and R. foraminal, the three heads of the app's own model.":
     "Do SpineNet chấm. Hiệu chỉnh ở các cột này được lưu cùng ca và có trong tệp xuất, nhưng vòng huấn luyện lại không dùng chúng — nó chỉ huấn luyện lại Canal, L. foraminal và R. foraminal, ba nhánh của mô hình riêng của đề tài.",
   "Segmentation":
-    "Phân vùng",
+    "Vùng tô",
   "Opacity":
     "Độ trong",
   "Edit mask":
-    "Sửa mask",
+    "Sửa vùng tô",
   "Point & select":
     "Chỉ & chọn",
   "Undo the last edit (Ctrl+Z)":
@@ -243,13 +243,13 @@ registerVi({
   "Save changes":
     "Lưu thay đổi",
   "Save mask":
-    "Lưu mask",
+    "Lưu vùng tô",
   "Save corrections":
     "Lưu hiệu chỉnh",
   "Starting":
     "Đang khởi động",
   "Segmenting vertebrae":
-    "Đang phân vùng đốt sống",
+    "Đang tô đốt sống và đĩa đệm",
   "Detecting and grading discs":
     "Đang phát hiện và chấm đĩa đệm",
   "Merging results":
@@ -311,7 +311,7 @@ registerVi({
   "Enter my room":
     "Vào phòng",
   "Each person gets a private room: your studies, your corrections and your answers are seen by no other participant.":
-    "Mỗi người một phòng riêng: ca, hiệu chỉnh và câu trả lời của bác sĩ không người tham gia nào khác nhìn thấy.",
+    "Mỗi bác sĩ một phòng riêng: ca bệnh, các điểm đã sửa và phiếu đánh giá của bác sĩ, người khác không xem được.",
   "Type the same name again, on any computer, to come back to your room.":
     "Nhập lại đúng tên này, trên bất kỳ máy nào, để quay lại phòng của mình.",
   "Pick a name others will not use — two people with the same name share one room.":

@@ -33,16 +33,12 @@ function QuestionRow({
   value: number | undefined;
   onChange: (value: number) => void;
 }) {
-  const required = question.required;
   return (
     <fieldset className="border-t border-slate-200 py-4 first:border-t-0">
       <legend className="sr-only">{question.text}</legend>
       <p className="mb-3 text-sm text-slate-800">
         <span className="mr-2 font-semibold text-slate-400">{index + 1}.</span>
         {question.text}
-        {!required && (
-          <span className="ml-2 text-xs text-slate-400">(có thể bỏ qua)</span>
-        )}
       </p>
       <div className="flex flex-wrap gap-2">
         {labels.map((label, i) => {
@@ -90,10 +86,7 @@ function QuestionMatrix({
   return (
     <div className="mt-3 border-t border-slate-200 pt-3">
       <p className="mb-2 text-sm text-slate-800">
-        Độ chính xác theo từng nhãn{" "}
-        <span className="text-xs text-slate-400">
-          (bỏ qua nhãn bác sĩ chưa xem kỹ)
-        </span>
+        Độ chính xác theo từng nhãn
       </p>
       <div className="scroll-x-visible">
         <table className="w-full min-w-[560px] text-sm">
@@ -190,6 +183,16 @@ export default function Survey() {
   const required = (form?.questions ?? []).filter((q) => q.required);
   const answeredRequired = required.filter((q) => answers[q.id] != null).length;
   const canSubmit = form != null && answeredRequired === required.length && !sending;
+  // Shown numbers run 1, 2, 3... in page order. Ids have gaps (retired 15)
+  // and the per-label grid takes 5-12, so numbering by id read 4, 13, 16.
+  const displayNo = new Map<number, number>();
+  for (const g of form?.groups ?? [])
+    for (const q of form?.questions ?? [])
+      if (q.group === g && !q.matrix) displayNo.set(q.id, displayNo.size + 1);
+  const missing = required
+    .filter((q) => answers[q.id] == null)
+    .map((q) => displayNo.get(q.id))
+    .filter((n): n is number => n != null);
 
   async function handleSubmit() {
     setSending(true);
@@ -231,7 +234,7 @@ export default function Survey() {
       <h1 className="text-xl font-bold text-slate-800">Phiếu đánh giá phần mềm</h1>
       <p className="mt-2 text-sm text-slate-600">
         Khoảng 5 phút. Bác sĩ chấm từng mặt của kết quả AI — vùng tô, điểm
-        chẩn đoán của cả 11 nhãn, kiểu sai, cách trình bày — {SCALE_HINT}.
+        chẩn đoán của cả 11 nhãn, khi AI sai, cách trình bày — {SCALE_HINT}.
       </p>
       <p className="mt-1 text-sm text-slate-500">
         Không có câu trả lời đúng hay sai — đánh giá thấp cũng có ích như đánh
@@ -261,7 +264,7 @@ export default function Survey() {
               <QuestionRow
                 key={q.id}
                 question={q}
-                index={q.id - 1}
+                index={(displayNo.get(q.id) ?? q.id) - 1}
                 labels={form!.scale.labels}
                 value={answers[q.id]}
                 onChange={(v) => setAnswers((prev) => ({ ...prev, [q.id]: v }))}
@@ -283,30 +286,41 @@ export default function Survey() {
         </section>
       ))}
 
+      {/* The open question gets a section of its own, headed like the
+          scored groups: as a small box under the last scale it read as a
+          footnote and was easy to skip. */}
+      <section className="mt-5 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+        <h2 className="mb-1 flex items-center gap-2 text-sm font-bold text-slate-800">
+          <span className="h-4 w-1 rounded bg-gradient-to-b from-teal-500 to-cyan-500" />
+          Góp ý khác
+        </h2>
+        <label className="block text-sm text-slate-700" htmlFor="comment">
+          Bác sĩ có góp ý gì thêm cho phần mềm không?
+        </label>
+        <textarea
+          id="comment"
+          rows={5}
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+          placeholder="Ví dụ: ca nào AI chấm sai, chỗ nào khó dùng hay khó hiểu, cần thêm tính năng gì…"
+        />
+      </section>
+
       <div className="mt-5 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
         <div className="pt-1">
-          <label className="block text-sm text-slate-800" htmlFor="comment">
-            Góp ý thêm (không bắt buộc)
-          </label>
-          <textarea
-            id="comment"
-            rows={3}
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-            placeholder="Điều gì khiến bác sĩ khó chịu nhất khi dùng?"
-          />
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <p className="text-sm text-slate-700">Thông tin người đánh giá</p>
+          <div className="mt-2 grid gap-3 sm:grid-cols-2">
             <input
               value={respondent}
               onChange={(e) => setRespondent(e.target.value)}
-              placeholder="Họ tên (không bắt buộc)"
+              placeholder="Họ tên"
               className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
             />
             <input
               value={role}
               onChange={(e) => setRole(e.target.value)}
-              placeholder="Chuyên khoa / vị trí (không bắt buộc)"
+              placeholder="Chuyên khoa / vị trí"
               className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
             />
           </div>
@@ -315,7 +329,12 @@ export default function Survey() {
 
       <div className="mt-4 flex items-center justify-between gap-4">
         <span className="text-sm text-slate-500">
-          Đã trả lời {answeredRequired}/{required.length} câu bắt buộc
+          {/* No "required"/"optional" labels on the questions: the doctor
+              answers what they choose. Only if the few core questions are
+              still blank does the page say which ones stop the send. */}
+          {missing.length > 0 && form != null
+            ? `Cần trả lời thêm câu ${missing.join(", ")} để gửi`
+            : ""}
         </span>
         <button
           type="button"

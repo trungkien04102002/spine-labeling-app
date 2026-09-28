@@ -52,7 +52,7 @@ def test_the_questionnaire_is_mostly_about_the_model(client):
     body = client.get("/survey/questions").json()
     assert len(body["questions"]) == 23
     assert len(CLINICAL_IDS) == 21 and len(USABILITY_IDS) == 2
-    assert body["groups"][0] == "Phân vùng"
+    assert body["groups"][0] == "Vùng AI tô trên phim"
 
 
 def test_only_the_six_answerable_by_anyone_are_required(client):
@@ -151,7 +151,7 @@ def test_every_label_the_app_outputs_is_asked_about(client):
 # Frozen 2026-09-28, the day the trial questionnaire was settled. Changing an
 # entry here means answers already collected now mean something else.
 FROZEN = {
-    1: "vùng AI tô", 4: "điểm chẩn đoán", 5: "canal", 6: "foraminal",
+    1: "AI tô: bám đúng bờ", 4: "điểm chẩn đoán", 5: "canal", 6: "foraminal",
     7: "Pfirrmann", 8: "disc narrowing", 9: "herniation", 10: "spondylolisthesis",
     11: "endplate", 12: "marrow", 16: "an toàn khi AI sai", 22: "công việc thường ngày",
     23: "nhu cầu", 24: "dễ sử dụng",
