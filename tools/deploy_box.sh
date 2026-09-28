@@ -69,6 +69,22 @@ t=$(date +%s)
 "${SSH[@]}" "cd $REMOTE && ./vast_setup.sh --skip-download 2>&1 | tail -25"
 secs $t
 
+# vast_setup.sh rewrites backend/.env from scratch, so a passphrase set there
+# by hand does not survive a deploy -- and a box with no passphrase serves
+# every room, every survey answer and the model switch to anyone who types
+# /admin. Carry it over from the laptop (ADMIN_PASSWORD in the environment,
+# else in the laptop's backend/.env). base64 so no character in it can break
+# the remote shell.
+step "3b . operator passphrase"
+ADMIN_PW="${ADMIN_PASSWORD:-$(grep -E '^ADMIN_PASSWORD=' "$LOCAL/backend/.env" 2>/dev/null | cut -d= -f2-)}"
+if [ -n "$ADMIN_PW" ]; then
+  PW64=$(printf '%s' "$ADMIN_PW" | base64 | tr -d '\n')
+  "${SSH[@]}" "cd $REMOTE/backend && grep -v '^ADMIN_PASSWORD=' .env > .env.tmp; printf 'ADMIN_PASSWORD=%s\n' \"\$(echo $PW64 | base64 -d)\" >> .env.tmp && mv .env.tmp .env && echo '   set'"
+else
+  echo "   WARNING: no ADMIN_PASSWORD on the laptop -- /admin will be OPEN on this box."
+  echo "            Set it in backend/.env (or the environment) and re-run."
+fi
+
 # The interpreter depends on which install path ran. vast_setup.sh builds
 # backend/.venv; a hand install uses /venv/main. Naming the wrong one gives
 # "FATAL can't find command" and supervisor writes no log at all.
@@ -131,6 +147,8 @@ from torchvision.ops import nms
 print(torch.cuda.is_available(), torch.__version__, torchvision.__version__)' 2>/dev/null || echo 'BROKEN -- torch/torchvision will not import together'
 echo -n '   health          : '; curl -s -m 10 localhost:8000/health
 echo
+echo -n '   admin lock      : '; curl -s -m 10 localhost:8000/admin/status
+echo
 echo -n '   studies         : '; curl -s -m 15 localhost:8000/patients | python3 -c 'import json,sys; print(sum(len(p[\"studies\"]) for p in json.load(sys.stdin)))'
 echo -n '   readiness       : '; curl -s -m 10 localhost:8000/retraining/readiness | python3 -c 'import json,sys; d=json.load(sys.stdin); print(\"holdout\", d[\"holdout_present\"], \"| replay\", d[\"replay_present\"])'"
 
@@ -139,7 +157,7 @@ echo "══ done in $(( ($(date +%s) - T0) / 60 ))m $(( ($(date +%s) - T0) % 60
 cat <<EOF
 
 Expected above: md5 $CKPT_MD5 · 4 .pt · 2 tss · torch GPU True ·
-{"status":"ok"} · 12 studies.
+{"status":"ok"} · admin lock {"locked":true} · 12 studies.
 
 A False on "torch GPU" is the one that looks harmless and is not: the box
 keeps working, about ten times slower, and nothing errors. It happens when

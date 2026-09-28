@@ -457,6 +457,56 @@ requests. Fine for a quick look, not for a link anyone saves.
 
 ---
 
+## 9. During the trial: rooms, the operator page, and getting the data out
+
+**Rooms.** Every clinician types a name at the door and gets a private room:
+their own studies, corrections, correction queue and survey answers. The same
+name on any device returns to the same room. It is separation, not security.
+An empty room offers the graded `VAL-*` cases to copy in (`SAMPLE_STUDIES` in
+`backend/.env` changes the pattern); each copy is the model's original output,
+none of the corrections made to the sample since.
+
+**The operator page** is `/admin`, behind `ADMIN_PASSWORD`. It holds the room
+list, survey results with every response readable on its own, feedback and
+re-training, model versions, and the export. No clinician page links to it.
+`vast_setup.sh` rewrites `backend/.env`, so the passphrase is carried over by
+`deploy_box.sh` from the laptop's `backend/.env` -- **its verification must
+print `admin lock : {"locked":true}`**, or clinicians can open everything.
+
+**Where the data is on the box**, and both go when the instance is destroyed:
+
+```
+/workspace/spine-labeling-app/backend/spine.db     rooms, survey answers, corrections
+/workspace/spine-labeling-app/backend/data/<id>/   uploaded scans, masks, grades
+```
+
+**Getting it out -- before destroying the box:**
+
+1. `/admin` → *Xuất dữ liệu* → **Download everything (.zip)**. One file to the
+   laptop through the browser, no SSH: `readers.csv`, `survey_responses.csv`,
+   `questions.csv`, `corrections.csv` and a consistent `spine.db` snapshot. The
+   CSVs carry a UTF-8 byte-order mark so Excel shows Vietnamese correctly.
+2. The scans clinicians uploaded are **not** in the zip (hundreds of MB). If
+   they are needed:
+
+   ```bash
+   rsync -az -e "ssh -p <PORT>" \
+     root@<HOST>:/workspace/spine-labeling-app/backend/data/ \
+     ~/trial-data-$(date +%Y%m%d)/
+   ```
+
+**Reading `corrections.csv`:** `before` is the model's value only on the first
+edit to a cell; a second edit's `before` is the first edit's `after`. For
+agreement with the model, take the earliest row per `(room, study, level,
+condition)`.
+
+**Never renumber survey questions once anyone has answered.** Answers are
+stored by question id; renumbering silently moves every answer onto a different
+question. `tests/test_survey.py::test_question_ids_keep_their_meaning` pins the
+ids -- if it fails, the fix is a new id, not an edited test.
+
+---
+
 ## Symptom → cause
 
 | Symptom | Cause |
