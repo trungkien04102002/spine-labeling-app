@@ -110,8 +110,8 @@ registerVi({
     "Đã lưu thành một phiên bản hiệu chỉnh mới.",
   "No corrections are waiting to be sent.":
     "Không có hiệu chỉnh nào đang chờ gửi.",
-  "Sent {n} correction(s) as batch {id}. Re-training runs offline, and the new model version has to be reviewed before it grades anyone.":
-    "Đã gửi {n} hiệu chỉnh thành lô {id}. Việc huấn luyện lại chạy riêng, và phiên bản mô hình mới phải được duyệt trước khi chấm cho bất kỳ ai.",
+  "Sent {n} correction(s). Thank you — they are reviewed later and do not change any result right away.":
+    "Đã gửi {n} hiệu chỉnh. Cảm ơn bác sĩ — hiệu chỉnh sẽ được xem xét sau, không làm đổi kết quả nào ngay lập tức.",
   "← Worklist":
     "← Danh sách ca",
   "Study {id}":
@@ -138,8 +138,6 @@ registerVi({
     "Công cụ tự động đọc phim MRI cột sống thắt lưng và chấm điểm từng tầng đĩa đệm (từ T12–L1 đến L5–S1). Bấm vào một tầng trong bảng để nhảy tới lát cắt tương ứng; bác sĩ có thể sửa bất kỳ điểm nào rồi lưu lại.",
   "What it predicts":
     "Các nhãn công cụ dự đoán",
-  "Central canal and left/right foraminal stenosis come from the project's fine-tuned CBAM model; the other 8 grades come from the upstream SpineNet pipeline.":
-    "Hẹp ống sống trung tâm và hẹp lỗ liên hợp trái/phải do mô hình CBAM tinh chỉnh của đề tài chấm; 8 nhãn còn lại do SpineNet chấm.",
   "⚠ Research use only — this is not a diagnostic tool or a medical device.":
     "⚠ Chỉ dùng cho nghiên cứu — đây không phải công cụ chẩn đoán hay thiết bị y tế.",
   "Structures":
@@ -150,8 +148,8 @@ registerVi({
     "Bấm vào một cấu trúc ở đây, hoặc chỉ vào nó trên ảnh, để đổi cấu trúc đang tô.",
   "Doctor feedback":
     "Phản hồi của bác sĩ",
-  "When you fix a grade in the table above and press “Save corrections”, the change is recorded as expert feedback. Send them to the model when you are ready — nothing is used for training until you do.":
-    "Khi bác sĩ sửa một điểm trong bảng phía trên và bấm “Lưu hiệu chỉnh”, thay đổi được ghi nhận là phản hồi chuyên gia. Gửi cho mô hình khi đã sẵn sàng — không có gì được dùng để huấn luyện cho tới lúc đó.",
+  "When you fix a grade in the table above and press “Save corrections”, the change is recorded as expert feedback. Send them when you are ready.":
+    "Khi bác sĩ sửa một điểm trong bảng phía trên và bấm “Lưu hiệu chỉnh”, thay đổi được ghi nhận là phản hồi chuyên gia. Bấm gửi khi đã sẵn sàng.",
   "Waiting to be sent":
     "Đang chờ gửi",
   "Already sent":
@@ -160,18 +158,18 @@ registerVi({
     "{n} lô",
   "Sending…":
     "Đang gửi…",
-  "Send {n} correction(s) to the model":
-    "Gửi {n} hiệu chỉnh cho mô hình",
-  "Sending only queues the corrections. Re-training runs offline, and a new model version has to be reviewed and switched on before it grades anyone — so this never changes the next patient's result.":
-    "Gửi chỉ đưa hiệu chỉnh vào hàng đợi. Việc huấn luyện lại chạy riêng, và phiên bản mô hình mới phải được duyệt và bật lên mới chấm cho bệnh nhân — nên việc gửi không bao giờ làm đổi kết quả của bệnh nhân kế tiếp.",
+  "Send {n} correction(s)":
+    "Gửi {n} hiệu chỉnh",
+  "Sent corrections are reviewed later; they do not change the next patient's result.":
+    "Hiệu chỉnh đã gửi sẽ được xem xét sau, không làm đổi kết quả của bệnh nhân kế tiếp.",
   "Model versions — review and switch on →":
     "Phiên bản mô hình — duyệt và bật →",
   "Abnormality grades":
     "Điểm bất thường",
   "Canal and foraminal stenosis are missing.":
     "Thiếu nhãn hẹp ống sống và hẹp lỗ liên hợp.",
-  "Those three come from the fine-tuned CBAM model, which grades crops cut from the lumbar disc labels in the segmentation. The mask for this study has no lumbar discs, so there was nothing to grade — only the 8 upstream SpineNet labels are shown. Re-upload the study and run again; if it persists, the segmentation is wrong, not the grading.":
-    "Ba nhãn này do mô hình CBAM chấm, trên các vùng cắt từ nhãn đĩa đệm thắt lưng trong phân vùng. Phân vùng của ca này không có đĩa đệm thắt lưng nên không có gì để chấm — chỉ hiện 8 nhãn của SpineNet. Hãy tải ảnh lên lại và chấm lại; nếu vẫn vậy thì lỗi nằm ở phân vùng, không phải ở phần chấm điểm.",
+  "They are graded around the lumbar discs found by the segmentation, and the segmentation of this study has no lumbar discs — only the other 8 labels are shown. Re-upload the study and run again; if it persists, check the segmentation.":
+    "Ba nhãn này được chấm quanh các đĩa đệm thắt lưng tìm thấy trong phân vùng, mà phân vùng của ca này không có đĩa đệm thắt lưng — chỉ hiện 8 nhãn còn lại. Hãy tải ảnh lên lại và chấm lại; nếu vẫn vậy, hãy kiểm tra phân vùng.",
   "No segmentation for this study, so there is nothing these grades were measured from. Click “✨ Run AI grading” to segment and grade the current image.":
     "Ca này chưa có phân vùng, nên các điểm này không có căn cứ trên ảnh hiện tại. Bấm “✨ Chạy chẩn đoán AI” để phân vùng và chấm lại ảnh này.",
   "Undo mask edit (Ctrl+Z)":
@@ -190,8 +188,8 @@ registerVi({
     "Xuất dữ liệu",
   "unsaved":
     "chưa lưu",
-  "Model: {v}. Click a level to jump; change a severity, then Save.":
-    "Mô hình: {v}. Bấm vào một tầng để nhảy tới lát cắt; sửa mức độ rồi bấm Lưu.",
+  "Click a level to jump; change a severity, then Save.":
+    "Bấm vào một tầng để nhảy tới lát cắt; sửa mức độ rồi bấm Lưu.",
   "SpineNet-labelled mid-sagittal slice":
     "Lát cắt sagittal giữa có nhãn của SpineNet",
   "No AI results yet — click “✨ Run AI grading” (top right).":
@@ -250,10 +248,10 @@ registerVi({
     "Lưu hiệu chỉnh",
   "Starting":
     "Đang khởi động",
-  "Segmenting vertebrae (TotalSpineSeg)":
-    "Đang phân vùng đốt sống (TotalSpineSeg)",
-  "Detecting and grading discs (SpineNet)":
-    "Đang phát hiện và chấm đĩa đệm (SpineNet)",
+  "Segmenting vertebrae":
+    "Đang phân vùng đốt sống",
+  "Detecting and grading discs":
+    "Đang phát hiện và chấm đĩa đệm",
   "Merging results":
     "Đang gộp kết quả",
   "Finished":
@@ -298,8 +296,8 @@ registerVi({
     "+ Ca mẫu",
   "Sample cases to try":
     "Ca mẫu để thử",
-  "Already graded by the AI, from patients the model never saw in training. Your copy is yours alone — edit it freely.":
-    "Đã được AI chấm sẵn, lấy từ bệnh nhân mà mô hình chưa từng thấy khi huấn luyện. Bản sao là của riêng bác sĩ — cứ sửa thoải mái.",
+  "Already graded by the AI. Your copy is yours alone — edit it freely.":
+    "Đã được AI chấm sẵn. Bản sao là của riêng bác sĩ — cứ sửa thoải mái.",
   "Adding…":
     "Đang thêm…",
   "Your room is empty. Add a sample case above, or create a study and upload your own scan.":

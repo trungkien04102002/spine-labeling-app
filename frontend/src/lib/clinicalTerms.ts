@@ -44,7 +44,6 @@ export type ConditionInfo = {
   full: string;
   /** English as the table showed it before, kept as the secondary line. */
   en: string;
-  source: "CBAM" | "SpineNet";
   definition: string;
   levels: Level[];
   /** What the reader should not assume, stated where they read the scale. */
@@ -52,7 +51,7 @@ export type ConditionInfo = {
 };
 
 const CBAM_LEVELS: Level[] = [
-  { value: "Normal/Mild", vi: "Bình thường / Nhẹ", short: "BT / Nhẹ", meaning: "Không hẹp hoặc hẹp nhẹ. Bộ RSNA 2024 gộp hai mức này làm một." },
+  { value: "Normal/Mild", vi: "Bình thường / Nhẹ", short: "BT / Nhẹ", meaning: "Không hẹp hoặc hẹp nhẹ." },
   { value: "Moderate", vi: "Vừa", meaning: "Hẹp mức độ vừa." },
   { value: "Severe", vi: "Nặng", meaning: "Hẹp nặng." },
 ];
@@ -67,7 +66,6 @@ export const CONDITIONS: Record<string, ConditionInfo> = {
     short: "Hẹp ống sống",
     full: "Hẹp ống sống trung tâm",
     en: "Canal",
-    source: "CBAM",
     definition: "Ống sống trung tâm bị hẹp lại, có thể chèn ép tuỷ và các rễ thần kinh.",
     levels: CBAM_LEVELS,
   },
@@ -75,7 +73,6 @@ export const CONDITIONS: Record<string, ConditionInfo> = {
     short: "Hẹp lỗ LH trái",
     full: "Hẹp lỗ liên hợp bên trái",
     en: "L. foraminal",
-    source: "CBAM",
     definition: "Lỗ liên hợp — nơi rễ thần kinh đi ra khỏi ống sống — bị hẹp. Trường hợp nặng có thể chèn ép rễ thần kinh.",
     levels: CBAM_LEVELS,
   },
@@ -83,7 +80,6 @@ export const CONDITIONS: Record<string, ConditionInfo> = {
     short: "Hẹp lỗ LH phải",
     full: "Hẹp lỗ liên hợp bên phải",
     en: "R. foraminal",
-    source: "CBAM",
     definition: "Như bên trái, ở lỗ liên hợp bên phải.",
     levels: CBAM_LEVELS,
   },
@@ -91,7 +87,6 @@ export const CONDITIONS: Record<string, ConditionInfo> = {
     short: "Pfirrmann",
     full: "Thoái hoá đĩa đệm (thang Pfirrmann)",
     en: "Pfirrmann",
-    source: "SpineNet",
     definition: "Mức thoái hoá đĩa đệm trên ảnh T2, từ độ 1 (không thoái hoá) tới độ 5 (thoái hoá nặng).",
     levels: [
       { value: "Grade 1", vi: "Độ 1", meaning: "Đĩa đồng nhất, tín hiệu sáng; chiều cao bình thường." },
@@ -105,7 +100,6 @@ export const CONDITIONS: Record<string, ConditionInfo> = {
     short: "Hẹp khe đĩa",
     full: "Hẹp khe đĩa đệm",
     en: "Disc narrowing",
-    source: "SpineNet",
     definition: "Chiều cao của đĩa đệm giảm đi.",
     levels: [
       { value: "Grade 1", vi: "Độ 1", meaning: "Không hẹp." },
@@ -113,26 +107,22 @@ export const CONDITIONS: Record<string, ConditionInfo> = {
       { value: "Grade 3", vi: "Độ 3", meaning: "Hẹp, mức tăng dần từ độ 2 tới độ 4." },
       { value: "Grade 4", vi: "Độ 4", meaning: "Hẹp rất nặng." },
     ],
-    caveat: "Bài báo SpineNetV2 chỉ định nghĩa hai đầu thang (1 = không hẹp, 4 = hẹp rất nặng); độ 2 và 3 là các mức trung gian.",
   },
   spondylolisthesis: {
     short: "Trượt đốt sống",
     full: "Trượt đốt sống",
     en: "Spondylolisthesis",
-    source: "SpineNet",
     definition: "Đốt sống trượt ra trước so với đốt bên dưới, thường do khuyết eo (pars interarticularis).",
     levels: [
       { value: "None", vi: "Không", meaning: "Không trượt." },
       { value: "Grade I", vi: "Độ I", meaning: "Trượt mức độ I." },
-      { value: "Grade II", vi: "Độ II trở lên", meaning: "Trượt từ độ II trở lên — lớp này gộp mọi mức từ II trở đi." },
+      { value: "Grade II", vi: "Độ II trở lên", meaning: "Trượt từ độ II trở lên (độ II, III, IV đều xếp vào đây)." },
     ],
-    caveat: "Bài báo SpineNetV2 mô tả nhãn này là nhị phân, nhưng mạng thực tế có 3 đầu ra và nhãn huấn luyện gộp mọi mức ≥ II vào lớp cuối. Vì vậy lớp cuối là “độ II trở lên”, không phải đúng độ II.",
   },
   upper_endplate_defect: {
     short: "Tấm tận trên",
     full: "Tổn thương tấm tận phía trên",
     en: "Upper endplate defect",
-    source: "SpineNet",
     definition: "Bất thường hoặc tổn thương tấm tận ở phía trên tầng đĩa đang xét.",
     levels: BINARY("Có bất thường hoặc tổn thương tấm tận."),
   },
@@ -140,7 +130,6 @@ export const CONDITIONS: Record<string, ConditionInfo> = {
     short: "Tấm tận dưới",
     full: "Tổn thương tấm tận phía dưới",
     en: "Lower endplate defect",
-    source: "SpineNet",
     definition: "Bất thường hoặc tổn thương tấm tận ở phía dưới tầng đĩa đang xét.",
     levels: BINARY("Có bất thường hoặc tổn thương tấm tận."),
   },
@@ -148,31 +137,28 @@ export const CONDITIONS: Record<string, ConditionInfo> = {
     short: "Tuỷ xương trên",
     full: "Thay đổi tuỷ xương phía trên (Modic)",
     en: "Upper marrow",
-    source: "SpineNet",
     definition: "Thay đổi tín hiệu tuỷ xương của thân đốt sống ở phía trên tầng đĩa.",
     levels: BINARY("Có thay đổi tín hiệu tuỷ xương."),
-    caveat: "Nhãn huấn luyện gộp Modic type 1, 2, 3 và hỗn hợp thành “Có”, nên nhãn này không phân biệt type.",
+    caveat: "Nhãn này không phân biệt Modic type 1, 2, 3 hay hỗn hợp — mọi type đều là “Có”.",
   },
   lower_marrow: {
     short: "Tuỷ xương dưới",
     full: "Thay đổi tuỷ xương phía dưới (Modic)",
     en: "Lower marrow",
-    source: "SpineNet",
     definition: "Thay đổi tín hiệu tuỷ xương của thân đốt sống ở phía dưới tầng đĩa.",
     levels: BINARY("Có thay đổi tín hiệu tuỷ xương."),
-    caveat: "Nhãn huấn luyện gộp Modic type 1, 2, 3 và hỗn hợp thành “Có”, nên nhãn này không phân biệt type.",
+    caveat: "Nhãn này không phân biệt Modic type 1, 2, 3 hay hỗn hợp — mọi type đều là “Có”.",
   },
   disc_herniation: {
     short: "Thoát vị đĩa",
     full: "Thoát vị đĩa đệm",
     en: "Disc herniation",
-    source: "SpineNet",
     definition: "Nhân nhầy (nucleus pulposus) thoát ra qua vòng xơ (annulus fibrosus), có thể chèn ép thần kinh.",
     levels: BINARY("Có thoát vị."),
   },
 };
 
-/** Card order: the thesis model's three first, then SpineNet's eight. */
+/** Card order: stenosis first, then disc, then vertebra-level findings. */
 export const CONDITION_ORDER = [
   "canal_stenosis", "left_foraminal", "right_foraminal",
   "pfirrmann", "disc_narrowing", "disc_herniation", "spondylolisthesis",

@@ -353,7 +353,7 @@ export default function PatientList() {
             <div className="flex flex-wrap items-baseline gap-2">
               <h3 className="text-sm font-bold text-slate-800">{t("Sample cases to try")}</h3>
               <p className="text-xs text-slate-600">
-                {t("Already graded by the AI, from patients the model never saw in training. Your copy is yours alone — edit it freely.")}
+                {t("Already graded by the AI. Your copy is yours alone — edit it freely.")}
               </p>
             </div>
             <div className="mt-3 flex flex-wrap gap-2">

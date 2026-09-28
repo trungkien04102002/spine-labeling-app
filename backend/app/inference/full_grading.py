@@ -89,10 +89,10 @@ def build_full_grading(
             progress(stage, percent)
 
     # By far the longest step: TotalSpineSeg segmentation plus CBAM grading.
-    report("Segmenting vertebrae (TotalSpineSeg)", 10)
+    report("Segmenting vertebrae", 10)
     cbam_items, mask_path, labels = run_cbam_grading(volume_path)
 
-    report("Detecting and grading discs (SpineNet)", 70)
+    report("Detecting and grading discs", 70)
     spinenet_result = run_spinenet_grading_on_study_volume(volume_path)
 
     report("Merging results", 90)

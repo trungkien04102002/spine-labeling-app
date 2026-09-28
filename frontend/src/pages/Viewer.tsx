@@ -105,18 +105,19 @@ function InfoOverlay({ detail }: { detail: StudyDetail }) {
 
 // What each predicted grade means, shown in the "About this tool" panel so a
 // reader knows what the model outputs (wording follows the Oxford SpineNet demo
-// + standard lumbar-MRI radiology). `src` marks which model produces the column.
+// + standard lumbar-MRI radiology). Which model grades which column is
+// operator information and is deliberately not shown to the doctor.
 // `scale` spells out the exact values, and must stay in step with
 // `lib/severityVocabulary.ts` — that is what the grade table's dropdowns offer.
-const PREDICTION_GUIDE: { name: string; scale: string; meaning: string; src: "SpineNet" | "CBAM" }[] = [
-  { name: "Pfirrmann", scale: "Grade 1–5", meaning: "Disc degeneration, from healthy (1) to severely degenerated (5).", src: "SpineNet" },
-  { name: "Disc narrowing", scale: "Grade 1–4", meaning: "Loss of intervertebral disc height.", src: "SpineNet" },
-  { name: "Central canal stenosis", scale: "Normal/Mild · Moderate · Severe", meaning: "Narrowing of the central spinal canal.", src: "CBAM" },
-  { name: "Foraminal stenosis (L/R)", scale: "Normal/Mild · Moderate · Severe", meaning: "Narrowing of the left/right nerve-exit foramen.", src: "CBAM" },
-  { name: "Spondylolisthesis", scale: "None · Grade I · Grade II+", meaning: "Forward slippage of one vertebra over another. The last class covers grade II and worse.", src: "SpineNet" },
-  { name: "Endplate defects (upper/lower)", scale: "Absent / Present", meaning: "Damage to the vertebral endplate.", src: "SpineNet" },
-  { name: "Marrow changes (upper/lower)", scale: "Absent / Present", meaning: "Vertebral bone-marrow signal change, Modic types 1, 2, 3 and mixed combined.", src: "SpineNet" },
-  { name: "Disc herniation", scale: "Absent / Present", meaning: "Protrusion/extrusion of disc material.", src: "SpineNet" },
+const PREDICTION_GUIDE: { name: string; scale: string; meaning: string }[] = [
+  { name: "Pfirrmann", scale: "Grade 1–5", meaning: "Disc degeneration, from healthy (1) to severely degenerated (5)." },
+  { name: "Disc narrowing", scale: "Grade 1–4", meaning: "Loss of intervertebral disc height." },
+  { name: "Central canal stenosis", scale: "Normal/Mild · Moderate · Severe", meaning: "Narrowing of the central spinal canal." },
+  { name: "Foraminal stenosis (L/R)", scale: "Normal/Mild · Moderate · Severe", meaning: "Narrowing of the left/right nerve-exit foramen." },
+  { name: "Spondylolisthesis", scale: "None · Grade I · Grade II+", meaning: "Forward slippage of one vertebra over another." },
+  { name: "Endplate defects (upper/lower)", scale: "Absent / Present", meaning: "Damage to the vertebral endplate." },
+  { name: "Marrow changes (upper/lower)", scale: "Absent / Present", meaning: "Modic vertebral bone-marrow signal changes." },
+  { name: "Disc herniation", scale: "Absent / Present", meaning: "Protrusion/extrusion of disc material." },
 ];
 
 // The three columns the project's own model owns. Their absence is the visible
@@ -503,7 +504,7 @@ export default function Viewer() {
         result.submitted === 0
           ? t("No corrections are waiting to be sent.")
           : t(
-              "Sent {n} correction(s) as batch {id}. Re-training runs offline, and the new model version has to be reviewed before it grades anyone.",
+              "Sent {n} correction(s). Thank you — they are reviewed later and do not change any result right away.",
               { n: result.submitted, id: result.batch_id },
             ),
       );
@@ -664,9 +665,6 @@ export default function Viewer() {
                   ))}
                 </ul>
               </div>
-              <p className="text-slate-500">
-                {t("Central canal and left/right foraminal stenosis come from the project's fine-tuned CBAM model; the other 8 grades come from the upstream SpineNet pipeline.")}
-              </p>
               <p className="rounded-md bg-amber-50 px-2.5 py-1.5 text-amber-700">
                 {t("⚠ Research use only — this is not a diagnostic tool or a medical device.")}
               </p>
@@ -702,14 +700,14 @@ export default function Viewer() {
           )}
 
 
-          {/* Doctor feedback — corrections feed the model over time */}
+          {/* Doctor feedback — corrections are queued for offline review */}
           <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
             <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-slate-800">
               <span className="h-4 w-1 rounded bg-gradient-to-b from-indigo-500 to-violet-500" />
               {t("Doctor feedback")}
             </h2>
             <p className="text-xs text-slate-600">
-              {t("When you fix a grade in the table above and press “Save corrections”, the change is recorded as expert feedback. Send them to the model when you are ready — nothing is used for training until you do.")}
+              {t("When you fix a grade in the table above and press “Save corrections”, the change is recorded as expert feedback. Send them when you are ready.")}
             </p>
 
             {corrections && (
@@ -737,7 +735,7 @@ export default function Viewer() {
                 >
                   {submittingCorrections
                     ? t("Sending…")
-                    : t("Send {n} correction(s) to the model", { n: corrections.pending })}
+                    : t("Send {n} correction(s)", { n: corrections.pending })}
                 </button>
 
                 {submitMessage && (
@@ -747,7 +745,7 @@ export default function Viewer() {
             )}
 
             <p className="mt-2 text-xs text-slate-400">
-              {t("Sending only queues the corrections. Re-training runs offline, and a new model version has to be reviewed and switched on before it grades anyone — so this never changes the next patient's result.")}
+              {t("Sent corrections are reviewed later; they do not change the next patient's result.")}
             </p>
           </div>
         </aside>
@@ -766,7 +764,7 @@ export default function Viewer() {
             {result && missingCbamColumns(result.grading) && (
               <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
                 <strong>{t("Canal and foraminal stenosis are missing.")}</strong>{" "}
-                {t("Those three come from the fine-tuned CBAM model, which grades crops cut from the lumbar disc labels in the segmentation. The mask for this study has no lumbar discs, so there was nothing to grade — only the 8 upstream SpineNet labels are shown. Re-upload the study and run again; if it persists, the segmentation is wrong, not the grading.")}
+                {t("They are graded around the lumbar discs found by the segmentation, and the segmentation of this study has no lumbar discs — only the other 8 labels are shown. Re-upload the study and run again; if it persists, check the segmentation.")}
               </div>
             )}
             {result && detail && !detail.has_mask ? (
@@ -856,7 +854,7 @@ export default function Viewer() {
                   </p>
                 )}
                 <p className="mt-2 text-xs text-slate-400">
-                  {t("Model: {v}. Click a level to jump; change a severity, then Save.", { v: result.model_version })}
+                  {t("Click a level to jump; change a severity, then Save.")}
                 </p>
               </>
             ) : (
