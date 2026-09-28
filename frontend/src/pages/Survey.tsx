@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 
 import {
@@ -18,7 +18,7 @@ import {
  * no longer compares to anything published.
  */
 
-const SCALE_HINT = "1 = rất không đồng ý · 5 = rất đồng ý";
+const SCALE_HINT = "1 = rất kém · 5 = rất tốt";
 
 function QuestionRow({
   question,
@@ -71,6 +71,26 @@ function QuestionRow({
   );
 }
 
+/** Same teal bar as the worklist and viewer, with the way back. */
+function Shell({ children }: { children: ReactNode }) {
+  return (
+    <div className="min-h-screen">
+      <header className="bg-gradient-to-r from-teal-600 to-cyan-500 shadow-md">
+        <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3.5">
+          <Link
+            to="/"
+            className="rounded-lg bg-white/15 px-2.5 py-1 text-xs font-medium text-white backdrop-blur transition hover:bg-white/25"
+          >
+            ← Danh sách ca
+          </Link>
+          <div className="text-sm font-bold text-white">Đánh giá phần mềm</div>
+        </div>
+      </header>
+      {children}
+    </div>
+  );
+}
+
 export default function Survey() {
   const [form, setForm] = useState<SurveyForm | null>(null);
   const [answers, setAnswers] = useState<Record<number, number>>({});
@@ -111,6 +131,7 @@ export default function Survey() {
 
   if (done) {
     return (
+      <Shell>
       <div className="mx-auto max-w-2xl px-4 py-16 text-center">
         <h1 className="text-xl font-bold text-slate-800">Đã ghi nhận. Cảm ơn bác sĩ.</h1>
         <p className="mt-2 text-sm text-slate-600">
@@ -120,16 +141,17 @@ export default function Survey() {
           Quay lại danh sách ca
         </Link>
       </div>
+      </Shell>
     );
   }
 
   return (
+    <Shell>
     <div className="mx-auto max-w-3xl px-4 py-8">
       <h1 className="text-xl font-bold text-slate-800">Phiếu đánh giá phần mềm</h1>
       <p className="mt-2 text-sm text-slate-600">
-        19 câu, khoảng 5 phút. Phần lớn hỏi về kết quả AI đưa ra — vùng tô có
-        đúng không, điểm chẩn đoán có khớp không, sai thì sai kiểu gì, và cách
-        trình bày có giúp bác sĩ đọc nhanh hơn không. {SCALE_HINT}.
+        19 mục, khoảng 5 phút. Bác sĩ chấm từng mặt của kết quả AI — vùng tô,
+        điểm chẩn đoán, kiểu sai, cách trình bày — {SCALE_HINT}.
       </p>
       <p className="mt-1 text-sm text-slate-500">
         Không có câu trả lời đúng hay sai — đánh giá thấp cũng có ích như đánh
@@ -212,5 +234,6 @@ export default function Survey() {
         </button>
       </div>
     </div>
+    </Shell>
   );
 }
