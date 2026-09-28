@@ -62,10 +62,37 @@ def mark_analyzed(db: Session, study: "Study") -> None:
         study.analyzed_series_id = row.id
 
 
+
+class Reader(Base):
+    """One clinician's room: a name typed at the door, Kahoot-style.
+
+    Not an account. There is no password, and nothing here is access control:
+    a room keeps one clinician's studies, edits and survey answers apart from
+    everyone else's, so two readers trying the tool at once do not see -- or
+    silently change -- each other's work. Typing the same name again, on any
+    device, returns to the same room, which is how a clinician resumes.
+    """
+
+    __tablename__ = "readers"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    # Case- and spacing-insensitive, so "Minh", "minh " and "MINH" are one room.
+    # Diacritics are kept: "Nguyễn" and "Nguyen" can be different people.
+    key: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, default=datetime.datetime.utcnow
+    )
+
 class Patient(Base):
     __tablename__ = "patients"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    # The room this row belongs to; NULL for rows that predate rooms (the
+    # shared sample studies, and anything created before 2026-09-28).
+    reader_id: Mapped[int | None] = mapped_column(
+        ForeignKey("readers.id"), nullable=True
+    )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime, default=datetime.datetime.utcnow
@@ -76,6 +103,11 @@ class Study(Base):
     __tablename__ = "studies"
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    # The room this row belongs to; NULL for rows that predate rooms (the
+    # shared sample studies, and anything created before 2026-09-28).
+    reader_id: Mapped[int | None] = mapped_column(
+        ForeignKey("readers.id"), nullable=True
+    )
     patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"), nullable=False)
     modality: Mapped[str] = mapped_column(String(32), default="MRI")
     volume_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
@@ -137,6 +169,11 @@ class CorrectionLog(Base):
     __tablename__ = "correction_log"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    # The room this row belongs to; NULL for rows that predate rooms (the
+    # shared sample studies, and anything created before 2026-09-28).
+    reader_id: Mapped[int | None] = mapped_column(
+        ForeignKey("readers.id"), nullable=True
+    )
     study_id: Mapped[str] = mapped_column(ForeignKey("studies.id"), nullable=False)
     field: Mapped[str] = mapped_column(String(128), nullable=False)
     old: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -303,6 +340,11 @@ class SurveyResponse(Base):
     __tablename__ = "survey_response"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    # The room this row belongs to; NULL for rows that predate rooms (the
+    # shared sample studies, and anything created before 2026-09-28).
+    reader_id: Mapped[int | None] = mapped_column(
+        ForeignKey("readers.id"), nullable=True
+    )
     # Optional: the trial is small enough that a name identifies someone, and
     # an unsigned answer is worth more than no answer.
     respondent: Mapped[str | None] = mapped_column(String(128), nullable=True)

@@ -9,13 +9,16 @@ from fastapi.staticfiles import StaticFiles
 from app.config import Settings
 from app.db import init_db
 from app.routers import (
+    admin,
     feedback,
     full_grading,
     infer,
     patients,
+    readers,
     retraining,
     studies,
     survey,
+    trial,
 )
 
 
@@ -47,13 +50,16 @@ app.add_middleware(
 )
 
 
+app.include_router(admin.router)
 app.include_router(patients.router)
+app.include_router(readers.router)
 app.include_router(studies.router)
 app.include_router(infer.router)
 app.include_router(full_grading.router)
 app.include_router(feedback.router)
 app.include_router(retraining.router)
 app.include_router(survey.router)
+app.include_router(trial.router)
 
 
 @app.get("/health")

@@ -19,6 +19,8 @@ from app.models_db import (
     mark_analyzed,
     grading_volume_path,
 )
+from app.models_db import Reader
+from app.routers.readers import current_reader
 from app.schemas import InferResult
 
 router = APIRouter(tags=["infer"])
@@ -94,6 +96,7 @@ def save_annotation(
     study_id: str,
     edited: InferResult,
     db: Session = Depends(get_db),
+    reader: Reader | None = Depends(current_reader),
 ) -> InferResult:
     """Persist a doctor's corrected annotation as a new version.
 
@@ -122,7 +125,13 @@ def save_annotation(
             if old_sev is not None and old_sev != new_sev:
                 db.add(
                     CorrectionLog(
-                        study_id=study_id, field=field, old=old_sev, new=new_sev
+                        study_id=study_id,
+                        field=field,
+                        old=old_sev,
+                        new=new_sev,
+                        # Who made it, so the trial can report agreement per
+                        # clinician rather than one pooled number.
+                        reader_id=reader.id if reader is not None else None,
                     )
                 )
 

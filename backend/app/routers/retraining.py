@@ -58,6 +58,8 @@ from app.jsonsafe import finite_only
 from app.models_db import CorrectionLog, RetrainRun, mark_interrupted_runs
 from app.routers.full_grading import JobOut
 
+from app.routers.admin import require_admin  # noqa: E402
+
 router = APIRouter(tags=["retraining"])
 
 #: Job kind in the shared registry (same one full grading uses).
@@ -567,6 +569,7 @@ def _run_retraining(
     "/corrections/batches/{batch_id}/retrain",
     response_model=JobOut,
     status_code=202,
+    dependencies=[Depends(require_admin)],
 )
 def start_retrain(
     batch_id: str,

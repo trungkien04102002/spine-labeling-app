@@ -26,9 +26,13 @@ from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from app.db import get_db
+from app.models_db import Reader
+from app.routers.readers import current_reader
 from app.feedback import model_registry
 from app.jsonsafe import finite_only
 from app.models_db import CorrectionLog, ModelActivation
+
+from app.routers.admin import require_admin  # noqa: E402
 
 router = APIRouter(tags=["feedback"])
 
@@ -136,6 +140,7 @@ def list_corrections(
     limit: int = 20,
     status: str = "all",
     db: Session = Depends(get_db),
+    reader: Reader | None = Depends(current_reader),
 ) -> CorrectionQueue:
     """How many corrections are waiting, how many were handed over, and the latest few.
 
@@ -148,8 +153,13 @@ def list_corrections(
     refused, so an older client asking for something unknown still gets a
     usable answer.
     """
-    pending = db.query(CorrectionLog).filter(CorrectionLog.submitted_at.is_(None))
-    submitted = db.query(CorrectionLog).filter(CorrectionLog.submitted_at.isnot(None))
+    # In a room, the queue is that room's: a clinician's "waiting to be sent"
+    # must not count, or send, another clinician's corrections.
+    base = db.query(CorrectionLog)
+    if reader is not None:
+        base = base.filter(CorrectionLog.reader_id == reader.id)
+    pending = base.filter(CorrectionLog.submitted_at.is_(None))
+    submitted = base.filter(CorrectionLog.submitted_at.isnot(None))
 
     batch_ids = {
         row.batch_id
@@ -162,7 +172,7 @@ def list_corrections(
     elif status == "submitted":
         query = submitted
     else:
-        query = db.query(CorrectionLog)
+        query = base
 
     recent = (
         query.order_by(desc(CorrectionLog.at), desc(CorrectionLog.id))
@@ -215,16 +225,20 @@ def list_batches(db: Session = Depends(get_db)) -> list[BatchOut]:
 
 
 @router.post("/corrections/submit", response_model=SubmitResult)
-def submit_corrections(db: Session = Depends(get_db)) -> SubmitResult:
+def submit_corrections(
+    db: Session = Depends(get_db),
+    reader: Reader | None = Depends(current_reader),
+) -> SubmitResult:
     """Hand every pending correction to the model as one batch.
 
     Stamps the rows and returns; training happens offline. Submitting with
     nothing pending is not an error -- it just reports zero, so a doctor
     pressing the button twice gets a clear answer rather than a failure.
     """
-    pending = (
-        db.query(CorrectionLog).filter(CorrectionLog.submitted_at.is_(None)).all()
-    )
+    query = db.query(CorrectionLog).filter(CorrectionLog.submitted_at.is_(None))
+    if reader is not None:
+        query = query.filter(CorrectionLog.reader_id == reader.id)
+    pending = query.all()
     if not pending:
         return SubmitResult(
             batch_id="",
@@ -256,7 +270,7 @@ def list_model_versions() -> list[CheckpointOut]:
     return [_checkpoint_out(info) for info in model_registry.list_checkpoints()]
 
 
-@router.post("/model/activate", response_model=CheckpointOut)
+@router.post("/model/activate", response_model=CheckpointOut, dependencies=[Depends(require_admin)])
 def activate_model(
     request: ActivateRequest, db: Session = Depends(get_db)
 ) -> CheckpointOut:
@@ -275,7 +289,7 @@ def activate_model(
     return _checkpoint_out(info)
 
 
-@router.post("/model/revert", response_model=CheckpointOut)
+@router.post("/model/revert", response_model=CheckpointOut, dependencies=[Depends(require_admin)])
 def revert_model(db: Session = Depends(get_db)) -> CheckpointOut:
     """Go back to the shipped baseline checkpoint.
 

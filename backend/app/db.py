@@ -46,6 +46,11 @@ _ADDED_COLUMNS: list[tuple[str, str, str]] = [
     # The questionnaire dropped its SUS block, so the stored score is now the
     # mean of the clinical questions and the old column name lied.
     ("survey_response", "clinical_mean", "FLOAT NULL"),
+    # Rooms (2026-09-28): who each row belongs to.
+    ("patients", "reader_id", "INTEGER NULL"),
+    ("studies", "reader_id", "INTEGER NULL"),
+    ("correction_log", "reader_id", "INTEGER NULL"),
+    ("survey_response", "reader_id", "INTEGER NULL"),
 ]
 
 

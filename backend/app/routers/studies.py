@@ -27,7 +27,8 @@ from app.inference.volume_io import (
     read_metadata,
     to_web_form,
 )
-from app.models_db import Annotation, CorrectionLog, Patient, Series, Study
+from app.models_db import Annotation, CorrectionLog, Patient, Reader, Series, Study
+from app.routers.readers import current_reader, room_prefix
 from app.schemas import (
     ActiveSeriesUpdate,
     SeriesOut,
@@ -45,22 +46,32 @@ router = APIRouter(tags=["studies"])
 def create_study(
     payload: StudyCreate,
     db: Session = Depends(get_db),
+    reader: Reader | None = Depends(current_reader),
 ) -> dict[str, object]:
-    """Create a new (empty) study + its patient; a volume is uploaded later."""
-    if db.get(Study, payload.id) is not None:
+    """Create a new (empty) study + its patient; a volume is uploaded later.
+
+    In a room, the id gets the room's prefix and the patient is looked up only
+    among that room's patients. Otherwise two clinicians who both type "ca1",
+    or both name a patient "Nguyen Van A", would collide on one row.
+    """
+    study_id = payload.id if reader is None else f"{room_prefix(reader)}{payload.id}"
+    if db.get(Study, study_id) is not None:
         raise HTTPException(
             status_code=409, detail=f"Study '{payload.id}' already exists."
         )
     # Group studies under one patient: reuse an existing patient of the same
-    # name, otherwise create a new one.
+    # name in the same room, otherwise create a new one.
     name = payload.patient_name.strip() or "Unknown"
-    patient = db.query(Patient).filter_by(name=name).first()
+    owner = reader.id if reader is not None else None
+    patient = db.query(Patient).filter_by(name=name, reader_id=owner).first()
     if patient is None:
-        patient = Patient(name=name)
+        patient = Patient(name=name, reader_id=owner)
         db.add(patient)
         db.commit()
         db.refresh(patient)
-    study = Study(id=payload.id, patient_id=patient.id, modality=payload.modality)
+    study = Study(
+        id=study_id, patient_id=patient.id, modality=payload.modality, reader_id=owner
+    )
     db.add(study)
     db.commit()
     return {"id": study.id, "patient_id": patient.id}

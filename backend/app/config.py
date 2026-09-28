@@ -18,6 +18,17 @@ class Settings(BaseSettings):
     # no UI at all, which is what local dev and the test suite expect.
     frontend_dist: str = ""
 
+    # Studies a clinician may copy into their room to try the tool, as a glob
+    # on the study id. The RSNA validation cases: already graded, with ground
+    # truth, from patients the model never trained on.
+    sample_studies: str = "VAL-*"
+
+    # Passphrase for the operator pages (/admin): who is in which room, the
+    # survey results, exports, switching models, re-training. Empty means no
+    # lock, which is what local development and the test suite use; set it on
+    # any box a clinician can reach.
+    admin_password: str = ""
+
     # Browser origins allowed to call the API (comma-separated). The Vite dev
     # server is always allowed; add more when the frontend runs on another host
     # (e.g. laptop UI hitting a backend exposed directly, without an SSH tunnel).

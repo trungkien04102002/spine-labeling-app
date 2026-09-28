@@ -5,12 +5,16 @@ one place to edit them and no way for the two halves to drift apart while
 answers are being collected.
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+import csv
+import io
+
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models_db import SurveyResponse
+from app.models_db import Reader, SurveyResponse
+from app.routers.readers import current_reader
 from app.survey_questions import (
     CLINICAL_IDS,
     GROUPS,
@@ -22,6 +26,8 @@ from app.survey_questions import (
     USABILITY_IDS,
     mean_of,
 )
+
+from app.routers.admin import require_admin  # noqa: E402
 
 router = APIRouter()
 
@@ -51,7 +57,9 @@ def get_questions() -> dict[str, object]:
 
 @router.post("/survey/responses", status_code=201)
 def submit_response(
-    payload: SurveySubmission, db: Session = Depends(get_db)
+    payload: SurveySubmission,
+    db: Session = Depends(get_db),
+    reader: Reader | None = Depends(current_reader),
 ) -> dict[str, object]:
     """Record one clinician's answers.
 
@@ -79,7 +87,10 @@ def submit_response(
         )
 
     row = SurveyResponse(
-        respondent=(payload.respondent or None),
+        reader_id=reader.id if reader is not None else None,
+        # The room's name stands in when the form's name field is left blank,
+        # so a response is attributable without asking twice.
+        respondent=(payload.respondent or (reader.name if reader else None)),
         role=(payload.role or None),
         answers_json={str(k): v for k, v in payload.answers.items()},
         comment=(payload.comment or None),
@@ -94,7 +105,7 @@ def submit_response(
     return {"id": row.id, "clinical_mean": row.clinical_mean}
 
 
-@router.get("/survey/summary")
+@router.get("/survey/summary", dependencies=[Depends(require_admin)])
 def summary(db: Session = Depends(get_db)) -> dict[str, object]:
     """Aggregate for the operator page and for the report.
 
@@ -160,3 +171,93 @@ def summary(db: Session = Depends(get_db)) -> dict[str, object]:
             if r.comment
         ],
     }
+
+
+def _answers(row: SurveyResponse) -> dict[int, int]:
+    raw = row.answers_json if isinstance(row.answers_json, dict) else {}
+    return {int(k): v for k, v in raw.items()}
+
+
+@router.get("/survey/responses", dependencies=[Depends(require_admin)])
+def list_responses(db: Session = Depends(get_db)) -> list[dict[str, object]]:
+    """Every response on its own, newest first.
+
+    The summary averages clinicians together, which is what a report quotes
+    but not what a reader needs when one answer looks odd: which clinician said
+    it, what else they said, and whether their comment explains it.
+    """
+    rows = (
+        db.query(SurveyResponse)
+        .order_by(SurveyResponse.submitted_at.desc())
+        .all()
+    )
+    return [
+        {
+            "id": r.id,
+            "reader_id": r.reader_id,
+            "submitted_at": r.submitted_at.isoformat(),
+            "respondent": r.respondent,
+            "role": r.role,
+            "clinical_mean": r.clinical_mean,
+            "answers": _answers(r),
+            "comment": r.comment,
+        }
+        for r in rows
+    ]
+
+
+def survey_csv(db: Session) -> str:
+    """One row per response, one column per question, for Excel or SPSS.
+
+    Column headers carry the question number AND its text, so the file still
+    means something once it is separated from this code -- in an appendix, or
+    six months later.
+    """
+    rows = db.query(SurveyResponse).order_by(SurveyResponse.submitted_at).all()
+    out = io.StringIO()
+    writer = csv.writer(out)
+    writer.writerow(
+        ["id", "submitted_at", "respondent", "role", "clinical_mean"]
+        + [f"Q{q.id} {q.text}" for q in QUESTIONS]
+        + ["comment"]
+    )
+    for r in rows:
+        a = _answers(r)
+        writer.writerow(
+            [r.id, r.submitted_at.isoformat(), r.respondent or "", r.role or "",
+             r.clinical_mean if r.clinical_mean is not None else ""]
+            + [a.get(q.id, "") for q in QUESTIONS]
+            + [r.comment or ""]
+        )
+    return out.getvalue()
+
+
+# Excel reads a CSV as the local ANSI code page unless it starts with a UTF-8
+# byte-order mark, which turns every Vietnamese answer and comment into
+# mojibake. The mark costs three bytes and is ignored by everything else.
+_UTF8_BOM = "\ufeff"
+
+
+@router.get("/survey/responses.csv", dependencies=[Depends(require_admin)])
+def responses_csv(db: Session = Depends(get_db)) -> Response:
+    return Response(
+        content=_UTF8_BOM + survey_csv(db),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="survey_responses.csv"'},
+    )
+
+
+@router.delete("/survey/responses/{response_id}", status_code=204, dependencies=[Depends(require_admin)])
+def delete_response(response_id: int, db: Session = Depends(get_db)) -> Response:
+    """Remove one response -- for a test submission, not for tidying results.
+
+    A trial run by one person produces its own practice answers, and those must
+    not be averaged in with the clinicians'. The operator page asks before
+    calling this, and says the deletion is permanent.
+    """
+    row = db.get(SurveyResponse, response_id)
+    if row is None:
+        raise HTTPException(404, f"No response {response_id}")
+    db.delete(row)
+    db.commit()
+    return Response(status_code=204)
