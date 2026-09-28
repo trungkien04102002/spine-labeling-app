@@ -31,6 +31,7 @@ import {
   type SeriesOut,
   type StudyDetail,
 } from "../lib/api";
+import { LangToggle, useT } from "../lib/i18n";
 
 /**
  * Translucent metadata overlay pinned to a corner of the image, the way a PACS
@@ -38,6 +39,7 @@ import {
  * acquisition parameters (DICOM only) can be toggled open.
  */
 function InfoOverlay({ detail }: { detail: StudyDetail }) {
+  const { t } = useT();
   const [showTags, setShowTags] = useState(false);
   const dims = detail.dimensions;
   const sp = detail.spacing_mm;
@@ -86,7 +88,7 @@ function InfoOverlay({ detail }: { detail: StudyDetail }) {
               cursor: "pointer",
             }}
           >
-            {showTags ? "▾ acquisition" : "▸ acquisition"}
+            {showTags ? `▾ ${t("acquisition")}` : `▸ ${t("acquisition")}`}
           </button>
           {showTags &&
             tagEntries.map(([k, v]) => (
@@ -163,13 +165,14 @@ function SeriesPicker({
   busy: boolean;
   onSelect: (id: number) => void;
 }) {
+  const { t } = useT();
   if (series.length < 2) return null;
   const analyzed = series.find((s) => s.analyzed_by_ai);
   return (
     <div className="border-b border-slate-200 bg-slate-50 px-3 py-2">
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="mr-1 text-xs font-semibold text-slate-500">
-          Series
+          {t("Series")}
         </span>
         {series.map((s) => (
           <button
@@ -185,7 +188,7 @@ function SeriesPicker({
                 : "border-slate-300 bg-white text-slate-600 hover:border-teal-400 hover:text-teal-700 disabled:opacity-50")
             }
           >
-            {PLANE_LABEL[s.orientation] ?? "Series"}
+            {t(PLANE_LABEL[s.orientation] ?? "Series")}
             {/* Spaces are real text, not just margins: they keep the button's
                 accessible name readable ("Sagittal T2 (15)"). */}
             {s.description ? (
@@ -197,7 +200,7 @@ function SeriesPicker({
           </button>
         ))}
         {busy ? (
-          <span className="ml-1 text-xs text-slate-500">Loading…</span>
+          <span className="ml-1 text-xs text-slate-500">{t("Loading…")}</span>
         ) : null}
       </div>
       <p className="mt-1.5 text-[11px] leading-snug text-slate-500">
@@ -206,18 +209,16 @@ function SeriesPicker({
             {/* The badge that used to mark this series was removed, so name the
                 series here instead: which sequence produced the grades is not
                 something the doctor should have to infer. */}
-            The grades come from the{" "}
+            {t("The grades come from the")}{" "}
             <strong>
-              {PLANE_LABEL[analyzed.orientation] ?? "sagittal"}
+              {t(PLANE_LABEL[analyzed.orientation] ?? "Sagittal")}
               {analyzed.description ? ` ${analyzed.description}` : ""}
             </strong>{" "}
-            series. Browse any series freely — switching does not change the
-            grades.
+            {t("series. Browse any series freely — switching does not change the grades.")}
           </>
         ) : (
           <>
-            Browse any plane freely. &ldquo;Run AI grading&rdquo; always grades the
-            sagittal series, whichever one you are viewing.
+            {t("Browse any plane freely. “Run AI grading” always grades the sagittal series, whichever one you are viewing.")}
           </>
         )}
       </p>
@@ -226,6 +227,7 @@ function SeriesPicker({
 }
 
 export default function Viewer() {
+  const { t } = useT();
   const { studyId } = useParams<{ studyId: string }>();
   const [detail, setDetail] = useState<StudyDetail | null>(null);
   const [series, setSeries] = useState<SeriesOut[]>([]);
@@ -473,7 +475,7 @@ export default function Viewer() {
       }
       await saveAnnotation(studyId, result);
       setDirty(false);
-      setSavedNote("Saved as a new corrected version.");
+      setSavedNote(t("Saved as a new corrected version."));
       // Saving is what creates correction rows, so the queue just changed.
       void refreshCorrections();
     } catch (err) {
@@ -498,7 +500,16 @@ export default function Viewer() {
     setSubmitMessage(null);
     try {
       const result = await submitCorrections();
-      setSubmitMessage(result.message);
+      // Built here rather than shown as sent: the server's sentence embeds
+      // the batch id, so it can never match a dictionary entry.
+      setSubmitMessage(
+        result.submitted === 0
+          ? t("No corrections are waiting to be sent.")
+          : t(
+              "Sent {n} correction(s) as batch {id}. Re-training runs offline, and the new model version has to be reviewed before it grades anyone.",
+              { n: result.submitted, id: result.batch_id },
+            ),
+      );
       await refreshCorrections();
     } catch (err) {
       setRunError(err instanceof Error ? err.message : String(err));
@@ -510,13 +521,15 @@ export default function Viewer() {
   // "Corrections" means grade corrections in this app (they feed correction_log).
   // Saying that after a mask edit names the wrong thing, so the button reports
   // whichever kind is actually pending.
-  const saveLabel = !dirty && !maskDirty
-    ? "Save"
-    : dirty && maskDirty
-      ? "Save changes"
-      : maskDirty
-        ? "Save mask"
-        : "Save corrections";
+  const saveLabel = t(
+    !dirty && !maskDirty
+      ? "Save"
+      : dirty && maskDirty
+        ? "Save changes"
+        : maskDirty
+          ? "Save mask"
+          : "Save corrections",
+  );
 
   const btn =
     "rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-400 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed";
@@ -531,22 +544,25 @@ export default function Viewer() {
               to="/"
               className="rounded-lg bg-white/15 px-2.5 py-1 text-xs font-medium backdrop-blur transition hover:bg-white/25"
             >
-              ← Worklist
+              {t("← Worklist")}
             </Link>
             <div className="leading-tight">
-              <div className="text-sm font-bold">Study {studyId}</div>
+              <div className="text-sm font-bold">{t("Study {id}", { id: studyId ?? "" })}</div>
               <div className="text-xs text-teal-50/90">
                 {detail?.patient_name ?? "…"}
               </div>
             </div>
           </div>
+          <div className="flex items-center gap-3">
+          <LangToggle />
           <button
             onClick={handleRunAI}
             disabled={running}
             className="rounded-lg bg-white px-4 py-1.5 text-sm font-semibold text-teal-700 shadow-sm transition hover:bg-teal-50 disabled:opacity-60"
           >
-            {running ? "Grading…" : "✨ Run AI grading"}
+            {running ? t("Grading…") : t("✨ Run AI grading")}
           </button>
+          </div>
         </div>
 
         {/* Grading runs for 8-15 minutes on CPU. Showing the current stage and
@@ -561,7 +577,7 @@ export default function Viewer() {
                 aria-valuenow={job?.percent ?? 0}
                 aria-valuemin={0}
                 aria-valuemax={100}
-                aria-label="Grading progress"
+                aria-label={t("Grading progress")}
               >
                 <div
                   className="h-full rounded-full bg-white transition-all duration-500"
@@ -569,13 +585,12 @@ export default function Viewer() {
                 />
               </div>
               <span className="whitespace-nowrap text-xs font-medium text-white">
-                {job?.stage ?? "Starting"}
+                {t(job?.stage ?? "Starting")}
                 {job ? ` · ${formatElapsed(job.elapsed_seconds)}` : ""}
               </span>
             </div>
             <p className="mx-auto mt-1 max-w-7xl text-[11px] text-teal-50/80">
-              Usually 8–15 minutes on CPU. You can leave this page — the run
-              continues on the server and the result is saved.
+              {t("Usually 2–4 minutes on the GPU server. You can leave this page — the run continues on the server and the result is saved.")}
             </p>
           </div>
         )}
@@ -609,9 +624,9 @@ export default function Viewer() {
                 canRedo={redoKinds.length > 0}
                 onSave={handleSave}
                 canSave={(dirty || maskDirty) && !saving}
-                saveLabel={saving ? "Saving…" : saveLabel}
+                saveLabel={saving ? t("Saving…") : saveLabel}
                 undoLabel={
-                  undoKinds.at(-1) === "mask" ? "Undo mask edit" : "Undo"
+                  undoKinds.at(-1) === "mask" ? t("Undo mask edit") : t("Undo")
                 }
                 onMaskStroke={handleMaskStroke}
                 onMaskHistoryReset={handleMaskHistoryReset}
@@ -620,8 +635,7 @@ export default function Viewer() {
             )}
           </div>
           <p className="mt-2 text-xs text-slate-500">
-            Wheel: scroll slices · Left drag: window/level · Middle drag: pan ·
-            Right drag: zoom
+            {t("Wheel: scroll slices · Left drag: window/level · Middle drag: pan · Right drag: zoom")}
           </p>
         </section>
 
@@ -631,18 +645,15 @@ export default function Viewer() {
           <details className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
             <summary className="flex cursor-pointer items-center gap-2 text-base font-bold text-slate-800">
               <span className="h-4 w-1 rounded bg-gradient-to-b from-teal-500 to-cyan-500" />
-              About this tool
+              {t("About this tool")}
             </summary>
             <div className="mt-3 space-y-3 text-xs text-slate-600">
               <p>
-                This tool automatically reads a lumbar spine MRI and produces
-                radiological grades for each intervertebral disc level (T12–L1
-                down to L5–S1). Click a level in the table to jump to its slice;
-                you can correct any grade and save it.
+                {t("This tool automatically reads a lumbar spine MRI and produces radiological grades for each intervertebral disc level (T12–L1 down to L5–S1). Click a level in the table to jump to its slice; you can correct any grade and save it.")}
               </p>
               <div>
                 <p className="mb-1 font-semibold text-slate-700">
-                  What it predicts
+                  {t("What it predicts")}
                 </p>
                 <ul className="space-y-1.5">
                   {PREDICTION_GUIDE.map((g) => (
@@ -651,19 +662,16 @@ export default function Viewer() {
                         {g.name}
                       </span>{" "}
                       <span className="text-slate-400">({g.scale})</span> —{" "}
-                      {g.meaning}
+                      {t(g.meaning)}
                     </li>
                   ))}
                 </ul>
               </div>
               <p className="text-slate-500">
-                Central canal + left/right foraminal stenosis come from the
-                project's fine-tuned <strong>CBAM</strong> model; the other 8
-                grades come from the upstream <strong>SpineNet</strong> pipeline.
+                {t("Central canal and left/right foraminal stenosis come from the project's fine-tuned CBAM model; the other 8 grades come from the upstream SpineNet pipeline.")}
               </p>
               <p className="rounded-md bg-amber-50 px-2.5 py-1.5 text-amber-700">
-                ⚠ Research use only — this is not a diagnostic tool or a medical
-                device.
+                {t("⚠ Research use only — this is not a diagnostic tool or a medical device.")}
               </p>
             </div>
           </details>
@@ -672,7 +680,7 @@ export default function Viewer() {
             <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
               <h2 className="mb-2 flex items-center gap-2 text-base font-bold text-slate-800">
                 <span className="h-4 w-1 rounded bg-gradient-to-b from-teal-500 to-cyan-500" />
-                Structures
+                {t("Structures")}
               </h2>
               {/* While editing, the legend IS the brush's picker: the doctor
                   reads a colour off the image and clicks it, with no detour
@@ -681,11 +689,10 @@ export default function Viewer() {
                 <p className="mb-2 text-xs text-slate-500">
                   {activeLabel == null ? (
                     <span className="font-medium text-amber-700">
-                      Click it on the image, or pick it here — the fill tools
-                      are off until a structure is chosen.
+                      {t("Click it on the image, or pick it here — the fill tools are off until a structure is chosen.")}
                     </span>
                   ) : (
-                    "Click a structure here, or point at it on the image, to switch what is painted."
+                    t("Click a structure here, or point at it on the image, to switch what is painted.")
                   )}
                 </p>
               )}
@@ -702,34 +709,26 @@ export default function Viewer() {
           <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
             <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-slate-800">
               <span className="h-4 w-1 rounded bg-gradient-to-b from-indigo-500 to-violet-500" />
-              Doctor feedback
+              {t("Doctor feedback")}
             </h2>
             <p className="text-xs text-slate-600">
-              When you fix a grade in the table above and press{" "}
-              <span className="font-medium text-slate-700">
-                “Save corrections”
-              </span>
-              , the change is recorded as expert feedback. Send them to the
-              model when you are ready — nothing is used for training until you
-              do.
+              {t("When you fix a grade in the table above and press “Save corrections”, the change is recorded as expert feedback. Send them to the model when you are ready — nothing is used for training until you do.")}
             </p>
 
             {corrections && (
               <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3">
                 <div className="flex items-baseline justify-between text-xs">
-                  <span className="text-slate-600">Waiting to be sent</span>
+                  <span className="text-slate-600">{t("Waiting to be sent")}</span>
                   <span className="text-lg font-bold text-indigo-600">
                     {corrections.pending}
                   </span>
                 </div>
                 <div className="mt-1 flex items-baseline justify-between text-xs text-slate-500">
-                  <span>Already sent</span>
+                  <span>{t("Already sent")}</span>
                   <span>
                     {corrections.submitted}
                     {corrections.batches > 0 &&
-                      ` (${corrections.batches} batch${
-                        corrections.batches === 1 ? "" : "es"
-                      })`}
+                      ` (${t("{n} batch(es)", { n: corrections.batches })})`}
                   </span>
                 </div>
 
@@ -740,10 +739,8 @@ export default function Viewer() {
                   className="mt-3 w-full rounded-md bg-indigo-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300"
                 >
                   {submittingCorrections
-                    ? "Sending…"
-                    : `Send ${corrections.pending} correction${
-                        corrections.pending === 1 ? "" : "s"
-                      } to the model`}
+                    ? t("Sending…")
+                    : t("Send {n} correction(s) to the model", { n: corrections.pending })}
                 </button>
 
                 {submitMessage && (
@@ -753,15 +750,13 @@ export default function Viewer() {
             )}
 
             <p className="mt-2 text-xs text-slate-400">
-              Sending only queues the corrections. Re-training runs offline, and
-              a new model version has to be reviewed and switched on before it
-              grades anyone — so this never changes the next patient's result.
+              {t("Sending only queues the corrections. Re-training runs offline, and a new model version has to be reviewed and switched on before it grades anyone — so this never changes the next patient's result.")}
             </p>
             <Link
               to="/models"
               className="mt-2 inline-block text-xs font-medium text-indigo-600 hover:underline"
             >
-              Model versions — review and switch on →
+              {t("Model versions — review and switch on →")}
             </Link>
           </div>
         </aside>
@@ -770,7 +765,7 @@ export default function Viewer() {
           <div className="w-full basis-full rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
             <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-slate-800">
               <span className="h-4 w-1 rounded bg-gradient-to-b from-teal-500 to-cyan-500" />
-              Abnormality grades
+              {t("Abnormality grades")}
             </h2>
             {runError && (
               <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
@@ -779,13 +774,8 @@ export default function Viewer() {
             )}
             {result && missingCbamColumns(result.grading) && (
               <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                <strong>Canal and foraminal stenosis are missing.</strong> Those
-                three come from the fine-tuned CBAM model, which grades crops cut
-                from the lumbar disc labels in the segmentation. The mask for
-                this study has no lumbar discs, so there was nothing to grade —
-                only the 8 upstream SpineNet labels are shown. Re-upload the
-                study and run again; if it persists, the segmentation is wrong,
-                not the grading.
+                <strong>{t("Canal and foraminal stenosis are missing.")}</strong>{" "}
+                {t("Those three come from the fine-tuned CBAM model, which grades crops cut from the lumbar disc labels in the segmentation. The mask for this study has no lumbar discs, so there was nothing to grade — only the 8 upstream SpineNet labels are shown. Re-upload the study and run again; if it persists, the segmentation is wrong, not the grading.")}
               </div>
             )}
             {result && detail && !detail.has_mask ? (
@@ -796,9 +786,7 @@ export default function Viewer() {
                  they do not -- they are left over from an image that is gone.
                  Say so instead of showing them. */
               <p className="text-sm text-slate-500">
-                No segmentation for this study, so there is nothing these
-                grades were measured from. Click &ldquo;✨ Run AI grading&rdquo;
-                to segment and grade the current image.
+                {t("No segmentation for this study, so there is nothing these grades were measured from. Click “✨ Run AI grading” to segment and grade the current image.")}
               </p>
             ) : result ? (
               <>
@@ -816,36 +804,36 @@ export default function Viewer() {
                     disabled={undoKinds.length === 0}
                     title={
                       undoKinds.at(-1) === "mask"
-                        ? "Undo mask edit (Ctrl+Z)"
-                        : "Undo (Ctrl+Z)"
+                        ? t("Undo mask edit (Ctrl+Z)")
+                        : t("Undo (Ctrl+Z)")
                     }
                     data-testid="undo-button"
                     className={btn}
                   >
-                    ↶ Undo{undoKinds.at(-1) === "mask" ? " mask edit" : ""}
+                    ↶ {undoKinds.at(-1) === "mask" ? t("Undo mask edit") : t("Undo")}
                   </button>
                   <button
                     onClick={handleRedo}
                     disabled={redoKinds.length === 0}
                     title={
                       redoKinds[0] === "mask"
-                        ? "Redo mask edit (Ctrl+Shift+Z)"
-                        : "Redo (Ctrl+Shift+Z)"
+                        ? t("Redo mask edit (Ctrl+Shift+Z)")
+                        : t("Redo (Ctrl+Shift+Z)")
                     }
                     data-testid="redo-button"
                     className={btn}
                   >
-                    ↷ Redo{redoKinds[0] === "mask" ? " mask edit" : ""}
+                    ↷ {redoKinds[0] === "mask" ? t("Redo mask edit") : t("Redo")}
                   </button>
                   <button
                     onClick={handleSave}
                     disabled={(!dirty && !maskDirty) || saving}
                     className="rounded-lg bg-gradient-to-r from-teal-600 to-cyan-500 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
-                    {saving ? "Saving…" : saveLabel}
+                    {saving ? t("Saving…") : saveLabel}
                   </button>
                   <a href={exportUrl(studyId!)} target="_blank" rel="noreferrer">
-                    <span className={btn}>⬇ Export</span>
+                    <span className={btn}>⬇ {t("Export")}</span>
                   </a>
                   {fullResult && (
                     <>
@@ -867,7 +855,7 @@ export default function Viewer() {
                   )}
                   {(dirty || maskDirty) && (
                     <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
-                      unsaved
+                      {t("unsaved")}
                     </span>
                   )}
                 </div>
@@ -877,13 +865,12 @@ export default function Viewer() {
                   </p>
                 )}
                 <p className="mt-2 text-xs text-slate-400">
-                  Model: {result.model_version}. Click a level to jump; change a
-                  severity, then Save.
+                  {t("Model: {v}. Click a level to jump; change a severity, then Save.", { v: result.model_version })}
                 </p>
                 {fullResult && (
                   <img
                     src={`${fullGradingSliceUrl(studyId!)}?v=${sliceNonce}`}
-                    alt="SpineNet-labelled mid-sagittal slice"
+                    alt={t("SpineNet-labelled mid-sagittal slice")}
                     className="mt-3 w-full rounded-lg border border-slate-200"
                   />
                 )}
@@ -891,7 +878,7 @@ export default function Viewer() {
             ) : (
               !running && (
                 <p className="text-sm text-slate-500">
-                  No AI results yet — click “✨ Run AI grading” (top right).
+                  {t("No AI results yet — click “✨ Run AI grading” (top right).")}
                 </p>
               )
             )}

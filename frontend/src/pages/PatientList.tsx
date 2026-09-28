@@ -12,6 +12,7 @@ import {
   type PatientOut,
   type StudyOut,
 } from "../lib/api";
+import { LangToggle, useT } from "../lib/i18n";
 
 type BackendStatus =
   | { state: "loading" }
@@ -19,10 +20,11 @@ type BackendStatus =
   | { state: "error"; message: string };
 
 function StatusPill({ backend }: { backend: BackendStatus }) {
+  const { t } = useT();
   const map = {
-    loading: { text: "Connecting", cls: "bg-amber-100 text-amber-700", dot: "bg-amber-500" },
-    ok: { text: "Online", cls: "bg-emerald-100 text-emerald-700", dot: "bg-emerald-500" },
-    error: { text: "Offline", cls: "bg-rose-100 text-rose-700", dot: "bg-rose-500" },
+    loading: { text: t("Connecting"), cls: "bg-amber-100 text-amber-700", dot: "bg-amber-500" },
+    ok: { text: t("Online"), cls: "bg-emerald-100 text-emerald-700", dot: "bg-emerald-500" },
+    error: { text: t("Offline"), cls: "bg-rose-100 text-rose-700", dot: "bg-rose-500" },
   }[backend.state];
   return (
     <span
@@ -47,6 +49,7 @@ const initials = (name: string) =>
 const fmtDate = (iso: string) => new Date(iso).toLocaleDateString();
 
 export default function PatientList() {
+  const { t } = useT();
   const [backend, setBackend] = useState<BackendStatus>({ state: "loading" });
   const [patients, setPatients] = useState<PatientOut[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -156,7 +159,7 @@ export default function PatientList() {
   }
 
   async function handleDelete(studyId: string) {
-    if (!window.confirm(`Delete study "${studyId}"? This cannot be undone.`))
+    if (!window.confirm(t('Delete study "{id}"? This cannot be undone.', { id: studyId })))
       return;
     setError(null);
     try {
@@ -209,10 +212,10 @@ export default function PatientList() {
             </div>
             <div>
               <h1 className="text-lg font-bold leading-tight text-white">
-                Spine Labeling
+                {t("Spine Labeling")}
               </h1>
               <p className="text-xs text-teal-50/90">
-                Lumbar MRI · AI-assisted grading
+                {t("Lumbar MRI · AI-assisted grading")}
               </p>
             </div>
           </div>
@@ -223,39 +226,40 @@ export default function PatientList() {
                 labelled in the language they read. */}
             <Link
               to="/survey"
-              title="Phiếu đánh giá 15 câu, khoảng 3 phút"
+              title={t("A 19-question survey, about 5 minutes")}
               className="flex items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-teal-700 shadow-sm transition hover:bg-teal-50"
             >
-              <span>★ Đánh giá phần mềm</span>
+              <span>★ {t("Rate this software")}</span>
             </Link>
             <Link
               to="/admin"
-              title="The correction queue, the batches already sent, and what to run next"
+              title={t("The correction queue, the batches already sent, and what to run next")}
               className="flex items-center gap-2 rounded-lg bg-white/15 px-3 py-1.5 text-xs font-medium text-white backdrop-blur transition hover:bg-white/25"
             >
-              <span>Feedback</span>
+              <span>{t("Feedback")}</span>
               {pendingCorrections != null && pendingCorrections > 0 && (
                 <span className="rounded-full bg-indigo-200 px-1.5 py-0.5 text-[10px] font-bold text-indigo-900">
-                  {pendingCorrections} waiting
+                  {t("{n} waiting", { n: pendingCorrections })}
                 </span>
               )}
             </Link>
             <Link
               to="/models"
-              title="Which checkpoint grades new studies, and how a new one is approved"
+              title={t("Which checkpoint grades new studies, and how a new one is approved")}
               className="flex items-center gap-2 rounded-lg bg-white/15 px-3 py-1.5 text-xs font-medium text-white backdrop-blur transition hover:bg-white/25"
             >
               <span>
-                Model:{" "}
+                {t("Model:")}{" "}
                 <span className="font-mono">{activeModel ?? "unknown"}</span>
               </span>
               {pendingModels > 0 && (
                 <span className="rounded-full bg-amber-300 px-1.5 py-0.5 text-[10px] font-bold text-amber-900">
-                  {pendingModels} to review
+                  {t("{n} to review", { n: pendingModels })}
                 </span>
               )}
             </Link>
             <StatusPill backend={backend} />
+            <LangToggle />
           </div>
         </div>
       </header>
@@ -264,10 +268,10 @@ export default function PatientList() {
         {/* Toolbar: title + search + filter + new */}
         <div className="mb-4 flex flex-wrap items-center gap-3">
           <div className="mr-auto">
-            <h2 className="text-xl font-bold text-slate-800">Worklist</h2>
+            <h2 className="text-xl font-bold text-slate-800">{t("Worklist")}</h2>
             <p className="text-sm text-slate-500">
-              {groups.length} {groups.length === 1 ? "patient" : "patients"} ·{" "}
-              {totalStudies} {totalStudies === 1 ? "study" : "studies"}
+              {t(groups.length === 1 ? "{n} patient" : "{n} patients", { n: groups.length })} ·{" "}
+              {t(totalStudies === 1 ? "{n} study" : "{n} studies", { n: totalStudies })}
             </p>
           </div>
           <div className="relative">
@@ -277,7 +281,7 @@ export default function PatientList() {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search patient, MRN, study…"
+              placeholder={t("Search patient, MRN, study…")}
               className="w-64 rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm text-slate-800 shadow-sm focus:border-teal-500 focus:outline-none"
             />
           </div>
@@ -287,39 +291,41 @@ export default function PatientList() {
             className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm"
           >
             {modalities.map((m) => (
-              <option key={m}>{m}</option>
+              <option key={m} value={m}>
+                {m === "All" ? t("All") : m}
+              </option>
             ))}
           </select>
           <button
             onClick={() => setShowNew((v) => !v)}
             className="rounded-lg bg-gradient-to-r from-teal-600 to-cyan-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-110"
           >
-            {showNew ? "Cancel" : "+ New study"}
+            {showNew ? t("Cancel") : t("+ New study")}
           </button>
         </div>
 
         {showNew && (
           <div className="mb-4 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <label className="flex flex-col gap-1 text-xs font-medium text-slate-500">
-              Study ID
+              {t("Study ID")}
               <input
                 value={newId}
                 onChange={(e) => setNewId(e.target.value)}
-                placeholder="e.g. case_042"
+                placeholder={t("e.g. case_042")}
                 className="rounded-md border border-slate-300 px-2.5 py-1.5 text-sm text-slate-800"
               />
             </label>
             <label className="flex flex-col gap-1 text-xs font-medium text-slate-500">
-              Patient name
+              {t("Patient name")}
               <input
                 value={newPatient}
                 onChange={(e) => setNewPatient(e.target.value)}
-                placeholder="existing name groups; new one creates a patient"
+                placeholder={t("existing name groups; new one creates a patient")}
                 className="w-72 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm text-slate-800"
               />
             </label>
             <label className="flex flex-col gap-1 text-xs font-medium text-slate-500">
-              Modality
+              {t("Modality")}
               <select
                 value={newModality}
                 onChange={(e) => setNewModality(e.target.value)}
@@ -335,7 +341,7 @@ export default function PatientList() {
               disabled={!newId.trim() || !newPatient.trim()}
               className="rounded-lg bg-teal-600 px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:opacity-40"
             >
-              Create
+              {t("Create")}
             </button>
           </div>
         )}
@@ -395,9 +401,9 @@ export default function PatientList() {
                     </span>
                   </button>
                   <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
-                    {studies.length} {studies.length === 1 ? "study" : "studies"}
+                    {t(studies.length === 1 ? "{n} study" : "{n} studies", { n: studies.length })}
                     {readyCount < studies.length &&
-                      ` · ${readyCount} ready`}
+                      ` · ${t("{n} ready", { n: readyCount })}`}
                   </span>
                   <button
                     onClick={(e) => {
@@ -405,7 +411,7 @@ export default function PatientList() {
                       setRenamingId(patient.id);
                       setRenameValue(patient.name);
                     }}
-                    title="Rename patient"
+                    title={t("Rename patient")}
                     className="rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-500 hover:bg-slate-50"
                   >
                     ✎
@@ -433,12 +439,12 @@ export default function PatientList() {
                         {study.has_volume ? (
                           <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
                             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                            Ready
+                            {t("Ready")}
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-400">
                             <span className="h-1.5 w-1.5 rounded-full bg-slate-300" />
-                            No volume
+                            {t("No volume")}
                           </span>
                         )}
                         <input
@@ -447,7 +453,7 @@ export default function PatientList() {
                           }}
                           type="file"
                           accept=".zip,.mha,.nii,.nii.gz,.dcm"
-                          title="DICOM series (.zip), or .mha / .nii / .nii.gz volume"
+                          title={t("DICOM series (.zip), or .mha / .nii / .nii.gz volume")}
                           className="hidden"
                           disabled={uploading === study.id}
                           onChange={(e) => {
@@ -461,26 +467,26 @@ export default function PatientList() {
                           className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-400 hover:bg-slate-50 disabled:opacity-50"
                         >
                           {uploading === study.id
-                            ? "Uploading…"
+                            ? t("Uploading…")
                             : study.has_volume
-                              ? "Replace"
-                              : "Upload"}
+                              ? t("Replace")
+                              : t("Upload")}
                         </button>
                         {study.has_volume ? (
                           <Link
                             to={`/viewer/${study.id}`}
                             className="rounded-lg bg-gradient-to-r from-teal-600 to-cyan-500 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:brightness-110"
                           >
-                            Open →
+                            {t("Open →")}
                           </Link>
                         ) : (
                           <span className="cursor-not-allowed rounded-lg bg-slate-100 px-3.5 py-1.5 text-xs font-semibold text-slate-400">
-                            Open
+                            {t("Open")}
                           </span>
                         )}
                         <button
                           onClick={() => handleDelete(study.id)}
-                          title="Delete study"
+                          title={t("Delete study")}
                           className="rounded-lg border border-rose-200 px-2 py-1.5 text-xs text-rose-500 hover:bg-rose-50"
                         >
                           🗑
@@ -495,8 +501,8 @@ export default function PatientList() {
           {groups.length === 0 && (
             <div className="rounded-xl border border-slate-200 bg-white px-5 py-12 text-center text-slate-400 shadow-sm">
               {patients.length === 0
-                ? "No studies yet — create one to get started."
-                : "No matches for the current search / filter."}
+                ? t("No studies yet — create one to get started.")
+                : t("No matches for the current search / filter.")}
             </div>
           )}
         </div>

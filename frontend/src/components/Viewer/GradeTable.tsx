@@ -1,4 +1,5 @@
 import type { GradingItem } from "../../lib/api";
+import { useT } from "../../lib/i18n";
 import {
   isTrainableCondition,
   severityOptions,
@@ -91,6 +92,7 @@ interface Props {
  * Clicking a row scrolls the viewer to that disc.
  */
 export default function GradeTable({ grading, onJump, onEditSeverity }: Props) {
+  const { t } = useT();
   // Index by level+condition, and collect the distinct levels/conditions.
   const byLevel = new Map<string, Map<string, GradingItem>>();
   const conditionSet = new Set<string>();
@@ -135,13 +137,13 @@ export default function GradeTable({ grading, onJump, onEditSeverity }: Props) {
     >
       <thead>
         <tr>
-          <th style={{ textAlign: "left", padding: "4px 8px" }}>Level</th>
+          <th style={{ textAlign: "left", padding: "4px 8px" }}>{t("Level")}</th>
           {conditions.map((c) => (
             <th key={c} style={{ padding: "4px 8px" }}>
               {conditionLabel(c)}
               {!isTrainableCondition(c) && (
                 <span
-                  title="Graded by the vendored upstream SpineNet. Corrections here are saved and exported, but re-training does not use them."
+                  title={t("Graded by the vendored upstream SpineNet. Corrections here are saved and exported, but re-training does not use them.")}
                   style={{ color: "#868e96", cursor: "help", marginLeft: 2 }}
                 >
                   {NOT_TRAINED_MARK}
@@ -161,7 +163,7 @@ export default function GradeTable({ grading, onJump, onEditSeverity }: Props) {
               key={level}
               onClick={() => bbox && onJump(bbox[0])}
               style={{ cursor: bbox ? "pointer" : "default" }}
-              title={bbox ? "Jump to this disc" : undefined}
+              title={bbox ? t("Jump to this disc") : undefined}
             >
               <td style={{ padding: "4px 8px", fontWeight: 600 }}>{level}</td>
               {conditions.map((c) => {
@@ -178,7 +180,7 @@ export default function GradeTable({ grading, onJump, onEditSeverity }: Props) {
                   <td
                     key={c}
                     title={
-                      item ? `confidence ${(item.score * 100).toFixed(0)}%` : undefined
+                      item ? t("confidence {p}%", { p: (item.score * 100).toFixed(0) }) : undefined
                     }
                     style={{
                       padding: "4px 8px",
@@ -243,11 +245,8 @@ export default function GradeTable({ grading, onJump, onEditSeverity }: Props) {
           color: "#868e96",
         }}
       >
-        {NOT_TRAINED_MARK} Graded by the vendored upstream SpineNet. Corrections
-        to these columns are saved with the study and included in the export,
-        but the re-training loop does not use them — it re-trains only Canal,
-        L. foraminal and R. foraminal, the three heads of the app&rsquo;s own
-        model.
+        {NOT_TRAINED_MARK}{" "}
+        {t("Graded by the vendored upstream SpineNet. Corrections to these columns are saved with the study and included in the export, but the re-training loop does not use them — it re-trains only Canal, L. foraminal and R. foraminal, the three heads of the app's own model.")}
       </p>
     )}
     </>

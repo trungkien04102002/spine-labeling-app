@@ -29,6 +29,7 @@ import {
 } from "@cornerstonejs/tools";
 import { createNiftiImageIdsAndCacheMetadata } from "@cornerstonejs/nifti-volume-loader";
 import { ensureCornerstoneInitialized } from "../../lib/cornerstone";
+import { useT } from "../../lib/i18n";
 import {
   MASK_HISTORY_DEPTH,
   maskHistoryDepth,
@@ -178,6 +179,7 @@ export default function CornerstoneViewport({
   onMaskHistoryReset,
   onLegend,
 }: Props) {
+  const { t } = useT();
   const elementRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<Types.IStackViewport | null>(null);
   const engineRef = useRef<RenderingEngine | null>(null);
@@ -761,10 +763,10 @@ export default function CornerstoneViewport({
               checked={segVisible}
               onChange={(e) => setSegVisible(e.target.checked)}
             />{" "}
-            Segmentation
+            {t("Segmentation")}
           </label>
           <label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            Opacity
+            {t("Opacity")}
             <input
               type="range"
               min={0}
@@ -783,7 +785,7 @@ export default function CornerstoneViewport({
                 checked={editMode}
                 onChange={(e) => onEditModeChange?.(e.target.checked)}
               />{" "}
-              Edit mask
+              {t("Edit mask")}
             </label>
           )}
           {MASK_EDIT_ENABLED && editMode && (
@@ -803,12 +805,12 @@ export default function CornerstoneViewport({
                     : "border-slate-300 bg-white text-slate-700 hover:border-teal-400")
                 }
               >
-                ⌖ Point &amp; select
+                ⌖ {t("Point & select")}
               </button>
               {onUndo && (
                 <span
                   style={{ display: "inline-flex", gap: "0.25rem" }}
-                  title="Undo the last edit (Ctrl+Z)"
+                  title={t("Undo the last edit (Ctrl+Z)")}
                 >
                   <button
                     type="button"
@@ -817,14 +819,14 @@ export default function CornerstoneViewport({
                     disabled={!canUndo}
                     className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-700 transition hover:border-teal-400 disabled:opacity-40"
                   >
-                    ↶ {undoLabel ?? "Undo"}
+                    ↶ {undoLabel ?? t("Undo")}
                   </button>
                   <button
                     type="button"
                     data-testid="toolbar-redo"
                     onClick={onRedo}
                     disabled={!canRedo}
-                    title="Redo (Ctrl+Shift+Z)"
+                    title={t("Redo (Ctrl+Shift+Z)")}
                     className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-700 transition hover:border-teal-400 disabled:opacity-40"
                   >
                     ↷
@@ -839,7 +841,7 @@ export default function CornerstoneViewport({
                   disabled={!canSave}
                   className="rounded-md bg-gradient-to-r from-teal-600 to-cyan-500 px-2.5 py-1 text-xs font-semibold text-white shadow-sm transition hover:brightness-110 disabled:opacity-40"
                 >
-                  {saveLabel ?? "Save"}
+                  {saveLabel ?? t("Save")}
                 </button>
               )}
               <select
@@ -847,23 +849,23 @@ export default function CornerstoneViewport({
                 data-testid="edit-tool"
                 onChange={(e) => setEditShape(e.target.value as EditShape)}
               >
-                <option value="brush">Brush</option>
-                <option value="circle">Circle</option>
-                <option value="rect">Rectangle</option>
+                <option value="brush">{t("Brush")}</option>
+                <option value="circle">{t("Circle")}</option>
+                <option value="rect">{t("Rectangle")}</option>
               </select>
               <select
                 value={editAction}
                 data-testid="edit-action"
                 onChange={(e) => setEditAction(e.target.value as EditAction)}
               >
-                <option value="paint">Fill</option>
-                <option value="erase">Erase</option>
+                <option value="paint">{t("Fill")}</option>
+                <option value="erase">{t("Erase")}</option>
               </select>
               {editShape === "brush" && (
                 <label
                   style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}
                 >
-                  Size
+                  {t("Size")}
                   <input
                     type="range"
                     min={1}
@@ -886,8 +888,9 @@ export default function CornerstoneViewport({
                   data-testid="pick-structure-hint"
                   style={{ color: "#b45309", fontWeight: 500 }}
                 >
-                  Click the structure on the image
-                  {activeLabel == null ? " — nothing is selected yet." : "."}
+                  {activeLabel == null
+                    ? t("Click the structure on the image — nothing is selected yet.")
+                    : t("Click the structure on the image.")}
                 </span>
               ) : null}
               {pickArmed && (
@@ -901,7 +904,7 @@ export default function CornerstoneViewport({
                       {prettyName(hoverEntry.name)}
                     </>
                   ) : pickMissed ? (
-                    "Nothing there — that is background."
+                    t("Nothing there — that is background.")
                   ) : (
                     "—"
                   )}
