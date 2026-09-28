@@ -12,7 +12,7 @@ import { useRoom } from "../lib/room";
  * which is said on the screen so nobody is surprised to find their studies
  * waiting -- or someone else's, if two people pick the same name.
  */
-export default function Join() {
+export default function Join({ linkError = null }: { linkError?: string | null }) {
   const { t } = useT();
   const { enter } = useRoom();
   const [name, setName] = useState("");
@@ -69,15 +69,18 @@ export default function Join() {
             {busy ? t("Entering…") : t("Enter my room")}
           </button>
 
-          {error && (
-            <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>
+          {(error || linkError) && (
+            <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
+              {error ?? t("This link does not match any room. Ask for your link again, or enter your name.")}
+            </p>
           )}
 
-          <ul className="mt-6 space-y-1.5 text-xs leading-relaxed text-slate-500">
-            <li>• {t("Each person gets a private room: your studies, your corrections and your answers are seen by no other participant.")}</li>
-            <li>• {t("Type the same name again, on any computer, to come back to your room.")}</li>
-            <li>• {t("Pick a name others will not use — two people with the same name share one room.")}</li>
-          </ul>
+          {/* One line, not three: most clinicians arrive by their personal
+              link and never see this screen; for the rest, the one thing
+              worth knowing is how to come back. */}
+          <p className="mt-5 text-xs leading-relaxed text-slate-500">
+            {t("Type the same name next time to come back to your room.")}
+          </p>
         </form>
       </div>
     </div>

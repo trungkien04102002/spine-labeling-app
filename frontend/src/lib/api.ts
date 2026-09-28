@@ -556,7 +556,7 @@ export function getSurveySummary(): Promise<SurveySummary> {
 
 // ------------------------------------------------------------------- rooms ---
 
-export type RoomOut = { id: number; name: string; created: boolean; studies: number };
+export type RoomOut = { id: number; name: string; code: string; created: boolean; studies: number };
 
 /** Enter a room by name; the same name always returns the same room. */
 export function joinRoom(name: string): Promise<RoomOut> {
@@ -565,6 +565,11 @@ export function joinRoom(name: string): Promise<RoomOut> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name }),
   });
+}
+
+/** Follow a personal link (/?phong=<code>) into its room. */
+export function enterByCode(code: string): Promise<RoomOut> {
+  return apiFetch<RoomOut>(`/readers/code/${encodeURIComponent(code)}`);
 }
 
 export type SampleOut = { id: string; added: boolean };
@@ -582,6 +587,7 @@ export function addSample(roomId: number, sampleId: string): Promise<{ id: strin
 export type RoomSummary = {
   id: number;
   name: string;
+  code: string;
   created_at: string;
   studies: number;
   corrections: number;
@@ -646,4 +652,41 @@ export async function downloadLocked(path: string, fallbackName: string): Promis
   a.download = name;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+/** The link that puts a clinician straight into their room. */
+export function roomLink(code: string): string {
+  return `${window.location.origin}/?phong=${code}`;
+}
+
+/**
+ * Copy text, including on plain HTTP. navigator.clipboard only exists in a
+ * secure context, and a rented box is usually served as http://IP:PORT -- there
+ * the modern call is simply absent and a copy button would silently do
+ * nothing. The legacy execCommand path still works on HTTP.
+ */
+export async function copyText(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    /* fall through to the legacy path */
+  }
+  const area = document.createElement("textarea");
+  area.value = text;
+  area.setAttribute("readonly", "");
+  area.style.position = "fixed";
+  area.style.opacity = "0";
+  document.body.appendChild(area);
+  area.select();
+  let ok = false;
+  try {
+    ok = document.execCommand("copy");
+  } catch {
+    ok = false;
+  }
+  document.body.removeChild(area);
+  return ok;
 }

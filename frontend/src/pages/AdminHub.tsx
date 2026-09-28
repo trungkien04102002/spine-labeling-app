@@ -5,6 +5,9 @@ import Admin, { SurveyPanel } from "./Admin";
 import ModelVersions from "./ModelVersions";
 import {
   adminLogin,
+  copyText,
+  joinRoom,
+  roomLink,
   deleteSurveyResponse,
   downloadLocked,
   getAdminStatus,
@@ -90,15 +93,81 @@ function Card({ title, children, action }: { title: string; children: ReactNode;
   );
 }
 
+/** A room's link with a copy button that also works over plain HTTP. */
+function LinkCell({ code }: { code: string }) {
+  const { t } = useT();
+  const [copied, setCopied] = useState<"ok" | "fail" | null>(null);
+  const link = roomLink(code);
+  return (
+    <span className="flex items-center gap-2">
+      <input
+        readOnly
+        value={link}
+        onFocus={(e) => e.currentTarget.select()}
+        className="w-64 rounded border border-slate-200 bg-slate-50 px-2 py-1 font-mono text-[11px] text-slate-600"
+      />
+      <button
+        type="button"
+        onClick={async () => {
+          setCopied((await copyText(link)) ? "ok" : "fail");
+          window.setTimeout(() => setCopied(null), 1800);
+        }}
+        className="whitespace-nowrap rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
+      >
+        {copied === "ok" ? t("✓ Copied") : copied === "fail" ? t("Select and copy") : t("Copy")}
+      </button>
+    </span>
+  );
+}
+
 function RoomsPage() {
   const { t } = useT();
   const [rooms, setRooms] = useState<RoomSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const load = useCallback(() => {
     getRooms().then(setRooms).catch((e) => setError(String(e)));
   }, []);
+  useEffect(load, [load]);
+
+  // Creating a room is the same call as a clinician entering one: a name
+  // that already exists returns that room, so this cannot make a duplicate.
+  async function create(e: FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) return;
+    setBusy(true);
+    try {
+      await joinRoom(name.trim());
+      setName("");
+      load();
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <Card title={t("Clinician rooms")}>
+      <form onSubmit={create} className="mb-4 flex flex-wrap items-center gap-2">
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder={t("Clinician's name")}
+          className="w-64 rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
+        />
+        <button
+          type="submit"
+          disabled={!name.trim() || busy}
+          className="rounded-lg bg-teal-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-teal-700 disabled:bg-slate-300"
+        >
+          {t("+ Create room and link")}
+        </button>
+        <span className="text-xs text-slate-500">
+          {t("Send each clinician their link. If they lose it, copy it again from here.")}
+        </span>
+      </form>
       {error && <p className="text-sm text-rose-600">{error}</p>}
       {rooms === null ? (
         <p className="text-sm text-slate-500">{t("Loading…")}</p>
@@ -106,10 +175,11 @@ function RoomsPage() {
         <p className="text-sm text-slate-500">{t("Nobody has entered a room yet.")}</p>
       ) : (
         <div className="scroll-x-visible">
-          <table className="w-full min-w-[520px] text-sm">
+          <table className="w-full min-w-[820px] text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-left text-xs text-slate-500">
                 <th className="py-2 pr-3">{t("Name")}</th>
+                <th className="py-2 pr-3">{t("Personal link")}</th>
                 <th className="py-2 pr-3">{t("Joined")}</th>
                 <th className="py-2 pr-3 text-right">{t("Studies")}</th>
                 <th className="py-2 pr-3 text-right">{t("Corrections")}</th>
@@ -120,6 +190,7 @@ function RoomsPage() {
               {rooms.map((r) => (
                 <tr key={r.id} className="border-b border-slate-100">
                   <td className="py-2 pr-3 font-semibold text-slate-800">{r.name}</td>
+                  <td className="py-2 pr-3"><LinkCell code={r.code} /></td>
                   <td className="py-2 pr-3 text-slate-500">{fmt(r.created_at)}</td>
                   <td className="py-2 pr-3 text-right">{r.studies}</td>
                   <td className="py-2 pr-3 text-right">{r.corrections}</td>
@@ -347,6 +418,12 @@ export default function AdminHub() {
     <div className="min-h-screen">
       <header className="bg-slate-800 shadow-md">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3 px-6 py-3">
+          <Link
+            to="/"
+            className="rounded-lg bg-white/10 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-white/20"
+          >
+            {t("← Home")}
+          </Link>
           <span className="text-sm font-bold text-white">{t("Admin")}</span>
           <nav className="flex flex-wrap gap-1">
             {NAV.map(([path, label]) => (
@@ -365,9 +442,6 @@ export default function AdminHub() {
           </nav>
           <div className="ml-auto flex items-center gap-2">
             <LangToggle />
-            <Link to="/" className="text-xs text-slate-300 hover:text-white">
-              {t("Clinician view ↗")}
-            </Link>
             <button
               type="button"
               onClick={() => {

@@ -161,3 +161,24 @@ def test_corrections_are_signed_with_the_room(env):
     assert row.reader_id == minh["id"]
     assert (row.old, row.new) == ("Moderate", "Severe")
     db.close()
+
+
+def test_a_room_has_a_personal_link_that_leads_back_into_it(env):
+    """A clinician who forgets the name they typed can be sent their link."""
+    client, _, _ = env
+    minh = _join(client, "Minh")
+    code = minh["code"]
+    assert len(code) == 6 and not set(code) & set("0o1li")
+
+    back = client.get(f"/readers/code/{code}").json()
+    assert (back["id"], back["name"]) == (minh["id"], "Minh")
+    # Case and stray spaces in a pasted link still land.
+    assert client.get(f"/readers/code/{code.upper()}%20").json()["id"] == minh["id"]
+    # Joining again by name returns the same link, not a fresh one.
+    assert _join(client, "minh")["code"] == code
+    assert _join(client, "Lan")["code"] != code
+
+
+def test_an_unknown_link_is_refused(env):
+    client, _, _ = env
+    assert client.get("/readers/code/zzzzzz").status_code == 404

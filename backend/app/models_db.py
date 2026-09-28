@@ -80,6 +80,11 @@ class Reader(Base):
     # Case- and spacing-insensitive, so "Minh", "minh " and "MINH" are one room.
     # Diacritics are kept: "Nguyễn" and "Nguyen" can be different people.
     key: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
+    # What a personal link carries (/?phong=<code>). A clinician who forgets
+    # the name they typed can be sent their link again from /admin; a link also
+    # removes typing, and with it the "Minh" today, "BS Minh" tomorrow split.
+    # Short and unambiguous to read aloud; unique, not secret.
+    code: Mapped[str | None] = mapped_column(String(16), nullable=True, unique=True)
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime, default=datetime.datetime.utcnow
     )

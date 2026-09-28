@@ -16,6 +16,7 @@ from __future__ import annotations
 import fnmatch
 import logging
 import re
+import secrets
 import shutil
 from pathlib import Path
 
@@ -70,6 +71,36 @@ def room_prefix(reader: Reader) -> str:
     return f"p{reader.id}-"
 
 
+# No 0/o, 1/l/i: a code gets read over the phone and copied by eye.
+_CODE_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789"
+
+
+def ensure_code(db: Session, reader: Reader) -> str:
+    """The room's link code, minted the first time anyone asks for it.
+
+    Lazily, so rooms created before links existed get one too.
+    """
+    if reader.code:
+        return reader.code
+    while True:
+        code = "".join(secrets.choice(_CODE_ALPHABET) for _ in range(6))
+        if db.query(Reader).filter_by(code=code).first() is None:
+            break
+    reader.code = code
+    db.commit()
+    return code
+
+
+def _room_out(db: Session, reader: Reader, created: bool) -> dict[str, object]:
+    return {
+        "id": reader.id,
+        "name": reader.name,
+        "code": ensure_code(db, reader),
+        "created": created,
+        "studies": db.query(Study).filter_by(reader_id=reader.id).count(),
+    }
+
+
 class JoinIn(BaseModel):
     name: str = Field(min_length=1, max_length=128)
 
@@ -88,8 +119,16 @@ def join(payload: JoinIn, db: Session = Depends(get_db)) -> dict[str, object]:
         db.add(reader)
         db.commit()
         db.refresh(reader)
-    studies = db.query(Study).filter_by(reader_id=reader.id).count()
-    return {"id": reader.id, "name": reader.name, "created": created, "studies": studies}
+    return _room_out(db, reader, created)
+
+
+@router.get("/readers/code/{code}")
+def enter_by_code(code: str, db: Session = Depends(get_db)) -> dict[str, object]:
+    """Follow a personal link into its room."""
+    reader = db.query(Reader).filter_by(code=code.strip().lower()).first()
+    if reader is None:
+        raise HTTPException(404, "This link does not match any room.")
+    return _room_out(db, reader, created=False)
 
 
 @router.get("/readers", dependencies=[Depends(require_admin)])
@@ -101,6 +140,7 @@ def list_readers(db: Session = Depends(get_db)) -> list[dict[str, object]]:
             {
                 "id": r.id,
                 "name": r.name,
+                "code": ensure_code(db, r),
                 "created_at": r.created_at.isoformat(),
                 "studies": db.query(Study).filter_by(reader_id=r.id).count(),
                 "corrections": db.query(CorrectionLog).filter_by(reader_id=r.id).count(),

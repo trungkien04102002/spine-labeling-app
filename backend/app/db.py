@@ -51,6 +51,7 @@ _ADDED_COLUMNS: list[tuple[str, str, str]] = [
     ("studies", "reader_id", "INTEGER NULL"),
     ("correction_log", "reader_id", "INTEGER NULL"),
     ("survey_response", "reader_id", "INTEGER NULL"),
+    ("readers", "code", "VARCHAR(16) NULL"),
 ]
 
 

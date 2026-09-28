@@ -388,4 +388,24 @@ registerVi({
     "mức dễ dùng",
   "{n} response(s)":
     "{n} phiếu",
+  "This link does not match any room. Ask for your link again, or enter your name.":
+    "Link này không khớp phòng nào. Xin lại link, hoặc nhập tên của bác sĩ.",
+  "Type the same name next time to come back to your room.":
+    "Lần sau nhập đúng tên này để quay lại phòng của mình.",
+  "✓ Copied":
+    "✓ Đã chép",
+  "Select and copy":
+    "Bôi đen rồi chép",
+  "Copy":
+    "Sao chép",
+  "Clinician's name":
+    "Tên bác sĩ",
+  "+ Create room and link":
+    "+ Tạo phòng và link",
+  "Send each clinician their link. If they lose it, copy it again from here.":
+    "Gửi mỗi bác sĩ link của họ. Nếu họ làm mất, chép lại từ đây.",
+  "Personal link":
+    "Link riêng",
+  "← Home":
+    "← Trang chủ",
 });
