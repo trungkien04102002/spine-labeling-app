@@ -42,35 +42,43 @@ class Question:
 SEG = "Phân vùng"
 GRADE = "Điểm chẩn đoán"
 ERRORS = "Khi AI sai"
+SHOW = "Cách trình bày kết quả"
 USE = "Sử dụng trong công việc"
 UX = "Mức dễ dùng"
 
 QUESTIONS: list[Question] = [
-    Question(1, "Phân vùng đốt sống và đĩa đệm khớp với đánh giá của tôi.", "core", SEG),
-    Question(2, "Phân vùng đủ chính xác để làm cơ sở cắt vùng chấm điểm.", "detail", SEG),
+    # --- What the segmentation drew -------------------------------------
+    Question(1, "Vùng AI tô khớp với ranh giới đốt sống và đĩa đệm trên phim.", "core", SEG),
+    Question(2, "Màu và đường viền của vùng tô dễ nhìn, không che mất chi tiết tôi cần đọc.", "detail", SEG),
+    Question(3, "Nhờ vùng tô, tôi xác định được tầng cần xem nhanh hơn.", "detail", SEG),
 
-    Question(3, "Điểm chẩn đoán của AI khớp với đánh giá của tôi ở phần lớn các ca.", "core", GRADE),
+    # --- Whether the grades are right ------------------------------------
+    Question(4, "Điểm chẩn đoán của AI khớp với đánh giá của tôi ở phần lớn các ca.", "core", GRADE),
     # Split by condition on purpose: the model is measurably weaker on
     # foraminal stenosis than on the others, so a single average would hide
     # exactly the disagreement worth reporting.
-    Question(4, "Mức hẹp ống sống (canal stenosis) AI đưa ra phù hợp với hình ảnh.", "detail", GRADE),
-    Question(5, "Mức hẹp lỗ liên hợp (foraminal stenosis) AI đưa ra phù hợp với hình ảnh.", "detail", GRADE),
-    Question(6, "Phân độ thoái hoá đĩa đệm (Pfirrmann) AI đưa ra phù hợp với hình ảnh.", "detail", GRADE),
-    Question(7, "Bảng 11 nhãn theo từng tầng dễ đọc và đủ thông tin.", "detail", GRADE),
+    Question(5, "Mức hẹp ống sống (canal stenosis) phù hợp với hình ảnh.", "detail", GRADE),
+    Question(6, "Mức hẹp lỗ liên hợp (foraminal stenosis) phù hợp với hình ảnh.", "detail", GRADE),
+    Question(7, "Phân độ thoái hoá đĩa đệm (Pfirrmann) phù hợp với hình ảnh.", "detail", GRADE),
 
-    # Accuracy alone cannot separate a model one grade out on a borderline
-    # disc from one calling a severe stenosis normal. These three ask which.
-    Question(8, "Khi AI sai, mức sai lệch thường nhỏ và tôi dễ nhận ra.", "core", ERRORS),
-    Question(9, "AI ít khi bỏ sót tổn thương nặng.", "detail", ERRORS),
-    Question(10, "AI ít khi báo động giả ở ca bình thường.", "detail", ERRORS),
-    Question(11, "Kết quả ổn định giữa các ca tương tự nhau.", "detail", ERRORS),
+    # --- Whether the presentation does any work ---------------------------
+    Question(8, "Bảng kết quả theo từng tầng cho tôi nắm tình trạng cả đoạn cột sống trong một lần nhìn.", "detail", SHOW),
+    Question(9, "Bấm vào một dòng để nhảy tới đúng lát cắt giúp tôi kiểm chứng nhanh hơn.", "detail", SHOW),
+    Question(10, "Ảnh lát cắt AI đánh dấu giúp tôi hiểu nó đang căn cứ vào đâu.", "detail", SHOW),
 
-    Question(12, "Việc sửa mask và sửa điểm diễn ra đúng như tôi mong đợi.", "detail", USE),
-    Question(13, "Kết quả của AI đủ tin cậy để tham khảo khi đọc phim.", "detail", USE),
-    Question(14, "Tôi sẵn sàng sử dụng công cụ này trong công việc thường ngày.", "core", USE),
+    # --- How it fails, which accuracy alone cannot say --------------------
+    Question(11, "Khi AI sai, mức sai lệch thường nhỏ và tôi dễ nhận ra.", "core", ERRORS),
+    Question(12, "AI ít khi bỏ sót tổn thương nặng.", "detail", ERRORS),
+    Question(13, "AI ít khi báo động giả ở ca bình thường.", "detail", ERRORS),
 
-    Question(15, "Phần mềm đáp ứng được nhu cầu công việc của tôi.", "usability", UX),
-    Question(16, "Phần mềm dễ sử dụng.", "usability", UX),
+    # --- Whether it survives contact with a working day -------------------
+    Question(14, "Việc sửa mask và sửa điểm diễn ra đúng như tôi mong đợi.", "detail", USE),
+    Question(15, "Kết quả của AI đủ tin cậy để tham khảo khi đọc phim.", "detail", USE),
+    Question(16, "Dùng công cụ này, tôi đọc xong một ca nhanh hơn so với đọc thủ công.", "detail", USE),
+    Question(17, "Tôi sẵn sàng sử dụng công cụ này trong công việc thường ngày.", "core", USE),
+
+    Question(18, "Phần mềm đáp ứng được nhu cầu công việc của tôi.", "usability", UX),
+    Question(19, "Phần mềm dễ sử dụng.", "usability", UX),
 ]
 
 CLINICAL_IDS = [q.id for q in QUESTIONS if q.kind in ("core", "detail")]

@@ -45,18 +45,18 @@ def _only_required(value: int = 4) -> dict[int, int]:
 def test_the_questionnaire_is_mostly_about_the_model(client):
     """The balance is the point: fourteen clinical questions against two.
 
-    An earlier draft spent ten of sixteen on usability to buy a comparable
+    An earlier draft spent ten of nineteen on usability to buy a comparable
     score. This asserts the trade that replaced it, so a later edit cannot
     quietly drift back.
     """
     body = client.get("/survey/questions").json()
-    assert len(body["questions"]) == 16
-    assert len(CLINICAL_IDS) == 14 and len(USABILITY_IDS) == 2
+    assert len(body["questions"]) == 19
+    assert len(CLINICAL_IDS) == 17 and len(USABILITY_IDS) == 2
     assert body["groups"][0] == "Phân vùng"
 
 
 def test_only_the_six_answerable_by_anyone_are_required(client):
-    """Ten questions may be skipped, and skipping has to actually work."""
+    """Thirteen questions may be skipped, and skipping has to actually work."""
     resp = client.post("/survey/responses", json={"answers": _only_required()})
     assert resp.status_code == 201
     assert resp.json()["clinical_mean"] == 4.0

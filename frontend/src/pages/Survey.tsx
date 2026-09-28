@@ -127,8 +127,9 @@ export default function Survey() {
     <div className="mx-auto max-w-3xl px-4 py-8">
       <h1 className="text-xl font-bold text-slate-800">Phiếu đánh giá phần mềm</h1>
       <p className="mt-2 text-sm text-slate-600">
-        16 câu, khoảng 4 phút. Phần lớn hỏi về kết quả AI đưa ra — mức chính
-        xác, kiểu sai, và mức tin cậy khi đọc phim. {SCALE_HINT}.
+        19 câu, khoảng 5 phút. Phần lớn hỏi về kết quả AI đưa ra — vùng tô có
+        đúng không, điểm chẩn đoán có khớp không, sai thì sai kiểu gì, và cách
+        trình bày có giúp bác sĩ đọc nhanh hơn không. {SCALE_HINT}.
       </p>
       <p className="mt-1 text-sm text-slate-500">
         Không có câu trả lời đúng hay sai — đánh giá thấp cũng có ích như đánh
