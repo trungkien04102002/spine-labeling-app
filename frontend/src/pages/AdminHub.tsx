@@ -7,6 +7,7 @@ import {
   adminLogin,
   copyText,
   joinRoom,
+  resetRoomPin,
   roomLink,
   deleteSurveyResponse,
   downloadLocked,
@@ -133,18 +134,35 @@ function RoomsPage() {
 
   // Creating a room is the same call as a clinician entering one: a name
   // that already exists returns that room, so this cannot make a duplicate.
+  // Rooms made here have no PIN; the clinician chooses one on first entry.
   async function create(e: FormEvent) {
     e.preventDefault();
     if (!name.trim()) return;
     setBusy(true);
+    setError(null);
     try {
       await joinRoom(name.trim());
       setName("");
       load();
     } catch (err) {
-      setError(String(err));
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(
+        /wrong pin/i.test(msg)
+          ? t("That name already has a room — its link is in the list below.")
+          : msg,
+      );
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function resetPin(r: RoomSummary) {
+    if (!window.confirm(t("Reset the PIN of “{name}”? Their room opens without a PIN until they choose a new one.", { name: r.name }))) return;
+    try {
+      await resetRoomPin(r.id);
+      load();
+    } catch (err) {
+      setError(String(err));
     }
   }
 
@@ -165,7 +183,7 @@ function RoomsPage() {
           {t("+ Create room and link")}
         </button>
         <span className="text-xs text-slate-500">
-          {t("Send each clinician their link. If they lose it, copy it again from here.")}
+          {t("Send each clinician their link. If they lose it or forget their PIN, copy it again from here — the link opens the room without a PIN.")}
         </span>
       </form>
       {error && <p className="text-sm text-rose-600">{error}</p>}
@@ -180,6 +198,7 @@ function RoomsPage() {
               <tr className="border-b border-slate-200 text-left text-xs text-slate-500">
                 <th className="py-2 pr-3">{t("Name")}</th>
                 <th className="py-2 pr-3">{t("Personal link")}</th>
+                <th className="py-2 pr-3">{t("PIN")}</th>
                 <th className="py-2 pr-3">{t("Joined")}</th>
                 <th className="py-2 pr-3 text-right">{t("Studies")}</th>
                 <th className="py-2 pr-3 text-right">{t("Corrections")}</th>
@@ -191,6 +210,22 @@ function RoomsPage() {
                 <tr key={r.id} className="border-b border-slate-100">
                   <td className="py-2 pr-3 font-semibold text-slate-800">{r.name}</td>
                   <td className="py-2 pr-3"><LinkCell code={r.code} /></td>
+                  <td className="py-2 pr-3 whitespace-nowrap">
+                    {r.has_pin ? (
+                      <>
+                        <span className="text-emerald-700">{t("Set")}</span>{" "}
+                        <button
+                          type="button"
+                          onClick={() => resetPin(r)}
+                          className="ml-1 rounded border border-slate-300 px-1.5 py-0.5 text-[11px] text-slate-600 hover:bg-slate-100"
+                        >
+                          {t("Reset PIN")}
+                        </button>
+                      </>
+                    ) : (
+                      <span className="text-amber-700">{t("Not set yet")}</span>
+                    )}
+                  </td>
                   <td className="py-2 pr-3 text-slate-500">{fmt(r.created_at)}</td>
                   <td className="py-2 pr-3 text-right">{r.studies}</td>
                   <td className="py-2 pr-3 text-right">{r.corrections}</td>

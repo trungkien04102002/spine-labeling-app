@@ -5,6 +5,7 @@ import {
   deleteStudy,
   getHealth,
   getPatients,
+  getMyRoom,
   getSamples,
   addSample,
   type SampleOut,
@@ -13,6 +14,7 @@ import {
   type PatientOut,
   type StudyOut,
 } from "../lib/api";
+import PinSetup from "../components/PinSetup";
 import { LangToggle, useT } from "../lib/i18n";
 import { displayStudyId, useRoom } from "../lib/room";
 
@@ -56,6 +58,7 @@ export default function PatientList() {
   const [backend, setBackend] = useState<BackendStatus>({ state: "loading" });
   const [patients, setPatients] = useState<PatientOut[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [noPin, setNoPin] = useState(false);
   const [uploading, setUploading] = useState<string | null>(null);
   const fileInputs = useRef<Record<string, HTMLInputElement | null>>({});
 
@@ -83,6 +86,12 @@ export default function PatientList() {
   const [showSamples, setShowSamples] = useState(false);
   const loadSamples = useCallback(() => {
     getSamples().then(setSamples).catch(() => setSamples([]));
+  }, []);
+
+  // Rooms from before PINs, rooms reset in /admin, and anyone who came in
+  // by personal link without ever setting one: ask here, not only at the door.
+  useEffect(() => {
+    getMyRoom().then((r) => setNoPin(!r.has_pin)).catch(() => {});
   }, []);
 
   const loadPatients = useCallback(() => {
@@ -255,6 +264,19 @@ export default function PatientList() {
       </header>
 
       <main className="mx-auto max-w-6xl px-6 py-8">
+        {noPin && (
+          <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4">
+            <p className="text-sm font-semibold text-amber-800">
+              {t("Your room has no PIN yet")}
+            </p>
+            <p className="mt-1 text-sm text-amber-800">
+              {t("Choose a 4-digit PIN. Next time, pick your name on the first screen and type it to come back here.")}
+            </p>
+            <div className="max-w-xs">
+              <PinSetup onDone={() => setNoPin(false)} />
+            </div>
+          </div>
+        )}
         {/* Toolbar: title + search + filter + new */}
         <div className="mb-4 flex flex-wrap items-center gap-3">
           <div className="mr-auto">

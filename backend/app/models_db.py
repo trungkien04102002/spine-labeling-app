@@ -64,13 +64,14 @@ def mark_analyzed(db: Session, study: "Study") -> None:
 
 
 class Reader(Base):
-    """One clinician's room: a name typed at the door, Kahoot-style.
+    """One clinician's room: picked by name from a list at the door.
 
-    Not an account. There is no password, and nothing here is access control:
-    a room keeps one clinician's studies, edits and survey answers apart from
-    everyone else's, so two readers trying the tool at once do not see -- or
-    silently change -- each other's work. Typing the same name again, on any
-    device, returns to the same room, which is how a clinician resumes.
+    Not an account. A room keeps one clinician's studies, edits and survey
+    answers apart from everyone else's, so two readers trying the tool at once
+    do not see -- or silently change -- each other's work. The 4-digit PIN
+    stops a clinician walking into a colleague's room by tapping the wrong
+    name; it is not access control (the API trusts X-Reader-Id), which a
+    small closed trial does not need.
     """
 
     __tablename__ = "readers"
@@ -85,6 +86,9 @@ class Reader(Base):
     # removes typing, and with it the "Minh" today, "BS Minh" tomorrow split.
     # Short and unambiguous to read aloud; unique, not secret.
     code: Mapped[str | None] = mapped_column(String(16), nullable=True, unique=True)
+    # "salt$pbkdf2-hex" of the room's 4-digit PIN; None until one is set (rooms
+    # made before PINs, or after /admin reset one). Never the PIN itself.
+    pin_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime, default=datetime.datetime.utcnow
     )

@@ -1,10 +1,12 @@
-"""Rooms: a clinician types a name and gets their own copy of the workspace.
+"""Rooms: a clinician picks their name from a list and types a 4-digit PIN.
 
-Kahoot-style on purpose -- no account, no password. The point is separation,
-not security: several clinicians trying the tool at once must not see, or
-quietly overwrite, each other's studies, grades and survey answers. Anyone who
-types the same name reaches the same room, which is also how one clinician
-resumes on a second device.
+No account. The point is separation, not security: several clinicians trying
+the tool at once must not see, or quietly overwrite, each other's studies,
+grades and survey answers. Typing a name each visit split one clinician into
+"Minh" and "BS Minh"; a list to pick from removes the typing, and the PIN
+stops a tap on the wrong name from opening a colleague's room. A personal link
+(/?phong=<code>, handed out from /admin) still goes straight in -- that is
+the way back for a clinician who forgot the PIN.
 
 The frontend sends the room as an ``X-Reader-Id`` header. A request without
 one is the operator's view and sees everything, which is what /admin and the
@@ -14,6 +16,8 @@ tests rely on.
 from __future__ import annotations
 
 import fnmatch
+import hashlib
+import hmac
 import logging
 import re
 import secrets
@@ -91,23 +95,54 @@ def ensure_code(db: Session, reader: Reader) -> str:
     return code
 
 
+_PIN = re.compile(r"\d{4}")
+
+
+def _check_pin_format(pin: str) -> str:
+    pin = pin.strip()
+    if not _PIN.fullmatch(pin):
+        raise HTTPException(400, "The PIN must be exactly 4 digits.")
+    return pin
+
+
+def hash_pin(pin: str) -> str:
+    """Salted PBKDF2. Four digits are guessable however they are stored; this
+    only keeps the PIN itself out of the database and the export zip."""
+    salt = secrets.token_hex(8)
+    digest = hashlib.pbkdf2_hmac("sha256", pin.encode(), salt.encode(), 100_000)
+    return f"{salt}${digest.hex()}"
+
+
+def pin_matches(pin: str, stored: str) -> bool:
+    salt, _, want = stored.partition("$")
+    got = hashlib.pbkdf2_hmac("sha256", pin.encode(), salt.encode(), 100_000).hex()
+    return hmac.compare_digest(got, want)
+
+
 def _room_out(db: Session, reader: Reader, created: bool) -> dict[str, object]:
     return {
         "id": reader.id,
         "name": reader.name,
         "code": ensure_code(db, reader),
         "created": created,
+        "has_pin": reader.pin_hash is not None,
         "studies": db.query(Study).filter_by(reader_id=reader.id).count(),
     }
 
 
 class JoinIn(BaseModel):
     name: str = Field(min_length=1, max_length=128)
+    pin: str | None = Field(default=None, max_length=8)
 
 
 @router.post("/readers")
 def join(payload: JoinIn, db: Session = Depends(get_db)) -> dict[str, object]:
-    """Enter a room by name, creating it the first time the name is used."""
+    """Enter a room by name, creating it the first time the name is used.
+
+    A room with a PIN needs it. A new room takes the PIN it is created with;
+    the door always sends one, while /admin creates rooms without, and the
+    clinician sets theirs on first entry (``has_pin`` false tells them to).
+    """
     name = re.sub(r"\s+", " ", payload.name).strip()
     if not name:
         raise HTTPException(400, "Please enter a name.")
@@ -115,11 +150,67 @@ def join(payload: JoinIn, db: Session = Depends(get_db)) -> dict[str, object]:
     reader = db.query(Reader).filter_by(key=key).first()
     created = reader is None
     if created:
-        reader = Reader(name=name, key=key)
+        pin = _check_pin_format(payload.pin) if payload.pin else None
+        reader = Reader(name=name, key=key, pin_hash=hash_pin(pin) if pin else None)
         db.add(reader)
         db.commit()
         db.refresh(reader)
+    elif reader.pin_hash is not None:
+        if not payload.pin or not pin_matches(payload.pin.strip(), reader.pin_hash):
+            raise HTTPException(403, "Wrong PIN.")
     return _room_out(db, reader, created)
+
+
+@router.get("/readers/public")
+def public_rooms(db: Session = Depends(get_db)) -> list[dict[str, object]]:
+    """Names to pick from at the door. No codes: a code is a way in."""
+    return [
+        {"id": r.id, "name": r.name, "has_pin": r.pin_hash is not None}
+        for r in db.query(Reader).order_by(Reader.name).all()
+    ]
+
+
+@router.get("/readers/me")
+def my_room(
+    reader: Reader | None = Depends(current_reader),
+    db: Session = Depends(get_db),
+) -> dict[str, object]:
+    if reader is None:
+        raise HTTPException(400, "Not in a room.")
+    return _room_out(db, reader, created=False)
+
+
+class PinIn(BaseModel):
+    pin: str = Field(max_length=8)
+
+
+@router.post("/readers/me/pin")
+def set_my_pin(
+    payload: PinIn,
+    reader: Reader | None = Depends(current_reader),
+    db: Session = Depends(get_db),
+) -> dict[str, object]:
+    """Give a PIN-less room its PIN. Changing an existing one goes through
+    /admin (reset, then set again), so nobody locks a colleague out."""
+    if reader is None:
+        raise HTTPException(400, "Not in a room.")
+    if reader.pin_hash is not None:
+        raise HTTPException(409, "This room already has a PIN.")
+    reader.pin_hash = hash_pin(_check_pin_format(payload.pin))
+    db.commit()
+    return _room_out(db, reader, created=False)
+
+
+@router.delete("/readers/{reader_id}/pin", dependencies=[Depends(require_admin)])
+def reset_pin(reader_id: int, db: Session = Depends(get_db)) -> dict[str, object]:
+    """For a clinician who forgot theirs: the room opens without a PIN until
+    they enter it and choose a new one."""
+    reader = db.get(Reader, reader_id)
+    if reader is None:
+        raise HTTPException(404, f"No room {reader_id}")
+    reader.pin_hash = None
+    db.commit()
+    return {"id": reader.id, "has_pin": False}
 
 
 @router.get("/readers/code/{code}")
@@ -141,6 +232,7 @@ def list_readers(db: Session = Depends(get_db)) -> list[dict[str, object]]:
                 "id": r.id,
                 "name": r.name,
                 "code": ensure_code(db, r),
+                "has_pin": r.pin_hash is not None,
                 "created_at": r.created_at.isoformat(),
                 "studies": db.query(Study).filter_by(reader_id=r.id).count(),
                 "corrections": db.query(CorrectionLog).filter_by(reader_id=r.id).count(),

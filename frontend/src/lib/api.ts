@@ -556,15 +556,47 @@ export function getSurveySummary(): Promise<SurveySummary> {
 
 // ------------------------------------------------------------------- rooms ---
 
-export type RoomOut = { id: number; name: string; code: string; created: boolean; studies: number };
+export type RoomOut = {
+  id: number;
+  name: string;
+  code: string;
+  created: boolean;
+  has_pin: boolean;
+  studies: number;
+};
 
-/** Enter a room by name; the same name always returns the same room. */
-export function joinRoom(name: string): Promise<RoomOut> {
+/** Enter (or create) a room by name. A room with a PIN needs it. */
+export function joinRoom(name: string, pin?: string): Promise<RoomOut> {
   return apiFetch<RoomOut>("/readers", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name }),
+    body: JSON.stringify(pin ? { name, pin } : { name }),
   });
+}
+
+export type PublicRoom = { id: number; name: string; has_pin: boolean };
+
+/** The names a clinician picks from at the door. */
+export function getPublicRooms(): Promise<PublicRoom[]> {
+  return apiFetch<PublicRoom[]>("/readers/public");
+}
+
+export function getMyRoom(): Promise<RoomOut> {
+  return apiFetch<RoomOut>("/readers/me");
+}
+
+/** Give the current room its PIN (only while it has none). */
+export function setMyPin(pin: string): Promise<RoomOut> {
+  return apiFetch<RoomOut>("/readers/me/pin", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ pin }),
+  });
+}
+
+/** /admin: forget a room's PIN so its clinician can choose a new one. */
+export function resetRoomPin(id: number): Promise<{ id: number; has_pin: boolean }> {
+  return apiFetch(`/readers/${id}/pin`, { method: "DELETE" });
 }
 
 /** Follow a personal link (/?phong=<code>) into its room. */
@@ -588,6 +620,7 @@ export type RoomSummary = {
   id: number;
   name: string;
   code: string;
+  has_pin: boolean;
   created_at: string;
   studies: number;
   corrections: number;

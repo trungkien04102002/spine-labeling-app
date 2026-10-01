@@ -459,9 +459,13 @@ requests. Fine for a quick look, not for a link anyone saves.
 
 ## 9. During the trial: rooms, the operator page, and getting the data out
 
-**Rooms.** Every clinician types a name at the door and gets a private room:
-their own studies, corrections, correction queue and survey answers. The same
-name on any device returns to the same room. It is separation, not security.
+**Rooms.** A clinician makes a room once (name + a 4-digit PIN typed twice)
+and gets their own studies, corrections, correction queue and survey answers.
+After that the door lists every name: tap yours, type your PIN. Forgot the
+PIN? Send their personal link from `/admin` (a link skips the PIN), or press
+"Reset PIN" there and they choose a new one on next entry. Rooms made from
+`/admin`, or before PINs existed, ask for a PIN on first entry. It is
+separation, not security -- the PIN stops a tap on the wrong name, nothing more.
 An empty room offers the graded `VAL-*` cases to copy in (`SAMPLE_STUDIES` in
 `backend/.env` changes the pattern); each copy is the model's original output,
 none of the corrections made to the sample since.

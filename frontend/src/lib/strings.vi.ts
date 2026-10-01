@@ -410,4 +410,65 @@ registerVi({
     "Nhãn",
   "Thesis model (CBAM)":
     "Mô hình đề tài (CBAM)",
+  // Room PINs (2026-10-01)
+  "Wrong PIN. Forgot it? Ask the organiser to send you your personal link again.":
+    "Sai mã PIN. Nếu quên PIN, bác sĩ nhờ người quản lý gửi lại đường link riêng của mình.",
+  "Hello, {name}":
+    "Chào {name}",
+  "Your room has no PIN yet. Choose one so that next time you can come back by picking your name and typing it.":
+    "Phòng của bác sĩ chưa có mã PIN. Bác sĩ đặt một mã 4 số, lần sau chỉ cần bấm vào tên mình và nhập mã này là vào được.",
+  "Entering the room of":
+    "Vào phòng của",
+  "Your 4-digit PIN":
+    "Mã PIN 4 số của bác sĩ",
+  "This room has no PIN yet — you will choose one after entering.":
+    "Phòng này chưa có mã PIN — bác sĩ sẽ đặt mã ngay sau khi vào.",
+  "Not you? Pick another name":
+    "Không phải bác sĩ? Chọn tên khác",
+  "Pick your name":
+    "Bác sĩ bấm vào tên của mình",
+  "First time here, and your name is not in the list?":
+    "Lần đầu sử dụng, chưa có tên trong danh sách?",
+  "Create my room":
+    "Tạo phòng mới",
+  "This link does not match any room. Ask for your link again, or pick your name.":
+    "Đường link này không đúng phòng nào. Bác sĩ xin lại link, hoặc bấm vào tên của mình ở trên.",
+  "Only once. Next time, pick your name from the list and type your PIN.":
+    "Chỉ làm một lần. Lần sau bác sĩ bấm vào tên mình trong danh sách và nhập mã PIN.",
+  "“{name}” already has a room.":
+    "Tên “{name}” đã có phòng rồi.",
+  "Enter that room":
+    "Vào phòng đó",
+  "Back to the list of names":
+    "Quay lại danh sách tên",
+  "Choose a 4-digit PIN":
+    "Đặt mã PIN 4 số",
+  "Type the PIN again":
+    "Nhập lại mã PIN",
+  "The two PINs do not match.":
+    "Hai lần nhập không giống nhau.",
+  "Save PIN":
+    "Lưu mã PIN",
+  "Your room has no PIN yet":
+    "Phòng của bác sĩ chưa có mã PIN",
+  "Choose a 4-digit PIN. Next time, pick your name on the first screen and type it to come back here.":
+    "Bác sĩ đặt mã 4 số. Lần sau, ở trang đầu tiên bấm vào tên mình và nhập mã này là quay lại đây.",
+  "That name already has a room — its link is in the list below.":
+    "Tên này đã có phòng — link của phòng nằm trong danh sách bên dưới.",
+  "Reset the PIN of “{name}”? Their room opens without a PIN until they choose a new one.":
+    "Đặt lại PIN của “{name}”? Phòng sẽ mở không cần PIN cho tới khi bác sĩ đặt mã mới.",
+  "Send each clinician their link. If they lose it or forget their PIN, copy it again from here — the link opens the room without a PIN.":
+    "Gửi mỗi bác sĩ link của họ. Nếu bác sĩ mất link hoặc quên PIN, sao chép lại từ đây — mở bằng link thì không cần PIN.",
+  "PIN":
+    "PIN",
+  "Set":
+    "Đã đặt",
+  "Reset PIN":
+    "Đặt lại PIN",
+  "Not set yet":
+    "Chưa đặt",
+  "The PIN must be exactly 4 digits.":
+    "Mã PIN phải gồm đúng 4 chữ số.",
+  "This room already has a PIN.":
+    "Phòng này đã có mã PIN.",
 });
