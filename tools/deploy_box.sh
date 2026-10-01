@@ -108,7 +108,7 @@ supervisorctl status spine_backend"
 
 step "5 · studies + database"
 t=$(date +%s)
-( cd "$LOCAL/backend" && tar czf - data/VAL-* data/DEMO-* data/Case-113 spine.db 2>/dev/null ) \
+( cd "$LOCAL/backend" && tar czf - data/VAL-* data/DEMO-* data/Case-113 data/p[0-9]*-* spine.db 2>/dev/null ) \
   | "${SSH[@]}" "cd $REMOTE/backend && tar xzf -"
 # Paths are stored absolute, so a copied database opens every study blank until
 # the prefix is rewritten. The worklist looks right, which is what makes it
