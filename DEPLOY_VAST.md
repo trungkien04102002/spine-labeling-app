@@ -470,6 +470,23 @@ An empty room offers the graded `VAL-*` cases to copy in (`SAMPLE_STUDIES` in
 `backend/.env` changes the pattern); each copy is the model's original output,
 none of the corrections made to the sample since.
 
+**When a doctor reports an error** (they are elsewhere; you have neither them
+nor the file). Ask for the room name and the case id, or a screenshot. Then:
+
+```bash
+ssh -p <PORT> root@<HOST>
+grep -n "p<room id>-<case id>" /var/log/spine_backend.log | tail -40   # room id: /admin
+#   [upload …] received <file> (<MB>)   -- what they actually sent
+#   [upload …] rejected / failed to unpack / would not convert + traceback
+#   [job grade_full …] started / done in Ns / FAILED after Ns at stage '…' + traceback
+ls -la /workspace/spine-labeling-app/backend/data/p<room id>-<case id>/   # the upload itself
+scp -P <PORT> root@<HOST>:/workspace/spine-labeling-app/backend/data/p<room id>-<case id>/<file> .
+```
+
+The uploaded file stays on the box even when it is refused, so the failure can
+be reproduced locally with `sample_volumes/import_tests/import_test.py`. A
+re-upload to the same case replaces it, so pull it before asking them to retry.
+
 **The operator page** is `/admin`, behind `ADMIN_PASSWORD`. It holds the room
 list, survey results with every response readable on its own, feedback and
 re-training, model versions, and the export. No clinician page links to it.

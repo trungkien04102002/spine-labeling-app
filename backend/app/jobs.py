@@ -21,11 +21,15 @@ would be infrastructure this deployment does not have.
 from __future__ import annotations
 
 import datetime
+import logging
 import threading
+import time
 import traceback
 import uuid
 from dataclasses import dataclass, field
 from typing import Callable, Protocol
+
+logger = logging.getLogger("uvicorn.error")
 
 
 class ProgressFn(Protocol):
@@ -102,17 +106,31 @@ class JobRegistry:
                 job.percent = max(0, min(100, percent))
 
         def run() -> None:
+            started = time.monotonic()
+            logger.info("[job %s %s] started (%s)", kind, target_id, job.id)
             try:
                 work(report)
             except Exception as exc:
-                # The traceback goes to the server log; the client gets the
-                # message. A failed job must never look like a hung one.
-                traceback.print_exc()
+                # The traceback goes to the server log, tagged with the study
+                # so a doctor's "it failed" can be found among everyone's runs;
+                # the client gets the message. A failed job must never look
+                # like a hung one.
+                logger.error(
+                    "[job %s %s] FAILED after %.0fs at stage %r\n%s",
+                    kind,
+                    target_id,
+                    time.monotonic() - started,
+                    job.stage,
+                    traceback.format_exc(),
+                )
                 with self._lock:
                     job.status = "error"
                     job.error = f"{type(exc).__name__}: {exc}"
                     job.finished_at = datetime.datetime.utcnow()
             else:
+                logger.info(
+                    "[job %s %s] done in %.0fs", kind, target_id, time.monotonic() - started
+                )
                 with self._lock:
                     job.status = "done"
                     job.stage = "Finished"
