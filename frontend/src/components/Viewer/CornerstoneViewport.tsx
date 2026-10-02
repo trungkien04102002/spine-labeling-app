@@ -11,6 +11,8 @@ import {
   imageLoader,
   cache,
   eventTarget,
+  metaData,
+  utilities as csUtilities,
   type Types,
 } from "@cornerstonejs/core";
 import {
@@ -122,6 +124,68 @@ function structureColor(id: number): [number, number, number] {
 }
 const VIEW_BTN =
   "rounded-md border border-slate-300 bg-white px-2 py-1 font-semibold text-slate-700 transition hover:border-teal-400 hover:bg-teal-50 disabled:opacity-30";
+
+/**
+ * Re-place every slice along the true slice normal, one slice thickness apart.
+ *
+ * @cornerstonejs/nifti-volume-loader 5.2.1 steps slice i from the origin by
+ * `direction[6 + k] * spacing[k]` on each axis k -- the in-plane pixel size
+ * where the slice spacing belongs. For an axial series the error lands on an
+ * axis that barely matters; for a sagittal one the slices end up 0.44 mm apart
+ * instead of 5.6 mm, and the camera's thin clipping slab then misses the image:
+ * the viewport shows black, or (a slightly oblique series) only the band where
+ * the tilted image crosses the slab. Hit on a clinician's Siemens export
+ * (2026-10-02): sagittal T2, STIR and T1 all broken, axial and coronal fine.
+ */
+function fixNiftiSlicePositions(imageIds: string[]): void {
+  if (imageIds.length === 0) return;
+  type Plane = {
+    rowCosines: number[];
+    columnCosines: number[];
+    imagePositionPatient: number[];
+    sliceThickness: number;
+  };
+  const first = metaData.get("imagePlaneModule", imageIds[0]) as Plane | undefined;
+  if (!first?.rowCosines || !first.columnCosines || !first.imagePositionPatient) return;
+  const [r, c] = [first.rowCosines, first.columnCosines];
+  let n = [r[1] * c[2] - r[2] * c[1], r[2] * c[0] - r[0] * c[2], r[0] * c[1] - r[1] * c[0]];
+  const len = Math.hypot(n[0], n[1], n[2]) || 1;
+  n = n.map((v) => v / len);
+  // Keep the loader's stacking direction: only the step length is wrong.
+  if (imageIds.length > 1) {
+    const second = metaData.get("imagePlaneModule", imageIds[1]) as Plane | undefined;
+    if (second?.imagePositionPatient) {
+      const d = second.imagePositionPatient.map((v, k) => v - first.imagePositionPatient[k]);
+      if (d[0] * n[0] + d[1] * n[1] + d[2] * n[2] < 0) n = n.map((v) => -v);
+    }
+  }
+  const step = first.sliceThickness || 1;
+  const origin = first.imagePositionPatient;
+  imageIds.forEach((id, i) => {
+    const plane = metaData.get("imagePlaneModule", id) as Plane | undefined;
+    if (!plane) return;
+    const ipp = origin.map((v, k) => v + n[k] * step * i);
+    csUtilities.genericMetadataProvider.add(id, {
+      type: "imagePlaneModule",
+      metadata: { ...plane, imagePositionPatient: ipp },
+    });
+  });
+}
+
+/** 1st-99.5th percentile of the slice on screen, or null if there is none. */
+function robustWindow(viewport: Types.IStackViewport): { lower: number; upper: number } | null {
+  const pixels = cache.getImage(viewport.getCurrentImageId())?.getPixelData();
+  if (!pixels || pixels.length === 0) return null;
+  // A strided sample is plenty for two percentiles and keeps this instant.
+  const stride = Math.max(1, Math.floor(pixels.length / 50000));
+  const sample: number[] = [];
+  for (let i = 0; i < pixels.length; i += stride) sample.push(pixels[i]);
+  sample.sort((a, b) => a - b);
+  const at = (q: number) => sample[Math.min(sample.length - 1, Math.floor(q * sample.length))];
+  const lower = at(0.01);
+  const upper = at(0.995);
+  return upper > lower ? { lower, upper } : null;
+}
 
 /** Brush radius a session starts with: small, so a first stroke cannot flood a neighbour. */
 const DEFAULT_BRUSH_SIZE = 3;
@@ -314,6 +378,7 @@ export default function CornerstoneViewport({
         (seriesKey == null ? "" : `?series=${seriesKey}`);
       const imageIds = await createNiftiImageIdsAndCacheMetadata({ url });
       if (cancelled || !elementRef.current) return;
+      fixNiftiSlicePositions(imageIds);
 
       engine = new RenderingEngine(renderingEngineId);
       engineRef.current = engine;
@@ -372,7 +437,11 @@ export default function CornerstoneViewport({
       // Start on the middle slice (most informative for a sagittal stack).
       await viewport.setStack(imageIds, Math.floor(imageIds.length / 2));
       if (cancelled) return;
-      const voi = viewport.getProperties().voiRange;
+      // Start from the window a reader would set, not the full min-max range:
+      // a few saturated pixels (4095 in a STIR whose tissue sits under 500)
+      // otherwise leave the whole picture near black.
+      const voi = robustWindow(viewport) ?? viewport.getProperties().voiRange;
+      if (voi) viewport.setProperties({ voiRange: { lower: voi.lower, upper: voi.upper } });
       baseVoiRef.current = voi ? { lower: voi.lower, upper: voi.upper } : null;
       setSliceCount(imageIds.length);
       setSliceIndex(viewport.getCurrentImageIdIndex());
@@ -388,6 +457,7 @@ export default function CornerstoneViewport({
         const maskImageIds = await createNiftiImageIdsAndCacheMetadata({
           url: maskUrl,
         });
+        fixNiftiSlicePositions(maskImageIds);
         if (cancelled) return;
         // A stack-viewport labelmap needs images that are *derived* from the
         // base stack (registered as such in the cache). Load the mask's pixels,

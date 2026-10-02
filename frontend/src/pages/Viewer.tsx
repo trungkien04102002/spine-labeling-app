@@ -633,6 +633,7 @@ export default function Viewer() {
             />
             {studyId && (
               <CornerstoneViewport
+                key={`${series.find((s) => s.is_active)?.id ?? "none"}-${gradeRun}`}
                 studyId={studyId}
                 apiBaseUrl={API_BASE_URL}
                 seriesKey={series.find((s) => s.is_active)?.id ?? null}
