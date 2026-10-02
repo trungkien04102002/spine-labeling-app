@@ -51,6 +51,8 @@ const initials = (name: string) =>
     .join("")
     .toUpperCase();
 const fmtDate = (iso: string) => new Date(iso).toLocaleDateString();
+/** DICOM says "MR"; clinicians say MRI. Every study here is one. */
+const showModality = (m: string) => (m === "MR" ? "MRI" : m);
 
 export default function PatientList() {
   const { t } = useT();
@@ -62,9 +64,8 @@ export default function PatientList() {
   const [uploading, setUploading] = useState<string | null>(null);
   const fileInputs = useRef<Record<string, HTMLInputElement | null>>({});
 
-  // Toolbar: search + modality filter.
+  // Toolbar: search. (No modality filter: this tool reads lumbar MRI only.)
   const [search, setSearch] = useState("");
-  const [modalityFilter, setModalityFilter] = useState("All");
 
   // Collapsed patient groups (default: all expanded).
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
@@ -73,7 +74,6 @@ export default function PatientList() {
   const [showNew, setShowNew] = useState(false);
   const [newId, setNewId] = useState("");
   const [newPatient, setNewPatient] = useState("");
-  const [newModality, setNewModality] = useState("MRI");
 
   // Patient rename (group header).
   const [renamingId, setRenamingId] = useState<number | null>(null);
@@ -133,11 +133,10 @@ export default function PatientList() {
     if (!id || !newPatient.trim()) return;
     setError(null);
     try {
-      await createStudy(id, newPatient.trim(), newModality);
+      await createStudy(id, newPatient.trim(), "MRI");
       setShowNew(false);
       setNewId("");
       setNewPatient("");
-      setNewModality("MRI");
       loadPatients();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
@@ -194,14 +193,13 @@ export default function PatientList() {
     });
   }
 
-  // Apply search + modality filter, keeping only patients with matches.
+  // Apply the search, keeping only patients with matches.
   const q = search.trim().toLowerCase();
   const groups = patients
     .map((patient) => ({
       patient,
       studies: patient.studies.filter(
         (s) =>
-          (modalityFilter === "All" || s.modality === modalityFilter) &&
           (q === "" ||
             patient.name.toLowerCase().includes(q) ||
             s.id.toLowerCase().includes(q) ||
@@ -211,10 +209,6 @@ export default function PatientList() {
     .filter((g) => g.studies.length > 0);
 
   const totalStudies = groups.reduce((n, g) => n + g.studies.length, 0);
-  const modalities = [
-    "All",
-    ...new Set(patients.flatMap((p) => p.studies.map((s) => s.modality))),
-  ];
 
   return (
     <div className="min-h-screen">
@@ -277,7 +271,29 @@ export default function PatientList() {
             </div>
           </div>
         )}
-        {/* Toolbar: title + search + filter + new */}
+        {/* What this site is for, before anything else: clinicians arrive
+            from a link with no other introduction. Open until they close it. */}
+        <details open className="mb-6 rounded-xl border border-teal-200 bg-white p-4 shadow-sm">
+          <summary className="cursor-pointer text-sm font-bold text-teal-800">
+            ⓘ {t("What is this website?")}
+          </summary>
+          <div className="mt-3 space-y-3 text-sm text-slate-700">
+            <p>
+              {t("It reads a lumbar spine MRI for you: the AI colours the vertebrae and discs on the image and grades what is abnormal at each disc level (T12–L1 down to L5–S1). You check the result and correct anything it got wrong.")}
+            </p>
+            <ol className="list-decimal space-y-1 pl-5">
+              <li>{t("Create a study, then upload the scan: the DICOM folder compressed into one .zip file.")}</li>
+              <li>{t("Open the study and press “✨ Run AI grading” — about 1–2 minutes.")}</li>
+              <li>{t("Look at the result, correct what is wrong, and press Save.")}</li>
+              <li>{t("When you are done, answer the short survey “★ Rate this software”.")}</li>
+            </ol>
+            <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              {t("Only sagittal (side view) T2 images are graded; axial images can be viewed but are not graded. A research tool — not a diagnosis.")}
+            </p>
+          </div>
+        </details>
+
+        {/* Toolbar: title + search + new */}
         <div className="mb-4 flex flex-wrap items-center gap-3">
           <div className="mr-auto">
             <h2 className="text-xl font-bold text-slate-800">{t("Worklist")}</h2>
@@ -297,17 +313,6 @@ export default function PatientList() {
               className="w-64 rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm text-slate-800 shadow-sm focus:border-teal-500 focus:outline-none"
             />
           </div>
-          <select
-            value={modalityFilter}
-            onChange={(e) => setModalityFilter(e.target.value)}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm"
-          >
-            {modalities.map((m) => (
-              <option key={m} value={m}>
-                {m === "All" ? t("All") : m}
-              </option>
-            ))}
-          </select>
           <button
             onClick={() => setShowNew((v) => !v)}
             className="rounded-lg bg-gradient-to-r from-teal-600 to-cyan-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-110"
@@ -344,18 +349,6 @@ export default function PatientList() {
                 placeholder={t("existing name groups; new one creates a patient")}
                 className="w-72 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm text-slate-800"
               />
-            </label>
-            <label className="flex flex-col gap-1 text-xs font-medium text-slate-500">
-              {t("Modality")}
-              <select
-                value={newModality}
-                onChange={(e) => setNewModality(e.target.value)}
-                className="rounded-md border border-slate-300 px-2.5 py-1.5 text-sm text-slate-800"
-              >
-                <option>MRI</option>
-                <option>CT</option>
-                <option>X-ray</option>
-              </select>
             </label>
             <button
               onClick={handleCreate}
@@ -483,7 +476,7 @@ export default function PatientList() {
                           {displayStudyId(study.id)}
                         </span>
                         <span className="rounded-md bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-600">
-                          {study.modality}
+                          {showModality(study.modality)}
                         </span>
                         <span className="text-xs text-slate-400">
                           {fmtDate(study.created_at)}

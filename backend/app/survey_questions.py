@@ -16,7 +16,7 @@ stenosis specifically deserves a blank rather than a guess.
 
 from typing import Literal
 
-Kind = Literal["usability", "core", "detail"]
+Kind = Literal["usability", "core", "detail", "reference_b"]
 REQUIRED_KINDS = ("usability", "core")
 
 
@@ -51,6 +51,7 @@ ERRORS = "Khi AI sai"
 SHOW = "Cách trình bày kết quả"
 USE = "Sử dụng trong công việc"
 UX = "Đánh giá chung về phần mềm"
+REF_B = "Mô hình B (ô “Kết quả tham khảo”)"
 
 # QUESTION IDS ARE PERMANENT ONCE ANY RESPONSE EXISTS. Answers are stored as
 # {id: score}, so renumbering silently re-labels every answer already given:
@@ -105,7 +106,20 @@ QUESTIONS: list[Question] = [
 
     Question(23, "Đáp ứng nhu cầu công việc của tôi", "usability", UX),
     Question(24, "Phần mềm: dễ sử dụng", "usability", UX),
+
+    # --- The comparison model, asked only while its panel is shown ----------
+    # Each mirrors one item about our own grades (MODEL_B_PAIRS), worded the
+    # same way, so the two means sit side by side: which model clinicians
+    # found worse is a direct comparison, not two unrelated numbers. Never
+    # required, never counted in the clinical score.
+    Question(25, "Kết quả mô hình B: khớp với đánh giá của tôi", "reference_b", REF_B),
+    Question(26, "Mô hình B — tổn thương nặng: phát hiện được, không bỏ sót", "reference_b", REF_B),
+    Question(27, "Mô hình B — ca bình thường: không báo bệnh nhầm", "reference_b", REF_B),
+    Question(28, "Kết quả mô hình B: đủ tin cậy để tham khảo khi đọc phim", "reference_b", REF_B),
 ]
+
+#: model B item -> the item asking the same of our own grades.
+MODEL_B_PAIRS = {25: 4, 26: 17, 27: 18, 28: 20}
 
 CLINICAL_IDS = [q.id for q in QUESTIONS if q.kind in ("core", "detail")]
 USABILITY_IDS = [q.id for q in QUESTIONS if q.kind == "usability"]

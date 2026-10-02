@@ -526,4 +526,64 @@ registerVi({
     "Hiện tại: đang ẩn với bác sĩ.",
   "Model B's answer for every study it read, for comparison.":
     "Kết quả của mô hình B cho mọi ca nó đã đọc, để so sánh.",
+  "Previous slice":
+    "Lát trước",
+  "Next slice":
+    "Lát sau",
+  "Slice {i} / {n}":
+    "Lát {i} / {n}",
+  "Zoom in":
+    "Phóng to",
+  "Zoom out":
+    "Thu nhỏ",
+  "Brightness":
+    "Độ sáng",
+  "Contrast":
+    "Độ tương phản",
+  "Back to the original picture":
+    "Trở về ảnh ban đầu",
+  "Reset image":
+    "Về ảnh gốc",
+  "Abnormal findings":
+    "Tóm tắt bất thường",
+  "Only what is not normal. Click a level to see it on the image.":
+    "Chỉ liệt kê những gì không bình thường. Bấm vào một tầng để xem trên ảnh.",
+  "Nothing abnormal at any level.":
+    "Không thấy bất thường ở tầng nào.",
+  "show":
+    "xem",
+  "Changed by you":
+    "Bác sĩ đã sửa",
+  "What you changed on this study":
+    "Những gì bác sĩ đã sửa ở ca này",
+  "Nothing yet — every grade is still the AI's.":
+    "Chưa sửa gì — mọi kết quả vẫn là của AI.",
+  "Not saved yet — press Save under the table.":
+    "Chưa lưu — bấm Lưu bên dưới bảng.",
+  "Changed by you — the AI said: {v}":
+    "Bác sĩ đã sửa — AI chấm: {v}",
+  "What is this website?":
+    "Trang web này dùng để làm gì?",
+  "It reads a lumbar spine MRI for you: the AI colours the vertebrae and discs on the image and grades what is abnormal at each disc level (T12–L1 down to L5–S1). You check the result and correct anything it got wrong.":
+    "Trang web đọc phim MRI cột sống thắt lưng: AI tô màu các đốt sống, đĩa đệm trên ảnh và chấm mức độ bất thường ở từng tầng đĩa đệm (từ T12–L1 đến L5–S1). Bác sĩ xem lại kết quả và sửa chỗ AI chấm sai.",
+  "Create a study, then upload the scan: the DICOM folder compressed into one .zip file.":
+    "Tạo ca mới, rồi tải phim lên: nén thư mục phim DICOM thành một file .zip.",
+  "Open the study and press “✨ Run AI grading” — about 1–2 minutes.":
+    "Mở ca và bấm “✨ Chạy chẩn đoán AI” — mất khoảng 1–2 phút.",
+  "Look at the result, correct what is wrong, and press Save.":
+    "Xem kết quả, sửa chỗ chưa đúng rồi bấm Lưu.",
+  "When you are done, answer the short survey “★ Rate this software”.":
+    "Dùng xong, bác sĩ trả lời khảo sát ngắn “★ Đánh giá phần mềm”.",
+  "Only sagittal (side view) T2 images are graded; axial images can be viewed but are not graded. A research tool — not a diagnosis.":
+    "AI chỉ chấm phim cắt dọc (sagittal) T2; phim cắt ngang (axial) xem được nhưng không được chấm. Đây là công cụ nghiên cứu, không thay cho chẩn đoán.",
+  "Our model vs model B (same question, 1–5)":
+    "Mô hình của mình và mô hình B (cùng câu hỏi, thang 1–5)",
+  "Question":
+    "Câu hỏi",
+  "Our model":
+    "Mô hình chính",
+  "Model B":
+    "Mô hình B",
+  "Red = the lower-rated model on that question.":
+    "Màu đỏ = mô hình bị chấm thấp hơn ở câu đó.",
 });

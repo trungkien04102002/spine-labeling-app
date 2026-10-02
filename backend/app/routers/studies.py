@@ -24,6 +24,7 @@ from app.inference.volume_io import (
     MIN_SLICES,
     SKIPPED_SERIES,
     extract_dicom_zip,
+    fill_missing_weighting,
     slice_axis,
     orientation_of,
     read_dicom_tags,
@@ -387,7 +388,7 @@ def list_series(
     if study is None:
         raise HTTPException(status_code=404, detail=f"Unknown study: {study_id}")
     rows = db.query(Series).filter_by(study_id=study_id).order_by(Series.id).all()
-    return [
+    out = [
         SeriesOut(
             id=row.id,
             series_uid=row.series_uid,
@@ -399,6 +400,9 @@ def list_series(
         )
         for row in rows
     ]
+    # Studies uploaded before the name was inferred at upload time.
+    fill_missing_weighting(out)
+    return out
 
 
 @router.put("/studies/{study_id}/active_series", response_model=list[SeriesOut])

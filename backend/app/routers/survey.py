@@ -12,12 +12,14 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.config import Settings, get_settings
 from app.db import get_db
 from app.models_db import Reader, SurveyResponse
 from app.routers.readers import current_reader
 from app.survey_questions import (
     CLINICAL_IDS,
     GROUPS,
+    MODEL_B_PAIRS,
     QUESTIONS,
     REQUIRED_IDS,
     SCALE_LABELS,
@@ -28,6 +30,7 @@ from app.survey_questions import (
 )
 
 from app.routers.admin import require_admin  # noqa: E402
+from app.routers.reference_b import is_visible  # noqa: E402
 
 router = APIRouter()
 
@@ -42,11 +45,17 @@ class SurveySubmission(BaseModel):
 
 
 @router.get("/survey/questions")
-def get_questions() -> dict[str, object]:
-    """The questionnaire, in presentation order, with its rating scale."""
+def get_questions(settings: Settings = Depends(get_settings)) -> dict[str, object]:
+    """The questionnaire, in presentation order, with its rating scale.
+
+    The model-B items appear only while clinicians can see model B: asking
+    about a panel they were never shown would collect guesses.
+    """
+    show_b = is_visible(settings)
+    shown = [q for q in QUESTIONS if show_b or q.kind != "reference_b"]
     return {
-        "questions": [q.as_dict() for q in QUESTIONS],
-        "groups": GROUPS,
+        "questions": [q.as_dict() for q in shown],
+        "groups": [g for g in GROUPS if any(q.group == g for q in shown)],
         "scale": {
             "min": SCALE_MIN,
             "max": SCALE_MAX,
@@ -165,6 +174,20 @@ def summary(db: Session = Depends(get_db)) -> dict[str, object]:
             for g in GROUPS
         ],
         "questions": per_question,
+        # Same question, both models: which one clinicians rated lower.
+        "model_b_comparison": [
+            {
+                "ours_id": ours,
+                "ours_text": by_id[ours]["text"],
+                "ours_mean": by_id[ours]["mean"],
+                "ours_n": by_id[ours]["n"],
+                "model_b_id": b,
+                "model_b_text": by_id[b]["text"],
+                "model_b_mean": by_id[b]["mean"],
+                "model_b_n": by_id[b]["n"],
+            }
+            for b, ours in MODEL_B_PAIRS.items()
+        ],
         "comments": [
             {"at": r.submitted_at.isoformat(), "role": r.role, "text": r.comment}
             for r in rows

@@ -585,6 +585,17 @@ export type SurveySummary = {
   groups: (Block & { name: string })[];
   questions: SurveyQuestionStat[];
   comments: { at: string; role: string | null; text: string }[];
+  /** Same question asked of both models (absent on an older backend). */
+  model_b_comparison?: {
+    ours_id: number;
+    ours_text: string;
+    ours_mean: number | null;
+    ours_n: number;
+    model_b_id: number;
+    model_b_text: string;
+    model_b_mean: number | null;
+    model_b_n: number;
+  }[];
 };
 
 /** The questionnaire itself. Served, not duplicated here, so it cannot drift. */

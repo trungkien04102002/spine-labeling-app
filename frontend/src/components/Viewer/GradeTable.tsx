@@ -85,6 +85,8 @@ interface Props {
   onJump: (slice: number) => void;
   /** When set, each cell shows a severity dropdown that calls this on change. */
   onEditSeverity?: (level: string, condition: string, severity: string) => void;
+  /** The AI's own grades: a cell that differs is outlined as the doctor's edit. */
+  original?: GradingItem[] | null;
 }
 
 /**
@@ -105,8 +107,11 @@ function outOfScale(condition: string, value: string): boolean {
   return scale != null && !scale.some((l) => l.value === value);
 }
 
-export default function GradeTable({ grading, onJump, onEditSeverity }: Props) {
+export default function GradeTable({ grading, onJump, onEditSeverity, original }: Props) {
   const { t, lang } = useT();
+  const aiValue = new Map(
+    (original ?? []).map((g) => [`${g.level}/${g.condition}`, g.severity]),
+  );
   // Eleven condition columns do not fit a laptop screen. Track whether there
   // is more to either side, so the controls and the edge fade only appear when
   // they mean something.
@@ -184,14 +189,24 @@ export default function GradeTable({ grading, onJump, onEditSeverity }: Props) {
         ? [...(optionsByCondition.get(c) ?? []), item.severity]
         : optionsByCondition.get(c) ?? [];
     const bbox = bboxOf(level);
+    const before = aiValue.get(`${level}/${c}`);
+    const edited = item != null && before != null && before !== item.severity;
     return (
       <td
         key={level}
         onClick={() => bbox && onJump(bbox[0])}
-        title={item ? t("confidence {p}%", { p: (item.score * 100).toFixed(0) }) : undefined}
+        title={
+          edited
+            ? t("Changed by you — the AI said: {v}", { v: severityLabel(c, before, lang) })
+            : item
+              ? t("confidence {p}%", { p: (item.score * 100).toFixed(0) })
+              : undefined
+        }
         style={{
           padding: "6px 10px",
           borderRadius: 6,
+          outline: edited ? "2px solid #818cf8" : undefined,
+          outlineOffset: -2,
           background: item ? severityColor(item.severity) : "#f1f3f5",
           cursor: bbox ? "pointer" : "default",
           whiteSpace: "nowrap",
@@ -223,7 +238,12 @@ export default function GradeTable({ grading, onJump, onEditSeverity }: Props) {
             ) : (
               <span style={{ flex: 1 }}>{severityLabel(c, item.severity, lang)}</span>
             )}
-            {low && (
+            {edited && (
+              <span style={{ color: "#4f46e5", fontWeight: 700 }} aria-label={t("Changed by you")}>
+                ✎
+              </span>
+            )}
+            {low && !edited && (
               <span
                 title={t("Low confidence ({p}%) — review", { p: (item.score * 100).toFixed(0) })}
                 style={{ color: "#c60", cursor: "help" }}

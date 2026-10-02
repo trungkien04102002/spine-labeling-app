@@ -6,6 +6,7 @@ import CornerstoneViewport, {
 } from "../components/Viewer/CornerstoneViewport";
 import GradeTable from "../components/Viewer/GradeTable";
 import ReferenceBPanel from "../components/Viewer/ReferenceBPanel";
+import FindingsSummary, { MyEdits } from "../components/Viewer/FindingsSummary";
 import LabelReference from "../components/Viewer/LabelReference";
 import Legend from "../components/Viewer/Legend";
 import { useHistory } from "../lib/history";
@@ -33,7 +34,7 @@ import {
   type StudyDetail,
 } from "../lib/api";
 import { LangToggle, useT } from "../lib/i18n";
-import { displayStudyId } from "../lib/room";
+import { displayStudyId, useRoom } from "../lib/room";
 
 /**
  * Translucent metadata overlay pinned to a corner of the image, the way a PACS
@@ -64,7 +65,7 @@ function InfoOverlay({ detail }: { detail: StudyDetail }) {
       <div style={{ fontWeight: 700 }}>{detail.patient_name}</div>
       <div>ID {detail.patient_id} · {detail.id}</div>
       <div>
-        {detail.modality} · {new Date(detail.created_at).toLocaleDateString()}
+        {detail.modality === "MR" ? "MRI" : detail.modality} · {new Date(detail.created_at).toLocaleDateString()}
       </div>
       {dims && (
         <div>
@@ -231,6 +232,7 @@ function SeriesPicker({
 
 export default function Viewer() {
   const { t } = useT();
+  const { room, leave } = useRoom();
   const { studyId } = useParams<{ studyId: string }>();
   const [detail, setDetail] = useState<StudyDetail | null>(null);
   const [series, setSeries] = useState<SeriesOut[]>([]);
@@ -270,6 +272,9 @@ export default function Viewer() {
   const [submittingCorrections, setSubmittingCorrections] = useState(false);
   const [submitMessage, setSubmitMessage] = useState<string | null>(null);
   const [job, setJob] = useState<JobOut | null>(null);
+  // Bumped when a grading run finishes, so the viewport reloads and shows the
+  // new segmentation without the doctor pressing F5.
+  const [gradeRun, setGradeRun] = useState(0);
 
   // The correction queue spans every study, so it loads once, not per-study.
   useEffect(() => {
@@ -354,6 +359,8 @@ export default function Viewer() {
       setRedoKinds([]);
       setDirty(false);
       getStudyDetail(studyId).then(setDetail).catch(() => {});
+      getSeries(studyId).then(setSeries).catch(() => {});
+      setGradeRun((n) => n + 1);
     } catch (err) {
       setRunError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -553,6 +560,26 @@ export default function Viewer() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+          {/* The room and the survey are on this page too: most of a visit is
+              spent here, and the survey link was easy to miss on the list. */}
+          <span className="hidden items-center gap-2 rounded-lg bg-white/15 px-3 py-1.5 text-xs text-white md:flex">
+            <span className="text-teal-50/80">{t("Room")}</span>
+            <span className="font-semibold">{room?.name}</span>
+            <button
+              type="button"
+              onClick={leave}
+              className="rounded border border-white/40 px-1.5 py-0.5 text-[10px] font-medium hover:bg-white/20"
+            >
+              {t("Switch")}
+            </button>
+          </span>
+          <Link
+            to="/survey"
+            title={t("A short survey, about 5 minutes")}
+            className="rounded-lg border border-white/60 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/15"
+          >
+            ★ {t("Rate this software")}
+          </Link>
           <LangToggle />
           <button
             onClick={handleRunAI}
@@ -609,6 +636,7 @@ export default function Viewer() {
                 studyId={studyId}
                 apiBaseUrl={API_BASE_URL}
                 seriesKey={series.find((s) => s.is_active)?.id ?? null}
+                reloadKey={gradeRun}
                 overlay={detail ? <InfoOverlay detail={detail} /> : null}
                 targetSlice={targetSlice}
                 segLabels={result?.segmentation.labels}
@@ -640,37 +668,14 @@ export default function Viewer() {
 
         {/* Side panel */}
         <aside className="flex min-w-[260px] flex-[1_1_280px] flex-col gap-5">
-          {/* About this tool — what it predicts + disclaimer (collapsible) */}
-          <details className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-            <summary className="flex cursor-pointer items-center gap-2 text-base font-bold text-slate-800">
-              <span className="h-4 w-1 rounded bg-gradient-to-b from-teal-500 to-cyan-500" />
-              {t("About this tool")}
-            </summary>
-            <div className="mt-3 space-y-3 text-xs text-slate-600">
-              <p>
-                {t("This tool automatically reads a lumbar spine MRI and produces radiological grades for each intervertebral disc level (T12–L1 down to L5–S1). Click a level in the table to jump to its slice; you can correct any grade and save it.")}
-              </p>
-              <div>
-                <p className="mb-1 font-semibold text-slate-700">
-                  {t("What it predicts")}
-                </p>
-                <ul className="space-y-1.5">
-                  {PREDICTION_GUIDE.map((g) => (
-                    <li key={g.name}>
-                      <span className="font-medium text-slate-700">
-                        {g.name}
-                      </span>{" "}
-                      <span className="text-slate-400">({g.scale})</span> —{" "}
-                      {t(g.meaning)}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <p className="rounded-md bg-amber-50 px-2.5 py-1.5 text-amber-700">
-                {t("⚠ Research use only — this is not a diagnostic tool or a medical device.")}
-              </p>
-            </div>
-          </details>
+          {/* What is wrong, beside the picture -- the full table is below. */}
+          {result && detail?.has_mask && (
+            <FindingsSummary
+              grading={result.grading}
+              original={fullResult?.grading}
+              onJump={setTargetSlice}
+            />
+          )}
 
           {legend.length > 0 && (
             <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
@@ -711,6 +716,10 @@ export default function Viewer() {
               {t("When you fix a grade in the table above and press “Save corrections”, the change is recorded as expert feedback. Send them when you are ready.")}
             </p>
 
+            {result && fullResult && (
+              <MyEdits grading={result.grading} original={fullResult.grading} unsaved={dirty} />
+            )}
+
             {corrections && (
               <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3">
                 <div className="flex items-baseline justify-between text-xs">
@@ -749,6 +758,37 @@ export default function Viewer() {
               {t("Sent corrections are reviewed later; they do not change the next patient's result.")}
             </p>
           </div>
+          {/* About this tool — what it predicts + disclaimer (collapsible) */}
+          <details className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+            <summary className="flex cursor-pointer items-center gap-2 text-base font-bold text-slate-800">
+              <span className="h-4 w-1 rounded bg-gradient-to-b from-teal-500 to-cyan-500" />
+              {t("About this tool")}
+            </summary>
+            <div className="mt-3 space-y-3 text-xs text-slate-600">
+              <p>
+                {t("This tool automatically reads a lumbar spine MRI and produces radiological grades for each intervertebral disc level (T12–L1 down to L5–S1). Click a level in the table to jump to its slice; you can correct any grade and save it.")}
+              </p>
+              <div>
+                <p className="mb-1 font-semibold text-slate-700">
+                  {t("What it predicts")}
+                </p>
+                <ul className="space-y-1.5">
+                  {PREDICTION_GUIDE.map((g) => (
+                    <li key={g.name}>
+                      <span className="font-medium text-slate-700">
+                        {g.name}
+                      </span>{" "}
+                      <span className="text-slate-400">({g.scale})</span> —{" "}
+                      {t(g.meaning)}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <p className="rounded-md bg-amber-50 px-2.5 py-1.5 text-amber-700">
+                {t("⚠ Research use only — this is not a diagnostic tool or a medical device.")}
+              </p>
+            </div>
+          </details>
         </aside>
 
           {/* Abnormality grades — the single 11-label editable table */}
@@ -782,6 +822,7 @@ export default function Viewer() {
               <>
                 <GradeTable
                   grading={result.grading}
+                  original={fullResult?.grading}
                   onJump={setTargetSlice}
                   onEditSeverity={handleEditSeverity}
                 />
@@ -873,9 +914,9 @@ export default function Viewer() {
             <ReferenceBPanel studyId={studyId} gradedAt={fullResult} />
           )}
 
-          {/* Collapsed by default: the table is what a reader came for, and
-              the card is what they open when a grade needs checking. */}
-          <details className="w-full basis-full rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          {/* Open by default: clinicians asked to see the meaning of each
+              grade without hunting for it. */}
+          <details open className="w-full basis-full rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
             <summary className="flex cursor-pointer items-center gap-2 text-base font-bold text-slate-800">
               <span className="h-4 w-1 rounded bg-gradient-to-b from-teal-500 to-cyan-500" />
               {t("Label reference: what each grade means")}

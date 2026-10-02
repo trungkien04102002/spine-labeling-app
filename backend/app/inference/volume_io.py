@@ -214,6 +214,7 @@ def extract_dicom_zip(zip_path: str, out_dir: str) -> list[SeriesInfo]:
     if not found:
         detail = f" Skipped: {'; '.join(skipped)}." if skipped else ""
         raise ValueError(f"Zip archive contains no usable DICOM series.{detail}")
+    fill_missing_weighting(found)
     found.sort(key=_reading_order)
     SKIPPED_SERIES.set(skipped)
     return found
@@ -243,6 +244,54 @@ def _series_label(series_dir: Path) -> str | None:
     except Exception:  # noqa: BLE001
         return None
     return str(ds.get("SeriesDescription", "")).strip() or None
+
+
+def _weighting_from_header(series_dir: Path) -> str | None:
+    """T1 / T2 / STIR from the acquisition timings, when the name is missing.
+
+    Anonymised exports often blank SeriesDescription (every RSNA sagittal
+    T2/STIR arrives with an empty one) and the viewer then said only
+    "Sagittal". TR/TE separate the weightings reliably when they survive:
+    long TR + long TE is T2, short + short is T1, an inversion time with a
+    long TR is STIR.
+    """
+    first = next((p for p in series_dir.iterdir() if p.is_file()), None)
+    if first is None:
+        return None
+    try:
+        ds = pydicom.dcmread(str(first), stop_before_pixels=True)
+        tr = float(ds.get("RepetitionTime") or 0)
+        te = float(ds.get("EchoTime") or 0)
+        ti = float(ds.get("InversionTime") or 0)
+    except Exception:  # noqa: BLE001 - no timings, no guess
+        return None
+    if not tr or not te:
+        return None
+    if ti and 100 <= ti <= 250 and tr >= 1500:
+        return "STIR"
+    if tr >= 1500 and te >= 60:
+        return "T2"
+    if tr < 1000 and te < 30:
+        return "T1"
+    return None
+
+
+def fill_missing_weighting(series: list) -> None:
+    """Name an unnamed sagittal series T2 when its sibling is the T1.
+
+    A lumbar protocol has a sagittal T1 and a sagittal T2 (or STIR). When the
+    export blanks one name and the timings are gone too (RSNA), the unnamed
+    sagittal beside a named T1 is the T2 -- and it is the series the models
+    must read, so it also has to sort ahead of the T1. Works on anything with
+    ``description`` and ``orientation`` attributes; edits in place.
+    """
+    sagittal = [s for s in series if s.orientation == "sagittal"]
+    names = [(s.description or "").upper() for s in sagittal]
+    has_t1 = any("T1" in n for n in names)
+    has_t2 = any("T2" in n or "STIR" in n for n in names)
+    unnamed = [s for s in sagittal if not s.description]
+    if has_t1 and not has_t2 and len(unnamed) == 1:
+        unnamed[0].description = "T2"
 
 
 def _not_diagnostic(series_dir: Path, n_files: int) -> str | None:
@@ -295,6 +344,8 @@ def _describe_series(uid: str, series_dir: Path) -> SeriesInfo:
     description = None
     if reader.HasMetaDataKey(0, "0008|103e"):  # SeriesDescription
         description = reader.GetMetaData(0, "0008|103e").strip() or None
+    if description is None:
+        description = _weighting_from_header(series_dir)
     return SeriesInfo(
         series_uid=uid,
         path=str(series_dir),

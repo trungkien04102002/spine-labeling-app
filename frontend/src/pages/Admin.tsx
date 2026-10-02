@@ -1689,6 +1689,53 @@ export function SurveyPanel() {
           ))}
       </div>
 
+      {/* Our model against model B on the same questions: which one the
+          clinicians rated lower. Shown once anyone has answered a B item. */}
+      {data.model_b_comparison?.some((r) => r.model_b_n > 0) && (
+        <div className="mb-4 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-100 px-3 py-2 text-sm font-bold text-slate-800">
+            {t("Our model vs model B (same question, 1–5)")}
+          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-slate-500">
+                <th className="px-3 py-1.5 font-semibold">{t("Question")}</th>
+                <th className="w-28 px-3 py-1.5 text-right font-semibold">{t("Our model")}</th>
+                <th className="w-28 px-3 py-1.5 text-right font-semibold">{t("Model B")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.model_b_comparison.map((r) => {
+                const lower =
+                  r.ours_mean != null && r.model_b_mean != null
+                    ? r.ours_mean < r.model_b_mean
+                      ? "ours"
+                      : r.model_b_mean < r.ours_mean
+                        ? "b"
+                        : null
+                    : null;
+                return (
+                  <tr key={r.model_b_id} className="border-t border-slate-100">
+                    <td className="px-3 py-2 text-slate-700">{r.ours_text}</td>
+                    <td className={"px-3 py-2 text-right font-mono " + (lower === "ours" ? "font-bold text-rose-600" : "text-slate-800")}>
+                      {r.ours_mean ?? "—"}
+                      <div className="text-[10px] font-sans text-slate-400">n={r.ours_n}</div>
+                    </td>
+                    <td className={"px-3 py-2 text-right font-mono " + (lower === "b" ? "font-bold text-rose-600" : "text-slate-800")}>
+                      {r.model_b_mean ?? "—"}
+                      <div className="text-[10px] font-sans text-slate-400">n={r.model_b_n}</div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <p className="border-t border-slate-100 px-3 py-1.5 text-[11px] text-slate-500">
+            {t("Red = the lower-rated model on that question.")}
+          </p>
+        </div>
+      )}
+
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
         <table className="w-full text-sm">
           <tbody>

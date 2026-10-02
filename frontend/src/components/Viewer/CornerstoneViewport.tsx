@@ -83,6 +83,49 @@ const EVERY_EDIT_TOOL = [
 // to be passive so the primary button reaches the brush).
 const MASK_EDIT_ENABLED = true;
 
+/**
+ * One colour per structure, chosen so that neighbours down the spine never
+ * look alike. Cornerstone's default table gave adjacent vertebrae and discs
+ * near-identical hues, and clinicians mistook one for the next. Ids are
+ * TotalSpineSeg's; colours alternate warm/cool along the column (cord, canal,
+ * then T10, disc, T11, disc, ... sacrum). Unlisted ids cycle through FALLBACK.
+ */
+const STRUCTURE_COLORS: Record<number, [number, number, number]> = {
+  1: [240, 50, 230], // spinal cord - magenta
+  2: [66, 212, 244], // spinal canal - cyan
+  30: [145, 30, 180], // T10 - purple
+  81: [191, 239, 69], // disc T10-T11 - lime
+  31: [67, 99, 216], // T11 - blue
+  82: [255, 225, 25], // disc T11-T12 - yellow
+  32: [170, 40, 40], // T12 - maroon
+  91: [170, 255, 195], // disc T12-L1 - mint
+  41: [230, 25, 75], // L1 - red
+  92: [255, 216, 177], // disc L1-L2 - apricot
+  42: [60, 180, 75], // L2 - green
+  93: [245, 130, 49], // disc L2-L3 - orange
+  43: [70, 153, 144], // L3 - teal
+  94: [255, 250, 200], // disc L3-L4 - beige
+  44: [154, 99, 36], // L4 - brown
+  95: [220, 190, 255], // disc L4-L5 - lavender
+  45: [128, 128, 0], // L5 - olive
+  100: [250, 190, 212], // disc L5-S1 - pink
+  50: [169, 169, 169], // sacrum - grey
+};
+const FALLBACK_COLORS: [number, number, number][] = [
+  [230, 25, 75], [60, 180, 75], [255, 225, 25], [67, 99, 216], [245, 130, 49],
+  [145, 30, 180], [66, 212, 244], [240, 50, 230], [191, 239, 69], [250, 190, 212],
+  [70, 153, 144], [220, 190, 255], [154, 99, 36], [255, 250, 200], [128, 0, 0],
+  [170, 255, 195], [128, 128, 0], [255, 216, 177], [0, 0, 117], [169, 169, 169],
+];
+function structureColor(id: number): [number, number, number] {
+  return STRUCTURE_COLORS[id] ?? FALLBACK_COLORS[id % FALLBACK_COLORS.length];
+}
+const VIEW_BTN =
+  "rounded-md border border-slate-300 bg-white px-2 py-1 font-semibold text-slate-700 transition hover:border-teal-400 hover:bg-teal-50 disabled:opacity-30";
+
+/** Brush radius a session starts with: small, so a first stroke cannot flood a neighbour. */
+const DEFAULT_BRUSH_SIZE = 3;
+
 /** Handle the viewer exposes so a parent can read the edited mask for saving. */
 export interface MaskEditApi {
   /** Flat uint8 voxels in slice order (z, y, x), or null if no mask loaded. */
@@ -110,6 +153,8 @@ interface Props {
    * cache key (Cornerstone caches volumes by URL) and to re-run the loader.
    */
   seriesKey?: string | number | null;
+  /** Change it to reload image + labelmap, e.g. after a grading run wrote a new mask. */
+  reloadKey?: unknown;
   /** Optional overlay pinned inside the image box (e.g. a PACS-style header). */
   overlay?: ReactNode;
   /** When set, scroll the stack to this slice index (jump-to-disc). */
@@ -159,6 +204,7 @@ export default function CornerstoneViewport({
   studyId,
   apiBaseUrl,
   seriesKey,
+  reloadKey,
   overlay,
   targetSlice,
   segLabels,
@@ -194,7 +240,7 @@ export default function CornerstoneViewport({
   const [segOpacity, setSegOpacity] = useState(0.5);
   const [editShape, setEditShape] = useState<EditShape>("brush");
   const [editAction, setEditAction] = useState<EditAction>("paint");
-  const [brushSize, setBrushSize] = useState(10);
+  const [brushSize, setBrushSize] = useState(DEFAULT_BRUSH_SIZE);
   // "Point at it" mode: the next click on the image chooses the structure the
   // edit tools work on, instead of painting.
   const [picking, setPicking] = useState(false);
@@ -205,6 +251,13 @@ export default function CornerstoneViewport({
   // Legend entries are kept here as well as handed to the page: the label
   // picker needs each structure's *rendered* color, which only the LUT knows.
   const [legendEntries, setLegendEntries] = useState<LegendEntry[]>([]);
+  // Viewing controls with buttons, for readers who do not know the mouse
+  // bindings: slice position, zoom, brightness/contrast, and a way back.
+  const [sliceIndex, setSliceIndex] = useState(0);
+  const [sliceCount, setSliceCount] = useState(0);
+  const [brightness, setBrightness] = useState(0); // -100..100
+  const [contrast, setContrast] = useState(0); // -100..100
+  const baseVoiRef = useRef<{ lower: number; upper: number } | null>(null);
   // A gesture spans many mousemove events; these track it so the page is told
   // "one edit happened", matching one entry in Cornerstone's undo history.
   const paintingRef = useRef(false);
@@ -319,12 +372,18 @@ export default function CornerstoneViewport({
       // Start on the middle slice (most informative for a sagittal stack).
       await viewport.setStack(imageIds, Math.floor(imageIds.length / 2));
       if (cancelled) return;
+      const voi = viewport.getProperties().voiRange;
+      baseVoiRef.current = voi ? { lower: voi.lower, upper: voi.upper } : null;
+      setSliceCount(imageIds.length);
+      setSliceIndex(viewport.getCurrentImageIdIndex());
+      setBrightness(0);
+      setContrast(0);
 
       // Overlay the segmentation labelmap if the study has one. The mask is a
       // NIfTI with the same geometry as the display volume, so its per-slice
       // imageIds line up 1:1 with the base stack.
-      const maskUrl = `${apiBaseUrl}/studies/${studyId}/mask.nii.gz`;
-      const hasMask = (await fetch(maskUrl)).ok;
+      const maskUrl = `${apiBaseUrl}/studies/${studyId}/mask.nii.gz?v=${Date.now()}`;
+      const hasMask = (await fetch(maskUrl, { cache: "no-store" })).ok;
       if (hasMask && !cancelled) {
         const maskImageIds = await createNiftiImageIdsAndCacheMetadata({
           url: maskUrl,
@@ -372,6 +431,15 @@ export default function CornerstoneViewport({
           await segmentation.addLabelmapRepresentationToViewport(viewportId, [
             { segmentationId, type: SegmentationRepresentations.Labelmap },
           ]);
+          for (let id = 1; id < 256; id++) {
+            const [r, g, b] = structureColor(id);
+            segmentation.config.color.setSegmentIndexColor(
+              viewportId,
+              segmentationId,
+              id,
+              [r, g, b, 255],
+            );
+          }
           // The pixel data was written after the images were cached; tell the
           // segmentation machinery so it (re)builds textures and repaints.
           segmentation.triggerSegmentationEvents.triggerSegmentationDataModified(
@@ -411,7 +479,7 @@ export default function CornerstoneViewport({
       ToolGroupManager.destroyToolGroup(toolGroupId);
       engine?.destroy();
     };
-  }, [studyId, apiBaseUrl, seriesKey, viewportId, segmentationId, toolGroupId]);
+  }, [studyId, apiBaseUrl, seriesKey, reloadKey, viewportId, segmentationId, toolGroupId]);
 
   // Re-fit the image whenever the viewport box resizes (window resize, layout
   // reflow when the grade panel wraps below on narrow screens, etc.).
@@ -680,6 +748,65 @@ export default function CornerstoneViewport({
     };
   }, [onMaskStroke, editMode, segAvailable]);
 
+  // Keep the slice read-out in step with the wheel, the buttons and jumps.
+  useEffect(() => {
+    const el = elementRef.current;
+    if (!el) return;
+    const onNewImage = () => {
+      const viewport = viewportRef.current;
+      if (viewport) setSliceIndex(viewport.getCurrentImageIdIndex());
+    };
+    el.addEventListener(Enums.Events.STACK_NEW_IMAGE, onNewImage);
+    return () => el.removeEventListener(Enums.Events.STACK_NEW_IMAGE, onNewImage);
+  }, []);
+
+  // Brightness and contrast as offsets from the image's own starting window,
+  // so the sliders always mean the same thing and 0/0 is the original.
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    const base = baseVoiRef.current;
+    if (!viewport || !base) return;
+    const width0 = base.upper - base.lower;
+    const center0 = (base.upper + base.lower) / 2;
+    const width = width0 * Math.pow(2, -contrast / 50);
+    const center = center0 - (brightness / 100) * width0 * 0.5;
+    viewport.setProperties({
+      voiRange: { lower: center - width / 2, upper: center + width / 2 },
+    });
+    viewport.render();
+  }, [brightness, contrast]);
+
+  function stepSlice(delta: number) {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const count = viewport.getImageIds().length;
+    const next = Math.min(Math.max(viewport.getCurrentImageIdIndex() + delta, 0), count - 1);
+    viewport.setImageIdIndex(next);
+    viewport.render();
+  }
+
+  function zoomBy(factor: number) {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const camera = viewport.getCamera();
+    if (camera.parallelScale == null) return;
+    viewport.setCamera({ parallelScale: camera.parallelScale / factor });
+    viewport.render();
+  }
+
+  /** Back to the picture as it first opened: framing, window, middle slice. */
+  function resetView() {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    viewport.resetCamera();
+    viewport.resetProperties();
+    setBrightness(0);
+    setContrast(0);
+    const base = baseVoiRef.current;
+    if (base) viewport.setProperties({ voiRange: { ...base } });
+    viewport.render();
+  }
+
   // Jump the stack to a requested slice (e.g. clicking a disc in the grade table).
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -743,6 +870,38 @@ export default function CornerstoneViewport({
           Switch back to the series marked <strong>AI</strong> to see or edit it.
         </p>
       )}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-slate-200 bg-white px-3 py-2 text-xs text-slate-700">
+        <span className="flex items-center gap-1">
+          <button type="button" onClick={() => stepSlice(-1)} disabled={sliceIndex <= 0} className={VIEW_BTN} title={t("Previous slice")}>
+            ◀
+          </button>
+          <span className="min-w-[72px] text-center tabular-nums">
+            {t("Slice {i} / {n}", { i: sliceIndex + 1, n: sliceCount })}
+          </span>
+          <button type="button" onClick={() => stepSlice(1)} disabled={sliceIndex >= sliceCount - 1} className={VIEW_BTN} title={t("Next slice")}>
+            ▶
+          </button>
+        </span>
+        <span className="flex items-center gap-1">
+          <button type="button" onClick={() => zoomBy(1.25)} className={VIEW_BTN} title={t("Zoom in")}>
+            ＋
+          </button>
+          <button type="button" onClick={() => zoomBy(0.8)} className={VIEW_BTN} title={t("Zoom out")}>
+            －
+          </button>
+        </span>
+        <label className="flex items-center gap-1.5">
+          ☀ {t("Brightness")}
+          <input type="range" min={-100} max={100} step={5} value={brightness} onChange={(e) => setBrightness(Number(e.target.value))} className="w-24" />
+        </label>
+        <label className="flex items-center gap-1.5">
+          ◐ {t("Contrast")}
+          <input type="range" min={-100} max={100} step={5} value={contrast} onChange={(e) => setContrast(Number(e.target.value))} className="w-24" />
+        </label>
+        <button type="button" onClick={resetView} className={VIEW_BTN + " px-2.5"} title={t("Back to the original picture")}>
+          ⟲ {t("Reset image")}
+        </button>
+      </div>
       {segAvailable && (
         <div
           style={{
@@ -870,7 +1029,7 @@ export default function CornerstoneViewport({
                   <input
                     type="range"
                     min={1}
-                    max={40}
+                    max={20}
                     value={brushSize}
                     onChange={(e) => setBrushSize(Number(e.target.value))}
                   />
