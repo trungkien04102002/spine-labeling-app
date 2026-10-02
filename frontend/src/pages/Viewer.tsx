@@ -236,6 +236,9 @@ export default function Viewer() {
   const { studyId } = useParams<{ studyId: string }>();
   const [detail, setDetail] = useState<StudyDetail | null>(null);
   const [series, setSeries] = useState<SeriesOut[]>([]);
+  // The viewport waits for the series list, so it mounts once on the right
+  // series instead of once on "none" and again a moment later.
+  const [seriesLoaded, setSeriesLoaded] = useState(false);
   const [seriesBusy, setSeriesBusy] = useState(false);
   // Grade edits flow through an undo/redo history; `result` is its cursor.
   const gradeHistory = useHistory<InferResult | null>(null);
@@ -288,9 +291,11 @@ export default function Viewer() {
     getStudyDetail(studyId)
       .then(setDetail)
       .catch(() => setDetail(null));
+    setSeriesLoaded(false);
     getSeries(studyId)
       .then(setSeries)
-      .catch(() => setSeries([]));
+      .catch(() => setSeries([]))
+      .finally(() => setSeriesLoaded(true));
     setUndoKinds([]);
     setRedoKinds([]);
     getAnnotation(studyId)
@@ -631,9 +636,8 @@ export default function Viewer() {
               busy={seriesBusy}
               onSelect={handleSelectSeries}
             />
-            {studyId && (
+            {studyId && seriesLoaded && (
               <CornerstoneViewport
-                key={`${series.find((s) => s.is_active)?.id ?? "none"}-${gradeRun}`}
                 studyId={studyId}
                 apiBaseUrl={API_BASE_URL}
                 seriesKey={series.find((s) => s.is_active)?.id ?? null}

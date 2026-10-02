@@ -7,6 +7,7 @@ import {
 } from "react";
 import {
   RenderingEngine,
+  getRenderingEngine,
   Enums,
   imageLoader,
   cache,
@@ -170,6 +171,21 @@ function fixNiftiSlicePositions(imageIds: string[]): void {
       metadata: { ...plane, imagePositionPatient: ipp },
     });
   });
+}
+
+/**
+ * One rendering engine for the whole app, reused by every viewer mount.
+ *
+ * Each RenderingEngine holds a WebGL context, and destroying one does not hand
+ * its context back promptly. Opening a few studies and switching series made a
+ * new engine every time; past Chrome's limit (~16) the browser drops the
+ * oldest context -- sometimes the one on screen -- and the image goes black,
+ * with "Too many active WebGL contexts" in the console. Seen on the GPU box
+ * 2026-10-02 on about half of all loads.
+ */
+const ENGINE_ID = "spine-viewer-engine";
+function sharedEngine(): RenderingEngine {
+  return (getRenderingEngine(ENGINE_ID) as RenderingEngine | undefined) ?? new RenderingEngine(ENGINE_ID);
 }
 
 /** 1st-99.5th percentile of the slice on screen, or null if there is none. */
@@ -362,7 +378,7 @@ export default function CornerstoneViewport({
     let cancelled = false;
     let engine: RenderingEngine | undefined;
 
-    const renderingEngineId = `engine-${studyId}`;
+    const renderingEngineId = ENGINE_ID;
 
     // Each series gets a fresh verdict: a failure on one must not be left on
     // screen while a later, working one renders underneath it.
@@ -380,7 +396,7 @@ export default function CornerstoneViewport({
       if (cancelled || !elementRef.current) return;
       fixNiftiSlicePositions(imageIds);
 
-      engine = new RenderingEngine(renderingEngineId);
+      engine = sharedEngine();
       engineRef.current = engine;
       engine.enableElement({
         viewportId,
@@ -434,6 +450,8 @@ export default function CornerstoneViewport({
 
       const viewport = engine.getViewport(viewportId) as Types.IStackViewport;
       viewportRef.current = viewport;
+      // Read-only handle for diagnosing a viewer on a remote box (DevTools).
+      (window as unknown as { __spineViewer?: unknown }).__spineViewer = { viewport, imageIds };
       // Start on the middle slice (most informative for a sagittal stack).
       await viewport.setStack(imageIds, Math.floor(imageIds.length / 2));
       if (cancelled) return;
@@ -547,7 +565,12 @@ export default function CornerstoneViewport({
       historyResetRef.current?.();
       segmentation.removeSegmentation(segmentationId);
       ToolGroupManager.destroyToolGroup(toolGroupId);
-      engine?.destroy();
+      // Detach, never destroy: the engine and its WebGL context are shared.
+      try {
+        engine?.disableElement(viewportId);
+      } catch {
+        /* already gone */
+      }
     };
   }, [studyId, apiBaseUrl, seriesKey, reloadKey, viewportId, segmentationId, toolGroupId]);
 
