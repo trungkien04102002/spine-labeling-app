@@ -101,4 +101,8 @@ if (_dist / "index.html").is_file():
         index = _dist / "index.html"
         if not index.is_file():
             raise HTTPException(status_code=404, detail="frontend not built")
-        return FileResponse(index)
+        # index.html names the hashed bundles of the current build; a browser
+        # that cached it kept running last week's page after an update (seen
+        # 2026-10-02). Revalidate it every time; the bundles themselves are
+        # content-hashed and stay cacheable.
+        return FileResponse(index, headers={"Cache-Control": "no-cache"})
