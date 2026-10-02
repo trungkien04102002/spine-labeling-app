@@ -17,3 +17,6 @@ backend/spinenet/weights/
 
 .DS_Store
 **/.DS_Store
+
+# Comparison model B: built by tools/build_reference_b.py (547 MB originals + derived files)
+backend/models/weights/reference_b/
