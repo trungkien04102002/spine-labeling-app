@@ -190,14 +190,28 @@ export default function Survey() {
   const orderedGroups: string[] = form?.sections?.length
     ? form.sections.flatMap((sec) => sec.groups)
     : (form?.groups ?? []);
+  // Criteria asked of both models are shown as pairs, A directly above B.
+  const pairs = form?.pairs ?? [];
+  const byId = new Map((form?.questions ?? []).map((q) => [q.id, q]));
+  const pairedIds = new Set(pairs.flatMap((p) => [p.a, p.b]).filter((id): id is number => id != null));
+  const isPairGroup = (g: string) =>
+    (form?.questions ?? []).some((q) => q.group === g && pairedIds.has(q.id));
   const displayNo = new Map<number, number>();
-  for (const g of orderedGroups)
+  for (const g of orderedGroups) {
+    if (isPairGroup(g)) {
+      for (const p of pairs)
+        for (const id of [p.a, p.b])
+          if (id != null && byId.get(id)?.group === g) displayNo.set(id, displayNo.size + 1);
+      continue;
+    }
     for (const q of form?.questions ?? [])
       if (q.group === g && !q.matrix) displayNo.set(q.id, displayNo.size + 1);
+  }
   const missing = required
     .filter((q) => answers[q.id] == null)
     .map((q) => displayNo.get(q.id))
-    .filter((n): n is number => n != null);
+    .filter((n): n is number => n != null)
+    .sort((a, b) => a - b);
 
   async function handleSubmit() {
     setSending(true);
@@ -272,8 +286,31 @@ export default function Survey() {
             <span className="h-4 w-1 rounded bg-gradient-to-b from-teal-500 to-cyan-500" />
             {group}
           </h2>
+          {isPairGroup(group) &&
+            pairs.map((p) => {
+              const rows = [
+                { id: p.a, label: "Mô hình A" },
+                { id: p.b, label: "Mô hình B" },
+              ].filter((r) => r.id != null && byId.get(r.id)?.group === group);
+              if (rows.length === 0) return null;
+              return (
+                <div key={p.title} className="mt-3 rounded-md border border-slate-200 bg-slate-50/60 px-3 pt-3">
+                  <p className="text-sm font-semibold text-slate-800">{p.title}</p>
+                  {rows.map((r) => (
+                    <QuestionRow
+                      key={r.id!}
+                      question={{ ...byId.get(r.id!)!, text: r.label }}
+                      index={(displayNo.get(r.id!) ?? r.id!) - 1}
+                      labels={form!.scale.labels}
+                      value={answers[r.id!]}
+                      onChange={(v) => setAnswers((prev) => ({ ...prev, [r.id!]: v }))}
+                    />
+                  ))}
+                </div>
+              );
+            })}
           {(form?.questions ?? [])
-            .filter((q) => q.group === group && !q.matrix)
+            .filter((q) => q.group === group && !q.matrix && !pairedIds.has(q.id))
             .map((q) => (
               <QuestionRow
                 key={q.id}

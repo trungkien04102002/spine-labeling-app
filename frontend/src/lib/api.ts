@@ -575,6 +575,8 @@ export type SurveyForm = {
   groups: string[];
   /** Headings over runs of groups (model A, the software, model B). */
   sections?: { title: string; groups: string[] }[];
+  /** Criteria asked of both models: A's question id, then B's (null if hidden). */
+  pairs?: { title: string; a: number; b: number | null }[];
   scale: { min: number; max: number; labels: string[] };
 };
 

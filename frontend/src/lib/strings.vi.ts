@@ -122,8 +122,8 @@ registerVi({
     "✨ Chạy chẩn đoán AI",
   "Grading progress":
     "Tiến độ chấm",
-  "Usually 2–4 minutes on the GPU server. You can leave this page — the run continues on the server and the result is saved.":
-    "Thường mất 2–4 phút trên máy chủ GPU. Bác sĩ có thể rời trang — việc chấm vẫn chạy trên máy chủ và kết quả được lưu lại.",
+  "Usually 3–5 minutes. Press it and leave it: you can even leave this page — the run continues on the server and the result is saved.":
+    "Thường mất 3–5 phút. Cứ bấm rồi để đó chờ — có thể rời trang, máy chủ vẫn chạy và tự lưu kết quả.",
   "Saving…":
     "Đang lưu…",
   "Undo mask edit":
@@ -566,10 +566,10 @@ registerVi({
     "Trang web này dùng để làm gì?",
   "It reads a lumbar spine MRI for you: the AI colours the vertebrae and discs on the image and grades what is abnormal at each disc level (T12–L1 down to L5–S1). You check the result and correct anything it got wrong.":
     "Trang web đọc phim MRI cột sống thắt lưng: AI tô màu các đốt sống, đĩa đệm trên ảnh và chấm mức độ bất thường ở từng tầng đĩa đệm (từ T12–L1 đến L5–S1). Bác sĩ xem lại kết quả và sửa chỗ AI chấm sai.",
-  "Create a study, then upload the scan compressed into one .zip file. Only the sagittal (side view) lumbar series are needed, T2 first — their names usually contain “sag”, e.g. t2_tse_sag, SAG T2, T2 SAG FSE.":
-    "Tạo ca mới, rồi tải phim lên: nén thành một file .zip. Chỉ cần phim cắt dọc (sagittal) vùng thắt lưng, ưu tiên T2 — tên chuỗi thường có chữ “sag”, ví dụ t2_tse_sag, SAG T2, T2 SAG FSE.",
-  "Open the study and press “✨ Run AI grading” — about 1–2 minutes.":
-    "Mở ca và bấm “✨ Chạy chẩn đoán AI” — mất khoảng 1–2 phút.",
+  "Create a study, then upload the scan compressed into one .zip file.":
+    "Tạo ca mới, rồi tải phim lên: nén thành một file .zip.",
+  "Open the study and press “✨ Run AI grading” — about 3–5 minutes. Press it and leave it to run.":
+    "Mở ca và bấm “✨ Chạy chẩn đoán AI” — mất khoảng 3–5 phút. Cứ bấm rồi để đó chờ.",
   "Look at the result, correct what is wrong, and press Save.":
     "Xem kết quả, sửa chỗ chưa đúng rồi bấm Lưu.",
   "When you are done, answer the short survey “★ Rate this software”.":
@@ -668,4 +668,14 @@ registerVi({
     "Ca này là một ảnh 2D nên chỉ mô hình B đọc được:",
   "Model B reads the uploaded picture and answers yes/no for the whole image. Say whether the picture is a side view (sagittal) or a cross-section (axial): model B has a version for each.":
     "Mô hình B đọc ảnh đã tải lên và trả lời có/không cho cả ảnh. Bác sĩ chọn ảnh là cắt dọc (sagittal) hay cắt ngang (axial) — mô hình B có bản riêng cho từng loại.",
+  "Only the sagittal (side view) lumbar series are needed, T2 first":
+    "Chỉ cần phim cắt dọc (sagittal) vùng thắt lưng, ưu tiên T2",
+  "— their names usually contain “sag”, e.g. t2_tse_sag, SAG T2, T2 SAG FSE.":
+    "— tên chuỗi thường có chữ “sag”, ví dụ t2_tse_sag, SAG T2, T2 SAG FSE.",
+  "User guide (PDF)":
+    "Tải hướng dẫn sử dụng (PDF)",
+  "Click to read":
+    "Bấm để xem",
+  "Collapse":
+    "Thu gọn",
 });

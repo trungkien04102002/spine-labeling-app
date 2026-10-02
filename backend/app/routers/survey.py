@@ -19,6 +19,8 @@ from app.routers.readers import current_reader
 from app.survey_questions import (
     CLINICAL_IDS,
     GROUPS,
+    COMPARE_PAIRS,
+    COMPARE_TITLE_A_ONLY,
     MODEL_B_PAIRS,
     QUESTIONS,
     SECTIONS,
@@ -58,9 +60,17 @@ def get_questions(settings: Settings = Depends(get_settings)) -> dict[str, objec
         "questions": [q.as_dict() for q in shown],
         "groups": [g for g in GROUPS if any(q.group == g for q in shown)],
         "sections": [
-            {"title": title, "groups": [g for g in groups if any(q.group == g for q in shown)]}
+            {
+                "title": title if show_b or not title.startswith("Phần 2") else COMPARE_TITLE_A_ONLY,
+                "groups": [g for g in groups if any(q.group == g for q in shown)],
+            }
             for title, groups in SECTIONS
             if any(q.group in groups for q in shown)
+        ],
+        # Criteria asked of both models: render A and B together.
+        "pairs": [
+            {"title": title, "a": a, "b": b if show_b else None}
+            for title, a, b in COMPARE_PAIRS
         ],
         "scale": {
             "min": SCALE_MIN,

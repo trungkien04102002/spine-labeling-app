@@ -658,13 +658,51 @@ export default function Viewer() {
               </span>
             </div>
             <p className="mx-auto mt-1 max-w-7xl text-[11px] text-teal-50/80">
-              {t("Usually 2–4 minutes on the GPU server. You can leave this page — the run continues on the server and the result is saved.")}
+              {t("Usually 3–5 minutes. Press it and leave it: you can even leave this page — the run continues on the server and the result is saved.")}
             </p>
           </div>
         )}
       </header>
 
       <main className="mx-auto flex max-w-7xl flex-col gap-5 px-6 py-6">
+          {/* About this tool — first on the page, collapsed; the button says it opens. */}
+          <details className="group rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
+            <summary className="flex cursor-pointer list-none items-center gap-2 text-base font-bold text-slate-800 [&::-webkit-details-marker]:hidden">
+              <span className="h-4 w-1 rounded bg-gradient-to-b from-teal-500 to-cyan-500" />
+              {t("About this tool")}
+              <span className="ml-auto rounded-md border border-teal-300 px-2.5 py-1 text-xs font-semibold text-teal-700 group-open:hidden">
+                ▼ {t("Click to read")}
+              </span>
+              <span className="ml-auto hidden rounded-md border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-600 group-open:inline">
+                ▲ {t("Collapse")}
+              </span>
+            </summary>
+            <div className="mt-3 space-y-3 text-xs text-slate-600">
+              <p>
+                {t("This tool automatically reads a lumbar spine MRI and produces radiological grades for each intervertebral disc level (T12–L1 down to L5–S1). Click a level in the table to jump to its slice; you can correct any grade and save it.")}
+              </p>
+              <div>
+                <p className="mb-1 font-semibold text-slate-700">
+                  {t("What it predicts")}
+                </p>
+                <ul className="space-y-1.5">
+                  {PREDICTION_GUIDE.map((g) => (
+                    <li key={g.name}>
+                      <span className="font-medium text-slate-700">
+                        {g.name}
+                      </span>{" "}
+                      <span className="text-slate-400">({g.scale})</span> —{" "}
+                      {t(g.meaning)}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <p className="rounded-md bg-amber-50 px-2.5 py-1.5 text-amber-700">
+                {t("⚠ Research use only — this is not a diagnostic tool or a medical device.")}
+              </p>
+            </div>
+          </details>
+
         {/* Top row: the picture, and beside it what is wrong with it. The
             side column is held to the picture's height and scrolls inside
             itself, so it can never leave an empty gap under the image -- a
@@ -996,37 +1034,7 @@ export default function Viewer() {
           )}
 
         <div className="flex flex-col gap-5">
-          {/* About this tool — what it predicts + disclaimer (collapsible) */}
-          <details className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-            <summary className="flex cursor-pointer items-center gap-2 text-base font-bold text-slate-800">
-              <span className="h-4 w-1 rounded bg-gradient-to-b from-teal-500 to-cyan-500" />
-              {t("About this tool")}
-            </summary>
-            <div className="mt-3 space-y-3 text-xs text-slate-600">
-              <p>
-                {t("This tool automatically reads a lumbar spine MRI and produces radiological grades for each intervertebral disc level (T12–L1 down to L5–S1). Click a level in the table to jump to its slice; you can correct any grade and save it.")}
-              </p>
-              <div>
-                <p className="mb-1 font-semibold text-slate-700">
-                  {t("What it predicts")}
-                </p>
-                <ul className="space-y-1.5">
-                  {PREDICTION_GUIDE.map((g) => (
-                    <li key={g.name}>
-                      <span className="font-medium text-slate-700">
-                        {g.name}
-                      </span>{" "}
-                      <span className="text-slate-400">({g.scale})</span> —{" "}
-                      {t(g.meaning)}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <p className="rounded-md bg-amber-50 px-2.5 py-1.5 text-amber-700">
-                {t("⚠ Research use only — this is not a diagnostic tool or a medical device.")}
-              </p>
-            </div>
-          </details>
+
           {/* Open by default: clinicians asked to see the meaning of each
               grade without hunting for it. */}
           <details open className="w-full basis-full rounded-lg border border-slate-200 bg-white p-4 shadow-sm">

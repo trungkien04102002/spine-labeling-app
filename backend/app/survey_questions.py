@@ -51,7 +51,7 @@ ERRORS = "Khi AI sai"
 SHOW = "Cách trình bày kết quả"
 USE = "Sử dụng trong công việc"
 UX = "Đánh giá chung về phần mềm"
-REF_B = "Kết quả mô hình B"
+COMPARE = "Mô hình A và mô hình B theo từng tiêu chí"
 
 # QUESTION IDS ARE PERMANENT ONCE ANY RESPONSE EXISTS. Answers are stored as
 # {id: score}, so renumbering silently re-labels every answer already given:
@@ -72,7 +72,7 @@ QUESTIONS: list[Question] = [
     Question(3, "Vùng tô: giúp tìm nhanh tầng đĩa đệm cần xem", "detail", SEG),
 
     # --- Whether the grades are right, overall and label by label -----------
-    Question(4, "Nhìn chung, điểm chẩn đoán của AI: khớp với đánh giá của tôi", "core", GRADE),
+    Question(4, "Nhìn chung, điểm chẩn đoán của AI: khớp với đánh giá của tôi", "core", COMPARE),
     # One row per label the app actually outputs -- all eleven, with left and
     # right foraminal, and upper and lower endplate and marrow, taken
     # together because a reader judges a side or an edge as one finding.
@@ -95,12 +95,12 @@ QUESTIONS: list[Question] = [
 
     # --- How it fails, which accuracy alone cannot say --------------------
     Question(16, "Mức an toàn khi AI sai: chỉ lệch ít và tôi dễ nhận ra", "core", ERRORS),
-    Question(17, "Tổn thương nặng: AI phát hiện được, không bỏ sót", "detail", ERRORS),
-    Question(18, "Ca bình thường: AI không báo bệnh nhầm", "detail", ERRORS),
+    Question(17, "Tổn thương nặng: AI phát hiện được, không bỏ sót", "detail", COMPARE),
+    Question(18, "Ca bình thường: AI không báo bệnh nhầm", "detail", COMPARE),
 
     # --- Whether it survives contact with a working day -------------------
     Question(19, "Sửa lại vùng tô và sửa điểm AI chấm: thuận tiện", "detail", USE),
-    Question(20, "Kết quả AI: đủ tin cậy để tham khảo khi đọc phim", "detail", USE),
+    Question(20, "Kết quả AI: đủ tin cậy để tham khảo khi đọc phim", "detail", COMPARE),
     Question(21, "Thời gian đọc một ca: nhanh hơn so với tự đọc", "detail", USE),
     Question(22, "Dùng trong công việc thường ngày: phù hợp", "core", USE),
 
@@ -112,22 +112,33 @@ QUESTIONS: list[Question] = [
     # same way, so the two means sit side by side: which model clinicians
     # found worse is a direct comparison, not two unrelated numbers. Never
     # required, never counted in the clinical score.
-    Question(25, "Kết quả mô hình B: khớp với đánh giá của tôi", "reference_b", REF_B),
-    Question(26, "Mô hình B — tổn thương nặng: phát hiện được, không bỏ sót", "reference_b", REF_B),
-    Question(27, "Mô hình B — ca bình thường: không báo bệnh nhầm", "reference_b", REF_B),
-    Question(28, "Kết quả mô hình B: đủ tin cậy để tham khảo khi đọc phim", "reference_b", REF_B),
+    Question(25, "Kết quả mô hình B: khớp với đánh giá của tôi", "reference_b", COMPARE),
+    Question(26, "Mô hình B — tổn thương nặng: phát hiện được, không bỏ sót", "reference_b", COMPARE),
+    Question(27, "Mô hình B — ca bình thường: không báo bệnh nhầm", "reference_b", COMPARE),
+    Question(28, "Kết quả mô hình B: đủ tin cậy để tham khảo khi đọc phim", "reference_b", COMPARE),
 ]
 
 #: model B item -> the item asking the same of our own grades.
 MODEL_B_PAIRS = {25: 4, 26: 17, 27: 18, 28: 20}
 
-# Parts of the form, each a heading over its groups. Model A (this app's own
-# grading) and model B (the comparison model) are asked about separately, so a
-# clinician never has to guess which model a question means.
+# Parts of the form, each a heading over its groups. Model A's own aspects
+# first; then every clinical criterion asked of BOTH models, A directly above
+# B, so a clinician rates the two while the comparison is fresh rather than
+# recalling model A's answer a page later; then the software.
 SECTIONS = [
-    ("Phần 1 — Mô hình A (vùng tô và bảng điểm bất thường)", [SEG, GRADE, ERRORS]),
-    ("Phần 2 — Phần mềm", [SHOW, USE, UX]),
-    ("Phần 3 — Mô hình B (ô “Mô hình B — kết quả để đối chiếu”)", [REF_B]),
+    ("Phần 1 — Mô hình A: vùng tô và từng nhãn", [SEG, GRADE, ERRORS]),
+    ("Phần 2 — So sánh lâm sàng: mô hình A và mô hình B", [COMPARE]),
+    ("Phần 3 — Phần mềm", [SHOW, USE, UX]),
+]
+#: Phần 2's title when model B is hidden and only model A's rows remain.
+COMPARE_TITLE_A_ONLY = "Phần 2 — Đánh giá lâm sàng chung"
+
+#: One criterion, asked of model A then model B, shown as a pair.
+COMPARE_PAIRS = [
+    ("Khớp với đánh giá của tôi", 4, 25),
+    ("Tổn thương nặng: phát hiện được, không bỏ sót", 17, 26),
+    ("Ca bình thường: không báo bệnh nhầm", 18, 27),
+    ("Đủ tin cậy để tham khảo khi đọc phim", 20, 28),
 ]
 
 CLINICAL_IDS = [q.id for q in QUESTIONS if q.kind in ("core", "detail")]
