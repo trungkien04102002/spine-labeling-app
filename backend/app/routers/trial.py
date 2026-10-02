@@ -21,7 +21,9 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
+from app.config import Settings, get_settings
 from app.db import get_db
+from app.inference import reference_b
 from app.models_db import CorrectionLog, Patient, Reader, Study, SurveyResponse
 from app.routers.admin import require_admin
 from app.survey_questions import QUESTIONS
@@ -125,6 +127,8 @@ questions.csv         the text of every Qn column
 corrections.csv       one row per grade a clinician changed. "before" is the
                       model's value only on a cell's FIRST edit; for agreement
                       with the model, take the earliest row per cell.
+reference_b.csv       comparison model B's answer per study (whole image, not
+                      per level): one row per label, prediction 1 = yes
 spine.db              the full SQLite database, for anything the CSVs miss
 
 The images clinicians uploaded are NOT in this file (they can be large); copy
@@ -152,8 +156,32 @@ def _snapshot(db: Session) -> bytes | None:
         return target_path.read_bytes()
 
 
+def reference_b_csv(settings: Settings) -> str:
+    """Model B's saved answers, one row per (study, label)."""
+    rows = []
+    data = Path(settings.data_dir)
+    for path in sorted(data.glob(f"*/{reference_b.RESULT_FILE}")):
+        try:
+            r = reference_b.load_result(path.parent)
+        except ValueError:
+            continue  # an unreadable file must not cost the whole export
+        for item in r.results:
+            rows.append(
+                [path.parent.name, item.label, item.probability, item.prediction,
+                 r.threshold, r.no_finding_override, r.slice_index, r.slice_count,
+                 r.model, r.created_at]
+            )
+    return _csv(
+        ["study_id", "label", "probability", "prediction", "threshold",
+         "no_finding_override", "slice_index", "slice_count", "model", "created_at"],
+        rows,
+    )
+
+
 @router.get("/trial/export.zip", dependencies=[Depends(require_admin)])
-def export_trial(db: Session = Depends(get_db)) -> Response:
+def export_trial(
+    db: Session = Depends(get_db), settings: Settings = Depends(get_settings)
+) -> Response:
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
         z.writestr("README.txt", _README)
@@ -161,6 +189,7 @@ def export_trial(db: Session = Depends(get_db)) -> Response:
         z.writestr("survey_responses.csv", survey_csv(db))
         z.writestr("questions.csv", questions_csv())
         z.writestr("corrections.csv", corrections_csv(db))
+        z.writestr("reference_b.csv", reference_b_csv(settings))
         snapshot = _snapshot(db)
         if snapshot is not None:
             z.writestr("spine.db", snapshot)

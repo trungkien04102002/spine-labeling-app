@@ -12,6 +12,9 @@ import {
   deleteSurveyResponse,
   downloadLocked,
   getAdminStatus,
+  getReferenceBVisibility,
+  setReferenceBVisibility,
+  type ReferenceBVisibility,
   getRooms,
   getSurveyForm,
   getSurveyResponses,
@@ -401,6 +404,7 @@ function ExportPage() {
             ["survey_responses.csv", t("One row per questionnaire; opens in Excel with Vietnamese intact.")],
             ["questions.csv", t("The text of every Q column, so the answers stay readable.")],
             ["corrections.csv", t("Every grade a clinician changed, with their room.")],
+            ["reference_b.csv", t("Model B's answer for every study it read, for comparison.")],
             ["spine.db", t("A copy of the whole database, for anything the CSVs miss.")],
           ].map(([file, what]) => (
             <tr key={file} className="border-t border-slate-100">
@@ -414,6 +418,69 @@ function ExportPage() {
         {t("Images clinicians uploaded are not in the zip — they can be hundreds of MB. Copy them off the box separately; see DEPLOY_VAST.md.")}
       </p>
     </Card>
+  );
+}
+
+/** The /admin switch for the comparison model's panel in the viewer. */
+function ReferenceBSwitch() {
+  const { t } = useT();
+  const [v, setV] = useState<ReferenceBVisibility | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    getReferenceBVisibility()
+      .then(setV)
+      .catch((e) => setError(String(e)));
+  }, []);
+  async function toggle() {
+    if (!v) return;
+    setBusy(true);
+    setError(null);
+    try {
+      setV(await setReferenceBVisibility(!v.visible));
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="mx-auto max-w-4xl px-6 pt-2">
+      <Card
+        title={t("Comparison model B")}
+        action={
+          v && (
+            <button
+              type="button"
+              onClick={toggle}
+              disabled={busy || !v.installed}
+              className={
+                "rounded-lg px-4 py-2 text-sm font-bold text-white disabled:bg-slate-300 " +
+                (v.visible ? "bg-rose-600 hover:bg-rose-700" : "bg-teal-600 hover:bg-teal-700")
+              }
+            >
+              {v.visible ? t("Hide from clinicians") : t("Show to clinicians")}
+            </button>
+          )
+        }
+      >
+        <p className="text-sm text-slate-600">
+          {t("Model B runs after every AI grading and its answer is saved (in the export as reference_b.csv). This switch only decides whether clinicians see it, as a panel under the grade table.")}
+        </p>
+        {v && (
+          <p className="mt-2 text-sm font-semibold">
+            {!v.installed ? (
+              <span className="text-amber-700">{t("Model B is not installed on this server.")}</span>
+            ) : v.visible ? (
+              <span className="text-rose-600">{t("Now: shown to clinicians.")}</span>
+            ) : (
+              <span className="text-slate-600">{t("Now: hidden from clinicians.")}</span>
+            )}
+          </p>
+        )}
+        {error && <p className="mt-2 text-sm text-rose-600">{error}</p>}
+      </Card>
+    </div>
   );
 }
 
@@ -495,7 +562,15 @@ export default function AdminHub() {
           <Route index element={<RoomsPage />} />
           <Route path="survey" element={<SurveyPage />} />
           <Route path="feedback" element={<Admin embedded />} />
-          <Route path="models" element={<ModelVersions embedded />} />
+          <Route
+            path="models"
+            element={
+              <>
+                <ReferenceBSwitch />
+                <ModelVersions embedded />
+              </>
+            }
+          />
           <Route path="export" element={<ExportPage />} />
           <Route path="*" element={<Navigate to="/admin" replace />} />
         </Routes>

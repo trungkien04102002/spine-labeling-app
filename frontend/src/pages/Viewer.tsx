@@ -5,6 +5,7 @@ import CornerstoneViewport, {
   type MaskEditApi,
 } from "../components/Viewer/CornerstoneViewport";
 import GradeTable from "../components/Viewer/GradeTable";
+import ReferenceBPanel from "../components/Viewer/ReferenceBPanel";
 import LabelReference from "../components/Viewer/LabelReference";
 import Legend from "../components/Viewer/Legend";
 import { useHistory } from "../lib/history";
@@ -865,6 +866,12 @@ export default function Viewer() {
               )
             )}
           </div>
+
+          {/* Model B, for comparison only: renders nothing until our own
+              grading exists, and nothing at all if model B is absent. */}
+          {fullResult && result && studyId && (
+            <ReferenceBPanel studyId={studyId} gradedAt={fullResult} />
+          )}
 
           {/* Collapsed by default: the table is what a reader came for, and
               the card is what they open when a grade needs checking. */}

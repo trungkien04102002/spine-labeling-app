@@ -15,6 +15,7 @@ from app.routers import (
     infer,
     patients,
     readers,
+    reference_b,
     retraining,
     studies,
     survey,
@@ -56,6 +57,7 @@ app.include_router(readers.router)
 app.include_router(studies.router)
 app.include_router(infer.router)
 app.include_router(full_grading.router)
+app.include_router(reference_b.router)
 app.include_router(feedback.router)
 app.include_router(retraining.router)
 app.include_router(survey.router)

@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
 from app.db import SessionLocal, get_db
+from app.inference import reference_b
 from app.inference.full_grading import build_full_grading, grading_to_csv
 from app.inference.volume_io import to_web_mask
 from app.jobs import Job, jobs
@@ -89,8 +90,9 @@ def run_and_persist_full_grading(
     """
     study = _require_gradable_study(db, study_id)
     # Always grade the sagittal series, whichever one the doctor is viewing.
+    volume_path = grading_volume_path(db, study)
     result, png_bytes, mask_path, labels = build_full_grading(
-        study_id, grading_volume_path(db, study), progress=progress
+        study_id, volume_path, progress=progress
     )
     mark_analyzed(db, study)
 
@@ -127,6 +129,10 @@ def run_and_persist_full_grading(
         )
     )
     db.commit()
+
+    # The comparison model, strictly after our own result is saved: it cannot
+    # raise, and a study it fails on simply shows no model-B panel.
+    reference_b.run_quietly(study_id, volume_path, study_dir)
 
     return result
 

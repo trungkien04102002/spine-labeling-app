@@ -230,6 +230,55 @@ export function fullGradingSliceUrl(studyId: string): string {
   return `${API_BASE_URL}/studies/${studyId}/grade_full/slice.png`;
 }
 
+/** Comparison model B (see backend/app/inference/reference_b.py). */
+export interface ReferenceLabel {
+  label: string;
+  probability: number;
+  prediction: number;
+}
+
+export interface ReferenceResult {
+  model: string;
+  plane: string;
+  slice_index: number;
+  slice_count: number;
+  threshold: number;
+  no_finding_override: boolean;
+  results: ReferenceLabel[];
+  created_at: string;
+}
+
+export function getReferenceB(studyId: string): Promise<ReferenceResult> {
+  return apiFetch<ReferenceResult>(`/studies/${studyId}/reference_b`);
+}
+
+export function runReferenceB(studyId: string): Promise<ReferenceResult> {
+  return apiFetch<ReferenceResult>(`/studies/${studyId}/reference_b`, { method: "POST" });
+}
+
+export interface ReferenceBVisibility {
+  visible: boolean;
+  installed: boolean;
+}
+
+/** Whether the viewer shows model B at all (an /admin switch, off by default). */
+export function getReferenceBVisibility(): Promise<ReferenceBVisibility> {
+  return apiFetch<ReferenceBVisibility>("/reference_b/visibility");
+}
+
+export function setReferenceBVisibility(visible: boolean): Promise<ReferenceBVisibility> {
+  return apiFetch<ReferenceBVisibility>("/reference_b/visibility", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ visible }),
+  });
+}
+
+export function referenceBInputUrl(studyId: string, createdAt: string): string {
+  // createdAt busts the browser cache when a re-run replaces the image.
+  return `${API_BASE_URL}/studies/${studyId}/reference_b/input.png?v=${encodeURIComponent(createdAt)}`;
+}
+
 export function getSeries(studyId: string): Promise<SeriesOut[]> {
   return apiFetch<SeriesOut[]>(`/studies/${studyId}/series`);
 }

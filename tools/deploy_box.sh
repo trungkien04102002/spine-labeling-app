@@ -44,7 +44,11 @@ rsync -az -e "ssh -p $PORT -o BatchMode=yes" --delete \
   --exclude node_modules --exclude .venv --exclude backend/data \
   --exclude __pycache__ --exclude '*.pth' --exclude '*.db' --exclude .git \
   --exclude tss-venv --exclude 'frontend/dist' --exclude '.run' \
+  --exclude 'pytorch_model.bin' --exclude 'reference_b/Mendeley' \
   "$LOCAL/" "root@$HOST:$REMOTE/" || exit 1
+# Model B (backend/models/weights/reference_b, see tools/build_reference_b.py)
+# rides along here: only its sagittal image half and text embeddings (~110 MB),
+# never the 547 MB originals.
 secs $t
 
 # None of these travel with the code: .gitignore excludes every weight file and
@@ -145,6 +149,8 @@ echo -n '   tss weights     : '; find ../tss-venv -name 'checkpoint_final.pth' 2
 echo -n '   torch GPU       : '; .venv/bin/python -c 'import torch, torchvision
 from torchvision.ops import nms
 print(torch.cuda.is_available(), torch.__version__, torchvision.__version__)' 2>/dev/null || echo 'BROKEN -- torch/torchvision will not import together'
+echo -n '   model B         : '; curl -s -m 10 localhost:8000/reference_b/visibility
+echo
 echo -n '   health          : '; curl -s -m 10 localhost:8000/health
 echo
 echo -n '   admin lock      : '; curl -s -m 10 localhost:8000/admin/status

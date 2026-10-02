@@ -471,4 +471,59 @@ registerVi({
     "Mã PIN phải gồm đúng 4 chữ số.",
   "This room already has a PIN.":
     "Phòng này đã có mã PIN.",
+  // Comparison model B (components/Viewer/ReferenceBPanel.tsx)
+  "For comparison: model B":
+    "Kết quả tham khảo: mô hình B",
+  "Another AI model, run alongside for you to compare. It reads only one image (the middle slice, shown here) and answers for the whole image, not per disc level. It does not change the grades above.":
+    "Một mô hình AI khác, chạy song song để bác sĩ so sánh. Mô hình này chỉ đọc một ảnh (lát giữa, hình bên trái) và trả lời chung cho cả ảnh, không chia theo từng tầng đĩa đệm. Kết quả này không làm thay đổi bảng phía trên.",
+  "Running model B…":
+    "Đang chạy mô hình B…",
+  "Image model B read":
+    "Ảnh mô hình B đã đọc",
+  "Slice {i} of {n}":
+    "Lát {i} / {n}",
+  "Finding":
+    "Dấu hiệu",
+  "Probability":
+    "Xác suất",
+  "Result":
+    "Kết quả",
+  "Yes":
+    "Có",
+  "No":
+    "Không",
+  "“No finding” scored highest, so model B counts every other finding as No.":
+    "“Không thấy bất thường” có xác suất cao nhất, nên mô hình B tính mọi dấu hiệu còn lại là Không.",
+  "UP endplate":
+    "Tổn thương tấm tận trên",
+  "LOW endplate":
+    "Tổn thương tấm tận dưới",
+  "Spondylolisthesis":
+    "Trượt đốt sống",
+  "Disc herniation":
+    "Thoát vị đĩa đệm",
+  "Disc narrowing":
+    "Hẹp khe đĩa đệm",
+  "Disc bulging":
+    "Phồng đĩa đệm",
+  "Modic":
+    "Thay đổi tuỷ xương (Modic)",
+  "No Finding":
+    "Không thấy bất thường",
+  "Comparison model B":
+    "Mô hình B (so sánh)",
+  "Hide from clinicians":
+    "Ẩn với bác sĩ",
+  "Show to clinicians":
+    "Hiện cho bác sĩ",
+  "Model B runs after every AI grading and its answer is saved (in the export as reference_b.csv). This switch only decides whether clinicians see it, as a panel under the grade table.":
+    "Mô hình B luôn chạy ngầm sau mỗi lần AI chấm và kết quả được lưu lại (trong file xuất dữ liệu là reference_b.csv). Nút này chỉ quyết định bác sĩ có thấy ô kết quả mô hình B dưới bảng phân độ hay không.",
+  "Model B is not installed on this server.":
+    "Máy chủ này chưa cài mô hình B.",
+  "Now: shown to clinicians.":
+    "Hiện tại: bác sĩ ĐANG thấy.",
+  "Now: hidden from clinicians.":
+    "Hiện tại: đang ẩn với bác sĩ.",
+  "Model B's answer for every study it read, for comparison.":
+    "Kết quả của mô hình B cho mọi ca nó đã đọc, để so sánh.",
 });

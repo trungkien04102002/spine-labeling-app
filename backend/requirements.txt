@@ -32,3 +32,6 @@ matplotlib
 pandas
 torchvision
 requests
+# Comparison model B only (app/inference/reference_b.py, Swin-T image encoder).
+# Pinned to the version its weights were trained and saved with.
+transformers==4.44.2

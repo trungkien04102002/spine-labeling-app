@@ -505,7 +505,8 @@ print `admin lock : {"locked":true}`**, or clinicians can open everything.
 
 1. `/admin` → *Xuất dữ liệu* → **Download everything (.zip)**. One file to the
    laptop through the browser, no SSH: `readers.csv`, `survey_responses.csv`,
-   `questions.csv`, `corrections.csv` and a consistent `spine.db` snapshot. The
+   `questions.csv`, `corrections.csv`, `reference_b.csv` and a consistent
+   `spine.db` snapshot. The
    CSVs carry a UTF-8 byte-order mark so Excel shows Vietnamese correctly.
 2. The scans clinicians uploaded are **not** in the zip (hundreds of MB). If
    they are needed:
@@ -520,6 +521,20 @@ print `admin lock : {"locked":true}`**, or clinicians can open everything.
 edit to a cell; a second edit's `before` is the first edit's `after`. For
 agreement with the model, take the earliest row per `(room, study, level,
 condition)`.
+
+**Comparison model B** (the research group's MedCLIP,
+`app/inference/reference_b.py`) runs by itself after every AI grading, on the
+mid-sagittal slice, and saves `reference_b.json` + `reference_b_input.png` in
+the study dir; the export carries it as `reference_b.csv`. Clinicians do **not**
+see it unless `/admin` → *Phiên bản mô hình* → **Hiện cho bác sĩ** is pressed
+(the switch is `backend/data/reference_b_visible.json`, off by default). It
+never touches our grades: if it is missing or fails, only the log says so
+(`grep reference_b /var/log/spine_backend.log`). Its files come from
+`tools/build_reference_b.py` (run once on the laptop; `deploy_box.sh` ships the
+~110 MB it needs, and `transformers==4.44.2` is in `requirements.txt`). The
+verification line `model B : {"visible":false,"installed":true}` means ready
+and hidden. Studies graded before it was installed get it the first time the
+viewer opens them with the switch on, or `POST /studies/<id>/reference_b`.
 
 **Never renumber survey questions once anyone has answered.** Answers are
 stored by question id; renumbering silently moves every answer onto a different
