@@ -19,7 +19,7 @@ from app.config import Settings, get_settings
 from app.db import SessionLocal, get_db
 from app.inference import reference_b
 from app.inference.full_grading import build_full_grading, grading_to_csv
-from app.inference.volume_io import to_web_mask
+from app.inference.volume_io import is_picture, to_web_mask
 from app.jobs import Job, jobs
 from app.models_db import Annotation, Study, grading_volume_path, mark_analyzed
 from app.schemas import FullGradingResult, InferResult, SegmentationResult
@@ -72,6 +72,14 @@ def _require_gradable_study(db: Session, study_id: str) -> Study:
     if not study.volume_path:
         raise HTTPException(
             status_code=400, detail="Study has no uploaded volume; upload first."
+        )
+    if is_picture(study.volume_path):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "This study is a single picture. Model A needs an MRI series "
+                "(a DICOM .zip, NIfTI or MHA); only model B reads pictures."
+            ),
         )
     return study
 

@@ -1,6 +1,7 @@
 import type { GradingItem } from "../../lib/api";
 import { CONDITIONS, conditionHeader, severityLabel } from "../../lib/clinicalTerms";
 import { useT } from "../../lib/i18n";
+import ModelBadge from "./ModelBadge";
 
 const LEVEL_ORDER = [
   "T10-T11",
@@ -45,11 +46,14 @@ export default function FindingsSummary({
   grading,
   original,
   onJump,
+  onShowInTable,
 }: {
   grading: GradingItem[];
   /** The AI's own grades, to mark what the doctor has changed. */
   original?: GradingItem[] | null;
   onJump: (slice: number) => void;
+  /** Take the clinician to this level (or one finding) in the grade table. */
+  onShowInTable?: (level: string, condition?: string) => void;
 }) {
   const { t, lang } = useT();
   const aiValue = new Map(
@@ -68,11 +72,11 @@ export default function FindingsSummary({
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
       <h2 className="mb-1 flex items-center gap-2 text-base font-bold text-slate-800">
-        <span className="h-4 w-1 rounded bg-gradient-to-b from-rose-500 to-amber-400" />
-        {t("Abnormal findings")}
+        <ModelBadge model="A" />
+        {t("Model A — abnormal findings")}
       </h2>
       <p className="mb-3 text-xs text-slate-500">
-        {t("Only what is not normal. Click a level to see it on the image.")}
+        {t("Only what is not normal. Click a level, or one finding, to go to it in the model A table below — it will flash.")}
       </p>
       {levels.length === 0 ? (
         <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
@@ -87,15 +91,24 @@ export default function FindingsSummary({
               .sort((a, b) => abnormality(b.condition, b.severity) - abnormality(a.condition, a.severity));
             return (
               <li key={level}>
-                <button
-                  type="button"
-                  disabled={!bbox}
-                  onClick={() => bbox && onJump(bbox[0])}
-                  className="w-full rounded-md border border-slate-200 px-3 py-2 text-left transition hover:border-teal-400 hover:bg-teal-50 disabled:cursor-default disabled:hover:border-slate-200 disabled:hover:bg-white"
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => {
+                    if (bbox) onJump(bbox[0]);
+                    onShowInTable?.(level);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      if (bbox) onJump(bbox[0]);
+                      onShowInTable?.(level);
+                    }
+                  }}
+                  className="w-full cursor-pointer rounded-md border border-slate-200 px-3 py-2 text-left transition hover:border-teal-400 hover:bg-teal-50"
                 >
                   <div className="flex items-center justify-between text-sm font-bold text-slate-800">
                     {level}
-                    {bbox && <span className="text-xs font-medium text-teal-600">↧ {t("show")}</span>}
+                    <span className="text-xs font-medium text-teal-600">↓ {t("see in table")}</span>
                   </div>
                   <div className="mt-1 flex flex-wrap gap-1.5">
                     {items.map((g) => {
@@ -106,7 +119,13 @@ export default function FindingsSummary({
                       return (
                         <span
                           key={g.condition}
-                          className={
+                          role="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (bbox) onJump(bbox[0]);
+                            onShowInTable?.(g.level, g.condition);
+                          }}
+                          className={"cursor-pointer hover:brightness-95 " + 
                             "rounded px-1.5 py-0.5 text-xs font-medium " +
                             (marked ? "bg-rose-100 text-rose-800" : "bg-amber-100 text-amber-800") +
                             (edited ? " ring-2 ring-indigo-400" : "")
@@ -119,7 +138,7 @@ export default function FindingsSummary({
                       );
                     })}
                   </div>
-                </button>
+                </div>
               </li>
             );
           })}
@@ -138,10 +157,13 @@ export function MyEdits({
   grading,
   original,
   unsaved,
+  onRevert,
 }: {
   grading: GradingItem[];
   original: GradingItem[];
   unsaved: boolean;
+  /** Put these cells back to the AI's value (one undoable step). */
+  onRevert?: (cells: { level: string; condition: string; severity: string }[]) => void;
 }) {
   const { t, lang } = useT();
   const ai = new Map(original.map((g) => [`${g.level}/${g.condition}`, g.severity]));
@@ -157,19 +179,43 @@ export function MyEdits({
       ) : (
         <ul className="mt-1.5 space-y-1 text-xs text-slate-700">
           {edits.map((g) => (
-            <li key={`${g.level}/${g.condition}`}>
-              <span className="font-semibold">{g.level}</span> · {conditionHeader(g.condition, lang, CONDITIONS[g.condition]?.en ?? g.condition)}:{" "}
-              <span className="text-slate-400 line-through">
-                {severityLabel(g.condition, ai.get(`${g.level}/${g.condition}`)!, lang)}
-              </span>{" "}
-              → <span className="font-semibold text-indigo-700">{severityLabel(g.condition, g.severity, lang)}</span>
+            <li key={`${g.level}/${g.condition}`} className="flex flex-wrap items-center gap-x-2">
+              <span>
+                <span className="font-semibold">{g.level}</span> · {conditionHeader(g.condition, lang, CONDITIONS[g.condition]?.en ?? g.condition)}:{" "}
+                <span className="text-slate-400 line-through">
+                  {severityLabel(g.condition, ai.get(`${g.level}/${g.condition}`)!, lang)}
+                </span>{" "}
+                → <span className="font-semibold text-indigo-700">{severityLabel(g.condition, g.severity, lang)}</span>
+              </span>
+              {onRevert && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    onRevert([{ level: g.level, condition: g.condition, severity: ai.get(`${g.level}/${g.condition}`)! }])
+                  }
+                  className="rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[11px] font-medium text-slate-600 hover:border-indigo-400 hover:text-indigo-700"
+                >
+                  ↺ {t("Back to the AI's grade")}
+                </button>
+              )}
             </li>
           ))}
         </ul>
       )}
+      {edits.length > 1 && onRevert && (
+        <button
+          type="button"
+          onClick={() =>
+            onRevert(edits.map((g) => ({ level: g.level, condition: g.condition, severity: ai.get(`${g.level}/${g.condition}`)! })))
+          }
+          className="mt-2 rounded border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-600 hover:border-indigo-400 hover:text-indigo-700"
+        >
+          ↺ {t("Put everything back to the AI's grades")}
+        </button>
+      )}
       {edits.length > 0 && unsaved && (
         <p className="mt-1.5 text-xs font-medium text-amber-700">
-          {t("Not saved yet — press Save under the table.")}
+          {t("Not saved yet — press Save under the table. Undo (Ctrl+Z) also steps back.")}
         </p>
       )}
     </div>

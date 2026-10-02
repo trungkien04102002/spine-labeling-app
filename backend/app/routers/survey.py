@@ -21,6 +21,7 @@ from app.survey_questions import (
     GROUPS,
     MODEL_B_PAIRS,
     QUESTIONS,
+    SECTIONS,
     REQUIRED_IDS,
     SCALE_LABELS,
     SCALE_MAX,
@@ -56,6 +57,11 @@ def get_questions(settings: Settings = Depends(get_settings)) -> dict[str, objec
     return {
         "questions": [q.as_dict() for q in shown],
         "groups": [g for g in GROUPS if any(q.group == g for q in shown)],
+        "sections": [
+            {"title": title, "groups": [g for g in groups if any(q.group == g for q in shown)]}
+            for title, groups in SECTIONS
+            if any(q.group in groups for q in shown)
+        ],
         "scale": {
             "min": SCALE_MIN,
             "max": SCALE_MAX,

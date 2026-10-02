@@ -55,6 +55,8 @@ export interface StudyDetail {
   created_at: string;
   has_volume: boolean;
   has_mask: boolean;
+  /** Uploaded as one PNG/JPEG picture: model B only. */
+  is_picture?: boolean;
   dimensions: number[] | null;
   spacing_mm: number[] | null;
   num_slices: number | null;
@@ -246,6 +248,7 @@ export interface ReferenceLabel {
 export interface ReferenceResult {
   model: string;
   plane: string;
+  source?: "volume" | "picture";
   slice_index: number;
   slice_count: number;
   threshold: number;
@@ -258,8 +261,11 @@ export function getReferenceB(studyId: string): Promise<ReferenceResult> {
   return apiFetch<ReferenceResult>(`/studies/${studyId}/reference_b`);
 }
 
-export function runReferenceB(studyId: string): Promise<ReferenceResult> {
-  return apiFetch<ReferenceResult>(`/studies/${studyId}/reference_b`, { method: "POST" });
+export function runReferenceB(
+  studyId: string,
+  plane: "sagittal" | "axial" = "sagittal",
+): Promise<ReferenceResult> {
+  return apiFetch<ReferenceResult>(`/studies/${studyId}/reference_b?plane=${plane}`, { method: "POST" });
 }
 
 export interface ReferenceBVisibility {
@@ -567,6 +573,8 @@ export type SurveyQuestion = {
 export type SurveyForm = {
   questions: SurveyQuestion[];
   groups: string[];
+  /** Headings over runs of groups (model A, the software, model B). */
+  sections?: { title: string; groups: string[] }[];
   scale: { min: number; max: number; labels: string[] };
 };
 

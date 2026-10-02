@@ -44,10 +44,10 @@ rsync -az -e "ssh -p $PORT -o BatchMode=yes" --delete \
   --exclude node_modules --exclude .venv --exclude backend/data \
   --exclude __pycache__ --exclude '*.pth' --exclude '*.db' --exclude .git \
   --exclude tss-venv --exclude 'frontend/dist' --exclude '.run' \
-  --exclude 'pytorch_model.bin' --exclude 'reference_b/Mendeley' \
+  --exclude 'pytorch_model.bin' \
   "$LOCAL/" "root@$HOST:$REMOTE/" || exit 1
 # Model B (backend/models/weights/reference_b, see tools/build_reference_b.py)
-# rides along here: only its sagittal image half and text embeddings (~110 MB),
+# rides along here: only the image halves and text embeddings (~220 MB),
 # never the 547 MB originals.
 secs $t
 

@@ -287,6 +287,9 @@ export default function PatientList() {
               <li>{t("Look at the result, correct what is wrong, and press Save.")}</li>
               <li>{t("When you are done, answer the short survey “★ Rate this software”.")}</li>
             </ol>
+            <p className="text-xs text-slate-600">
+              {t("Only have a picture (PNG/JPG), not the scan? Upload it the same way — then only model B reads it.")}
+            </p>
             <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
               {t("Only sagittal (side view) T2 images are graded; axial images can be viewed but are not graded. A research tool — not a diagnosis.")}
             </p>
@@ -498,8 +501,8 @@ export default function PatientList() {
                             fileInputs.current[study.id] = el;
                           }}
                           type="file"
-                          accept=".zip,.mha,.nii,.nii.gz,.dcm"
-                          title={t("DICOM series (.zip), or .mha / .nii / .nii.gz volume")}
+                          accept=".zip,.mha,.nii,.nii.gz,.dcm,.png,.jpg,.jpeg"
+                          title={t("MRI: DICOM folder as .zip, or .mha / .nii / .nii.gz. Or one picture (.png / .jpg) for model B only.")}
                           className="hidden"
                           disabled={uploading === study.id}
                           onChange={(e) => {

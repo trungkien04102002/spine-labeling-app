@@ -85,17 +85,21 @@ def get_reference_b(
 @router.post("/studies/{study_id}/reference_b", response_model=reference_b.ReferenceResult)
 def run_reference_b(
     study_id: str,
+    plane: str = "sagittal",
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ) -> reference_b.ReferenceResult:
-    if not reference_b.available():
+    """Run model B now. `plane` matters only for an uploaded picture."""
+    if plane not in reference_b.DATASET_BY_PLANE:
+        raise HTTPException(status_code=400, detail="plane must be sagittal or axial")
+    if not reference_b.available(plane):
         raise HTTPException(status_code=503, detail="Model B is not installed on this server.")
     study = db.get(Study, study_id)
     if study is None:
         raise HTTPException(status_code=404, detail=f"Unknown study: {study_id}")
     if not study.volume_path:
         raise HTTPException(status_code=400, detail="Study has no uploaded volume; upload first.")
-    return reference_b.run(grading_volume_path(db, study), _study_dir(settings, study_id))
+    return reference_b.run(grading_volume_path(db, study), _study_dir(settings, study_id), plane=plane)
 
 
 @router.get("/studies/{study_id}/reference_b/input.png")

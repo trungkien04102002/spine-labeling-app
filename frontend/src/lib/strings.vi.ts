@@ -577,13 +577,95 @@ registerVi({
   "Only sagittal (side view) T2 images are graded; axial images can be viewed but are not graded. A research tool — not a diagnosis.":
     "AI chỉ chấm phim cắt dọc (sagittal) T2; phim cắt ngang (axial) xem được nhưng không được chấm. Đây là công cụ nghiên cứu, không thay cho chẩn đoán.",
   "Our model vs model B (same question, 1–5)":
-    "Mô hình của mình và mô hình B (cùng câu hỏi, thang 1–5)",
+    "Mô hình A và mô hình B (cùng câu hỏi, thang 1–5)",
   "Question":
     "Câu hỏi",
   "Our model":
-    "Mô hình chính",
+    "Mô hình A",
   "Model B":
     "Mô hình B",
   "Red = the lower-rated model on that question.":
     "Màu đỏ = mô hình bị chấm thấp hơn ở câu đó.",
+  "Model B — results to compare":
+    "Mô hình B — kết quả để đối chiếu",
+  "A second AI model, run on the same study. It reads one image (the middle slice, shown here) and answers yes/no for the whole image, not per disc level. The “Model A” column is model A's answer for the same finding: yes if it found it at any level.":
+    "Một mô hình AI thứ hai, chạy trên cùng ca. Mô hình này đọc một ảnh (lát giữa, hình bên trái) và trả lời có/không cho cả ảnh, không chia theo tầng đĩa đệm. Cột “Mô hình A” là câu trả lời của mô hình A cho cùng dấu hiệu: “Có” nếu thấy ở ít nhất một tầng.",
+  "Model B: probability":
+    "Mô hình B: xác suất",
+  "Model A":
+    "Mô hình A",
+  "Model A has no matching finding":
+    "Mô hình A không chấm dấu hiệu này",
+  "Model A — abnormality grades":
+    "Mô hình A — Điểm bất thường",
+  "Model A — abnormal findings":
+    "Mô hình A — Tóm tắt bất thường",
+  "A picture can only be read by model B. Model A needs an MRI series.":
+    "Ảnh 2D chỉ mô hình B đọc được. Mô hình A cần phim MRI.",
+  "This study is one picture (PNG/JPG), so model A cannot grade it — it needs an MRI series (DICOM .zip, NIfTI or MHA). Model B's result is below.":
+    "Ca này là một ảnh 2D (PNG/JPG) nên mô hình A không chấm được — mô hình A cần phim MRI (thư mục DICOM nén .zip, NIfTI hoặc MHA). Kết quả của mô hình B ở bên dưới.",
+  "This picture is a:":
+    "Ảnh này là:",
+  "Sagittal (side view)":
+    "Cắt dọc (sagittal)",
+  "Axial (cross-section)":
+    "Cắt ngang (axial)",
+  "The uploaded picture":
+    "Ảnh đã tải lên",
+  "Annular Tear":
+    "Rách vòng xơ",
+  "Bone Marrow Edema":
+    "Phù tuỷ xương",
+  "Cauda Equina Compression":
+    "Chèn ép chùm đuôi ngựa",
+  "Disc Bulge":
+    "Phồng đĩa đệm",
+  "Disc Degeneration":
+    "Thoái hoá đĩa đệm",
+  "Facet Joint Pathology":
+    "Bệnh lý khớp mặt",
+  "Herniation":
+    "Thoát vị đĩa đệm",
+  "Modic Endplate Changes":
+    "Thay đổi tấm tận kiểu Modic",
+  "Nerve Root Compression":
+    "Chèn ép rễ thần kinh",
+  "Schmorl's Node":
+    "Nốt Schmorl",
+  "Spinal Canal Stenosis":
+    "Hẹp ống sống",
+  "MRI: DICOM folder as .zip, or .mha / .nii / .nii.gz. Or one picture (.png / .jpg) for model B only.":
+    "Phim MRI: thư mục DICOM nén .zip, hoặc file .mha / .nii / .nii.gz. Hoặc một ảnh (.png / .jpg) — chỉ mô hình B đọc.",
+  "Only have a picture (PNG/JPG), not the scan? Upload it the same way — then only model B reads it.":
+    "Chỉ có ảnh chụp (PNG/JPG), không có phim? Vẫn tải lên như trên — khi đó chỉ mô hình B đọc ảnh.",
+  "Back to the AI's grade":
+    "Trả về kết quả AI",
+  "Put everything back to the AI's grades":
+    "Trả tất cả về kết quả AI",
+  "Not saved yet — press Save under the table. Undo (Ctrl+Z) also steps back.":
+    "Chưa lưu — bấm Lưu bên dưới bảng. Nút Hoàn tác (Ctrl+Z) cũng lùi lại từng bước.",
+  "This study has results from two AI models:":
+    "Ca này có kết quả của hai mô hình AI:",
+  "This study has the AI's results:":
+    "Ca này có kết quả của AI:",
+  "the coloured structures on the image and the grade table, level by level. You can correct it: change a grade, then Save.":
+    "vùng tô màu trên ảnh và bảng điểm theo từng tầng. Bác sĩ sửa được: đổi mức độ rồi bấm Lưu.",
+  "yes/no for the whole image, for comparison only. It cannot be edited.":
+    "có/không cho cả ảnh, chỉ để đối chiếu. Không sửa được.",
+  "Steps: 1. check model A against the image and correct what is wrong · 2. compare with model B · 3. answer the survey (★ top right), which asks about each model separately.":
+    "Các bước: 1. đối chiếu mô hình A với ảnh và sửa chỗ sai · 2. so với mô hình B · 3. trả lời khảo sát (★ góc trên bên phải) — có phần riêng cho từng mô hình.",
+  "Steps: check the result against the image, correct what is wrong, then answer the survey (★ top right).":
+    "Các bước: đối chiếu kết quả với ảnh, sửa chỗ sai, rồi trả lời khảo sát (★ góc trên bên phải).",
+  "(editable)":
+    "(sửa được)",
+  "(not editable)":
+    "(chỉ xem)",
+  "Only what is not normal. Click a level, or one finding, to go to it in the model A table below — it will flash.":
+    "Chỉ liệt kê chỗ bất thường. Bấm vào một tầng (hoặc một dấu hiệu) để đi tới đúng ô đó trong bảng mô hình A bên dưới — ô sẽ nhấp nháy.",
+  "see in table":
+    "xem trong bảng",
+  "This study is one picture, so only model B reads it:":
+    "Ca này là một ảnh 2D nên chỉ mô hình B đọc được:",
+  "Model B reads the uploaded picture and answers yes/no for the whole image. Say whether the picture is a side view (sagittal) or a cross-section (axial): model B has a version for each.":
+    "Mô hình B đọc ảnh đã tải lên và trả lời có/không cho cả ảnh. Bác sĩ chọn ảnh là cắt dọc (sagittal) hay cắt ngang (axial) — mô hình B có bản riêng cho từng loại.",
 });

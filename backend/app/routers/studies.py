@@ -19,12 +19,16 @@ from sqlalchemy.orm import Session
 from app.config import Settings, get_settings
 from app.db import get_db
 from app.export import build_export_zip
+from app.inference import reference_b
 from app.inference.volume_io import (
     _read_image,
     MIN_SLICES,
     SKIPPED_SERIES,
     extract_dicom_zip,
     fill_missing_weighting,
+    IMAGE_SUFFIXES,
+    is_picture,
+    picture_to_web_form,
     slice_axis,
     orientation_of,
     read_dicom_tags,
@@ -140,6 +144,7 @@ def get_study_detail(
         created_at=study.created_at,
         has_volume=bool(study.volume_path),
         has_mask=(Path(settings.data_dir) / study_id / "mask.nii.gz").is_file(),
+        is_picture=is_picture(study.volume_path),
     )
     # Image metadata comes from the viewer NIfTI (already reoriented).
     if study.display_path and Path(study.display_path).is_file():
@@ -148,7 +153,7 @@ def get_study_detail(
         detail.spacing_mm = meta["spacing_mm"]  # type: ignore[assignment]
         detail.num_slices = meta["num_slices"]  # type: ignore[assignment]
     # Acquisition tags survive only in the original DICOM (not the NIfTI).
-    if study.volume_path:
+    if study.volume_path and not detail.is_picture:
         detail.dicom_tags = read_dicom_tags(study.volume_path)
     return detail
 
@@ -179,7 +184,7 @@ def upload_study(
     # .ima is how Siemens scanners name DICOM files; a single one is refused a
     # few lines on for being one slice, with advice, instead of here as an
     # "unsupported type" that sends the doctor looking for a converter.
-    accepted = (".zip", ".mha", ".nii", ".nii.gz", ".dcm", ".ima")
+    accepted = (".zip", ".mha", ".nii", ".nii.gz", ".dcm", ".ima") + IMAGE_SUFFIXES
     if suffixes.endswith(".mhd"):
         raise HTTPException(
             status_code=400,
@@ -193,8 +198,8 @@ def upload_study(
         raise HTTPException(
             status_code=400,
             detail=(
-                "Unsupported file type. Upload a .zip of a DICOM series, or a "
-                ".mha / .nii / .nii.gz volume."
+                "Unsupported file type. Upload a .zip of a DICOM series, a "
+                ".mha / .nii / .nii.gz volume, or a .png / .jpg picture."
             ),
         )
 
@@ -256,6 +261,38 @@ def upload_study(
             kept,
         )
     study.analyzed_series_id = None
+
+    # One 2D picture (PNG/JPEG): shown as a one-slice volume. Model A cannot
+    # grade it -- it needs a sagittal series -- so only model B reads it, at
+    # once, since that is the only answer this study can have.
+    if is_picture(str(dest)):
+        try:
+            display = picture_to_web_form(str(dest), out_dir=str(study_dir))
+        except Exception as exc:  # noqa: BLE001 - a corrupt or odd picture
+            logger.error("[upload %s] picture %s would not read\n%s", study_id, filename, traceback.format_exc())
+            raise HTTPException(status_code=400, detail=f"Could not read {filename} as a picture: {exc}") from exc
+        row = Series(
+            study_id=study_id,
+            series_uid=f"image:{filename}",
+            description=filename,
+            orientation="image",
+            volume_path=str(dest.resolve()),
+            display_path=display,
+            num_slices=1,
+        )
+        db.add(row)
+        study.volume_path = row.volume_path
+        study.display_path = display
+        db.commit()
+        logger.info("[upload %s] picture %s stored", study_id, filename)
+        reference_b.run_quietly(study_id, str(dest.resolve()), study_dir)
+        return {
+            "study_id": study_id,
+            "volume_path": study.volume_path,
+            "display_path": study.display_path,
+            "series_count": 1,
+            "skipped": [],
+        }
 
     # A zip that holds a volume file rather than DICOM slices -- a NIfTI zipped
     # for email, or a .mhd with its .raw -- is unwrapped and treated as that

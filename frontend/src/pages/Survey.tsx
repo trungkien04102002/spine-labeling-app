@@ -185,8 +185,13 @@ export default function Survey() {
   const canSubmit = form != null && answeredRequired === required.length && !sending;
   // Shown numbers run 1, 2, 3... in page order. Ids have gaps (retired 15)
   // and the per-label grid takes 5-12, so numbering by id read 4, 13, 16.
+  // Groups in part order (model A, the software, model B) when the server
+  // sends parts, so a part's groups are never split by another part's.
+  const orderedGroups: string[] = form?.sections?.length
+    ? form.sections.flatMap((sec) => sec.groups)
+    : (form?.groups ?? []);
   const displayNo = new Map<number, number>();
-  for (const g of form?.groups ?? [])
+  for (const g of orderedGroups)
     for (const q of form?.questions ?? [])
       if (q.group === g && !q.matrix) displayNo.set(q.id, displayNo.size + 1);
   const missing = required
@@ -247,9 +252,18 @@ export default function Survey() {
         </div>
       )}
 
-      {(form?.groups ?? []).map((group) => (
+      {orderedGroups.map((group) => (
+        <div key={group}>
+        {/* A part heading before the first group of each part, so model A
+            and model B are rated in visibly separate halves of the form. */}
+        {form?.sections
+          ?.filter((sec) => sec.groups[0] === group)
+          .map((sec) => (
+            <h2 key={sec.title} className="mt-8 border-b-2 border-teal-500 pb-1 text-base font-bold text-teal-800">
+              {sec.title}
+            </h2>
+          ))}
         <section
-          key={group}
           className="mt-5 rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
         >
           {/* Grouped so sixteen questions read as four short topics rather
@@ -284,6 +298,7 @@ export default function Survey() {
             ) : null;
           })()}
         </section>
+        </div>
       ))}
 
       {/* The open question gets a section of its own, headed like the

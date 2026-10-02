@@ -43,6 +43,8 @@ class StudyDetail(BaseModel):
     num_slices: int | None = None
     # Acquisition tags from the source DICOM (empty for MHA/NIfTI sources).
     dicom_tags: dict[str, str] = {}
+    # Uploaded as one 2D picture: viewable, model B only, no model A grading.
+    is_picture: bool = False
 
 
 class SeriesOut(BaseModel):

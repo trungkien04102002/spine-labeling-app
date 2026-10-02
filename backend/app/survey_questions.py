@@ -51,7 +51,7 @@ ERRORS = "Khi AI sai"
 SHOW = "Cách trình bày kết quả"
 USE = "Sử dụng trong công việc"
 UX = "Đánh giá chung về phần mềm"
-REF_B = "Mô hình B (ô “Kết quả tham khảo”)"
+REF_B = "Kết quả mô hình B"
 
 # QUESTION IDS ARE PERMANENT ONCE ANY RESPONSE EXISTS. Answers are stored as
 # {id: score}, so renumbering silently re-labels every answer already given:
@@ -120,6 +120,15 @@ QUESTIONS: list[Question] = [
 
 #: model B item -> the item asking the same of our own grades.
 MODEL_B_PAIRS = {25: 4, 26: 17, 27: 18, 28: 20}
+
+# Parts of the form, each a heading over its groups. Model A (this app's own
+# grading) and model B (the comparison model) are asked about separately, so a
+# clinician never has to guess which model a question means.
+SECTIONS = [
+    ("Phần 1 — Mô hình A (vùng tô và bảng điểm bất thường)", [SEG, GRADE, ERRORS]),
+    ("Phần 2 — Phần mềm", [SHOW, USE, UX]),
+    ("Phần 3 — Mô hình B (ô “Mô hình B — kết quả để đối chiếu”)", [REF_B]),
+]
 
 CLINICAL_IDS = [q.id for q in QUESTIONS if q.kind in ("core", "detail")]
 USABILITY_IDS = [q.id for q in QUESTIONS if q.kind == "usability"]

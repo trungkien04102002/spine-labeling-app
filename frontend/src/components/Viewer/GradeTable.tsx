@@ -87,6 +87,12 @@ interface Props {
   onEditSeverity?: (level: string, condition: string, severity: string) => void;
   /** The AI's own grades: a cell that differs is outlined as the doctor's edit. */
   original?: GradingItem[] | null;
+  /**
+   * Scroll to a level (and optionally one finding) and pulse it -- set when
+   * the clinician clicks it in the findings summary. `nonce` restarts the
+   * pulse when the same cell is asked for twice.
+   */
+  highlight?: { level: string; condition?: string; nonce: number } | null;
 }
 
 /**
@@ -107,7 +113,7 @@ function outOfScale(condition: string, value: string): boolean {
   return scale != null && !scale.some((l) => l.value === value);
 }
 
-export default function GradeTable({ grading, onJump, onEditSeverity, original }: Props) {
+export default function GradeTable({ grading, onJump, onEditSeverity, original, highlight }: Props) {
   const { t, lang } = useT();
   const aiValue = new Map(
     (original ?? []).map((g) => [`${g.level}/${g.condition}`, g.severity]),
@@ -130,6 +136,16 @@ export default function GradeTable({ grading, onJump, onEditSeverity, original }
     window.addEventListener("resize", measure);
     return () => window.removeEventListener("resize", measure);
   }, [measure, grading, lang]);
+  const headerRefs = useRef<Record<string, HTMLTableCellElement | null>>({});
+  useEffect(() => {
+    if (!highlight) return;
+    const target = highlight.condition
+      ? document.getElementById(`grade-${highlight.level}-${highlight.condition}`)
+      : headerRefs.current[highlight.level];
+    target?.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+  }, [highlight]);
+  const flashing = (level: string, c: string) =>
+    highlight != null && highlight.level === level && (!highlight.condition || highlight.condition === c);
   const nudge = (direction: 1 | -1) =>
     scroller.current?.scrollBy({
       left: direction * scroller.current.clientWidth * 0.6,
@@ -193,7 +209,9 @@ export default function GradeTable({ grading, onJump, onEditSeverity, original }
     const edited = item != null && before != null && before !== item.severity;
     return (
       <td
-        key={level}
+        key={flashing(level, c) ? `${level}-${highlight!.nonce}` : level}
+        id={`grade-${level}-${c}`}
+        className={flashing(level, c) ? "cell-flash" : undefined}
         onClick={() => bbox && onJump(bbox[0])}
         title={
           edited
@@ -203,7 +221,7 @@ export default function GradeTable({ grading, onJump, onEditSeverity, original }
               : undefined
         }
         style={{
-          padding: "6px 10px",
+          padding: "5px 6px",
           borderRadius: 6,
           outline: edited ? "2px solid #818cf8" : undefined,
           outlineOffset: -2,
@@ -309,8 +327,8 @@ export default function GradeTable({ grading, onJump, onEditSeverity, original }
     <table
       style={{
         borderCollapse: "separate",
-        borderSpacing: 3,
-        fontSize: "0.9rem",
+        borderSpacing: 2,
+        fontSize: "0.82rem",
         width: "100%",
       }}
     >
@@ -324,11 +342,14 @@ export default function GradeTable({ grading, onJump, onEditSeverity, original }
             return (
               <th
                 key={level}
+                ref={(el) => {
+                  headerRefs.current[level] = el;
+                }}
                 onClick={() => bbox && onJump(bbox[0])}
                 title={bbox ? t("Jump to this disc") : undefined}
                 style={{
-                  padding: "4px 10px",
-                  minWidth: 118,
+                  padding: "4px 4px",
+                  minWidth: 82,
                   textAlign: "center",
                   cursor: bbox ? "pointer" : "default",
                   color: "#334155",

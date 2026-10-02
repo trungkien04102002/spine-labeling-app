@@ -7,7 +7,44 @@ import {
   runReferenceB,
   type ReferenceResult,
 } from "../../lib/api";
+import type { GradingItem } from "../../lib/api";
 import { useT } from "../../lib/i18n";
+import ModelBadge from "./ModelBadge";
+import { abnormality } from "./FindingsSummary";
+
+/**
+ * Model B's whole-image labels against model A's per-level conditions, so a
+ * clinician can read the two side by side. A label with no counterpart in
+ * model A (disc bulging) maps to nothing and shows a dash.
+ */
+const A_CONDITIONS: Record<string, string[]> = {
+  "UP endplate": ["upper_endplate_defect"],
+  "LOW endplate": ["lower_endplate_defect"],
+  Spondylolisthesis: ["spondylolisthesis"],
+  "Disc herniation": ["disc_herniation"],
+  "Disc narrowing": ["disc_narrowing"],
+  Modic: ["upper_marrow", "lower_marrow"],
+};
+
+const LEVELS = ["T10-T11", "T11-T12", "T12-L1", "L1-L2", "L2-L3", "L3-L4", "L4-L5", "L5-S1"];
+
+/** Model A's answer for one model-B label: yes + the levels, no, or null. */
+function modelAAnswer(label: string, grading: GradingItem[]): { yes: boolean; levels: string[] } | null {
+  if (label === "No Finding") {
+    const any = grading.some((g) => abnormality(g.condition, g.severity) > 0);
+    return { yes: !any, levels: [] };
+  }
+  const conditions = A_CONDITIONS[label];
+  if (!conditions) return null;
+  const levels = [
+    ...new Set(
+      grading
+        .filter((g) => conditions.includes(g.condition) && abnormality(g.condition, g.severity) > 0)
+        .map((g) => g.level),
+    ),
+  ].sort((a, b) => LEVELS.indexOf(a) - LEVELS.indexOf(b));
+  return { yes: levels.length > 0, levels };
+}
 
 /**
  * A second model's answer, shown under the app's own grades for comparison.
@@ -22,10 +59,16 @@ import { useT } from "../../lib/i18n";
 export default function ReferenceBPanel({
   studyId,
   gradedAt,
+  modelA,
+  alwaysShow = false,
 }: {
   studyId: string;
   /** Changes whenever our grading re-runs, so the panel reloads with it. */
   gradedAt: unknown;
+  /** Model A's current grades (with the doctor's edits), for the A column. */
+  modelA?: GradingItem[] | null;
+  /** Ignore the /admin switch (an uploaded picture, which only model B reads). */
+  alwaysShow?: boolean;
 }) {
   const { t } = useT();
   const [result, setResult] = useState<ReferenceResult | null>(null);
@@ -37,7 +80,7 @@ export default function ReferenceBPanel({
     setResult(null);
     getReferenceBVisibility()
       .then((v) => {
-        if (!v.visible || !v.installed) throw new Error("hidden");
+        if (!v.installed || (!v.visible && !alwaysShow)) throw new Error("hidden");
         return getReferenceB(studyId);
       })
       .then((r) => {
@@ -66,18 +109,31 @@ export default function ReferenceBPanel({
     return () => {
       cancelled = true;
     };
-  }, [studyId, gradedAt]);
+  }, [studyId, gradedAt, alwaysShow]);
+
+  async function rerun(plane: "sagittal" | "axial") {
+    setState("running");
+    try {
+      setResult(await runReferenceB(studyId, plane));
+      setState("ready");
+    } catch {
+      setState("hidden");
+    }
+  }
 
   if (state === "hidden" || state === "loading") return null;
 
   return (
-    <div className="w-full basis-full rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+    <div id="model-b" className="w-full basis-full scroll-mt-4 rounded-lg border-2 border-violet-200 bg-white p-4 shadow-sm">
       <h2 className="mb-1 flex items-center gap-2 text-base font-bold text-slate-800">
-        <span className="h-4 w-1 rounded bg-gradient-to-b from-slate-400 to-slate-500" />
-        {t("For comparison: model B")}
+        <ModelBadge model="B" />
+        {t("Model B — results to compare")}
+        <span className="text-xs font-normal text-slate-500">{t("(not editable)")}</span>
       </h2>
       <p className="mb-3 text-xs text-slate-500">
-        {t("Another AI model, run alongside for you to compare. It reads only one image (the middle slice, shown here) and answers for the whole image, not per disc level. It does not change the grades above.")}
+        {result?.source === "picture"
+          ? t("Model B reads the uploaded picture and answers yes/no for the whole image. Say whether the picture is a side view (sagittal) or a cross-section (axial): model B has a version for each.")
+          : t("A second AI model, run on the same study. It reads one image (the middle slice, shown here) and answers yes/no for the whole image, not per disc level. The “Model A” column is model A's answer for the same finding: yes if it found it at any level.")}
       </p>
       {state === "running" || !result ? (
         <p className="text-sm text-slate-400">{t("Running model B…")}</p>
@@ -90,16 +146,39 @@ export default function ReferenceBPanel({
               className="w-full rounded border border-slate-200 bg-black"
             />
             <figcaption className="mt-1 text-[11px] text-slate-400">
-              {t("Slice {i} of {n}", { i: result.slice_index + 1, n: result.slice_count })}
+              {result.source === "picture"
+                ? t("The uploaded picture")
+                : t("Slice {i} of {n}", { i: result.slice_index + 1, n: result.slice_count })}
             </figcaption>
           </figure>
           <div className="min-w-[240px] flex-1">
+            {result.source === "picture" && (
+              <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-slate-600">
+                {t("This picture is a:")}
+                {(["sagittal", "axial"] as const).map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => result.plane !== p && void rerun(p)}
+                    className={
+                      "rounded-md border px-2.5 py-1 font-semibold " +
+                      (result.plane === p
+                        ? "border-teal-500 bg-teal-600 text-white"
+                        : "border-slate-300 bg-white text-slate-700 hover:border-teal-400")
+                    }
+                  >
+                    {p === "sagittal" ? t("Sagittal (side view)") : t("Axial (cross-section)")}
+                  </button>
+                ))}
+              </div>
+            )}
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-200 text-left text-xs text-slate-500">
                   <th className="py-1.5 font-semibold">{t("Finding")}</th>
-                  <th className="py-1.5 font-semibold">{t("Probability")}</th>
-                  <th className="py-1.5 text-right font-semibold">{t("Result")}</th>
+                  <th className="py-1.5 font-semibold">{t("Model B: probability")}</th>
+                  <th className="py-1.5 text-right font-semibold">{t("Model B")}</th>
+                  {modelA && <th className="py-1.5 pl-4 text-right font-semibold">{t("Model A")}</th>}
                 </tr>
               </thead>
               <tbody>
@@ -127,6 +206,24 @@ export default function ReferenceBPanel({
                     >
                       {r.prediction ? t("Yes") : t("No")}
                     </td>
+                    {modelA && (() => {
+                      const a = modelAAnswer(r.label, modelA);
+                      if (!a) {
+                        return (
+                          <td className="py-1.5 pl-4 text-right text-slate-300" title={t("Model A has no matching finding")}>
+                            —
+                          </td>
+                        );
+                      }
+                      return (
+                        <td className={"py-1.5 pl-4 text-right font-semibold " + (a.yes ? "text-rose-600" : "text-emerald-600")}>
+                          {a.yes ? t("Yes") : t("No")}
+                          {a.levels.length > 0 && (
+                            <span className="ml-1 text-[11px] font-normal text-slate-500">({a.levels.join(", ")})</span>
+                          )}
+                        </td>
+                      );
+                    })()}
                   </tr>
                 ))}
               </tbody>

@@ -44,3 +44,13 @@ body {
 .scroll-x-visible::-webkit-scrollbar-thumb:hover {
   background: #64748b;
 }
+
+/* A grade cell the clinician just jumped to from the findings summary:
+   pulse an amber ring a few times so the eye lands on it. */
+@keyframes cell-flash {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+  50% { box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.95); }
+}
+.cell-flash {
+  animation: cell-flash 0.7s ease-in-out 4;
+}

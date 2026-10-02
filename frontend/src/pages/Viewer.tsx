@@ -7,6 +7,7 @@ import CornerstoneViewport, {
 import GradeTable from "../components/Viewer/GradeTable";
 import ReferenceBPanel from "../components/Viewer/ReferenceBPanel";
 import FindingsSummary, { MyEdits } from "../components/Viewer/FindingsSummary";
+import ModelBadge from "../components/Viewer/ModelBadge";
 import LabelReference from "../components/Viewer/LabelReference";
 import Legend from "../components/Viewer/Legend";
 import { useHistory } from "../lib/history";
@@ -21,6 +22,7 @@ import {
   getSeries,
   getStudyDetail,
   getJob,
+  getReferenceBVisibility,
   startFullGrading,
   saveAnnotation,
   saveMask,
@@ -278,6 +280,19 @@ export default function Viewer() {
   // Bumped when a grading run finishes, so the viewport reloads and shows the
   // new segmentation without the doctor pressing F5.
   const [gradeRun, setGradeRun] = useState(0);
+  // A level (or one finding) picked in the summary, for the table to scroll
+  // to and pulse.
+  const [tableHighlight, setTableHighlight] = useState<
+    { level: string; condition?: string; nonce: number } | null
+  >(null);
+  // Whether clinicians are shown model B (an /admin switch): decides whether
+  // the guide above the results talks about one model or two.
+  const [modelBShown, setModelBShown] = useState(false);
+  useEffect(() => {
+    getReferenceBVisibility()
+      .then((v) => setModelBShown(v.visible && v.installed))
+      .catch(() => setModelBShown(false));
+  }, []);
 
   // The correction queue spans every study, so it loads once, not per-study.
   useEffect(() => {
@@ -381,6 +396,27 @@ export default function Viewer() {
       grading: result.grading.map((g) =>
         g.level === level && g.condition === condition ? { ...g, severity } : g,
       ),
+    });
+    setUndoKinds((k) => [...k, "grade"]);
+    setRedoKinds([]);
+    setDirty(true);
+    setSavedNote(null);
+  }
+
+  /**
+   * Put graded cells back to what model A said -- one, or all of them -- as a
+   * single undoable step. Works on edits saved earlier too: the AI's own
+   * grades are kept (grade_full.json), so nothing has to be remembered.
+   */
+  function handleRevertToAI(cells: { level: string; condition: string; severity: string }[]) {
+    if (!result || cells.length === 0) return;
+    const back = new Map(cells.map((c) => [`${c.level}/${c.condition}`, c.severity]));
+    gradeHistory.set({
+      ...result,
+      grading: result.grading.map((g) => {
+        const v = back.get(`${g.level}/${g.condition}`);
+        return v === undefined ? g : { ...g, severity: v };
+      }),
     });
     setUndoKinds((k) => [...k, "grade"]);
     setRedoKinds([]);
@@ -588,7 +624,8 @@ export default function Viewer() {
           <LangToggle />
           <button
             onClick={handleRunAI}
-            disabled={running}
+            disabled={running || !!detail?.is_picture}
+            title={detail?.is_picture ? t("A picture can only be read by model B. Model A needs an MRI series.") : undefined}
             className="rounded-lg bg-white px-4 py-1.5 text-sm font-semibold text-teal-700 shadow-sm transition hover:bg-teal-50 disabled:opacity-60"
           >
             {running ? t("Grading…") : t("✨ Run AI grading")}
@@ -627,9 +664,19 @@ export default function Viewer() {
         )}
       </header>
 
-      <main className="mx-auto flex max-w-7xl flex-wrap items-start gap-5 px-6 py-6">
-        {/* Viewer */}
-        <section className="min-w-0 flex-[3_1_400px]">
+      <main className="mx-auto flex max-w-7xl flex-col gap-5 px-6 py-6">
+        {/* Top row: the picture, and beside it what is wrong with it. The
+            side column is held to the picture's height and scrolls inside
+            itself, so it can never leave an empty gap under the image -- a
+            clinician took that gap for the end of the page. Everything read
+            against the image (grades, feedback, model B) follows full width. */}
+        <div
+          className={
+            "grid gap-5 " +
+            (result && detail?.has_mask ? "lg:grid-cols-[minmax(0,3fr)_minmax(280px,1fr)]" : "")
+          }
+        >
+        <section className="min-w-0">
           <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
             <SeriesPicker
               series={series}
@@ -670,18 +717,19 @@ export default function Viewer() {
             {t("Wheel: scroll slices · Left drag: window/level · Middle drag: pan · Right drag: zoom")}
           </p>
         </section>
-
-        {/* Side panel */}
-        <aside className="flex min-w-[260px] flex-[1_1_280px] flex-col gap-5">
+        <div className="relative">
+        <aside className="flex flex-col gap-5 lg:absolute lg:inset-0 lg:overflow-y-auto lg:pr-1">
           {/* What is wrong, beside the picture -- the full table is below. */}
           {result && detail?.has_mask && (
             <FindingsSummary
               grading={result.grading}
               original={fullResult?.grading}
               onJump={setTargetSlice}
+              onShowInTable={(level, condition) =>
+                setTableHighlight({ level, condition, nonce: Date.now() })
+              }
             />
           )}
-
           {legend.length > 0 && (
             <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
               <h2 className="mb-2 flex items-center gap-2 text-base font-bold text-slate-800">
@@ -709,98 +757,55 @@ export default function Viewer() {
               />
             </div>
           )}
+        </aside>
+        </div>
+        </div>
 
-
-          {/* Doctor feedback — corrections are queued for offline review */}
-          <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-            <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-slate-800">
-              <span className="h-4 w-1 rounded bg-gradient-to-b from-indigo-500 to-violet-500" />
-              {t("Doctor feedback")}
-            </h2>
-            <p className="text-xs text-slate-600">
-              {t("When you fix a grade in the table above and press “Save corrections”, the change is recorded as expert feedback. Send them when you are ready.")}
-            </p>
-
-            {result && fullResult && (
-              <MyEdits grading={result.grading} original={fullResult.grading} unsaved={dirty} />
-            )}
-
-            {corrections && (
-              <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3">
-                <div className="flex items-baseline justify-between text-xs">
-                  <span className="text-slate-600">{t("Waiting to be sent")}</span>
-                  <span className="text-lg font-bold text-indigo-600">
-                    {corrections.pending}
-                  </span>
-                </div>
-                <div className="mt-1 flex items-baseline justify-between text-xs text-slate-500">
-                  <span>{t("Already sent")}</span>
-                  <span>
-                    {corrections.submitted}
-                    {corrections.batches > 0 &&
-                      ` (${t("{n} batch(es)", { n: corrections.batches })})`}
-                  </span>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleSubmitCorrections}
-                  disabled={corrections.pending === 0 || submittingCorrections}
-                  className="mt-3 w-full rounded-md bg-indigo-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-                >
-                  {submittingCorrections
-                    ? t("Sending…")
-                    : t("Send {n} correction(s)", { n: corrections.pending })}
-                </button>
-
-                {submitMessage && (
-                  <p className="mt-2 text-xs text-emerald-700">{submitMessage}</p>
+          {/* What the clinician is looking at, and in what order to work.
+              With model B on, two models' answers sit on one page and only one
+              of them is editable; saying so up front is what keeps a doctor
+              from trying to correct model B or rating the wrong one. */}
+          {(result || detail?.is_picture) && (
+            <div className="rounded-lg border-2 border-teal-200 bg-teal-50/60 p-4">
+              <p className="text-sm font-bold text-slate-800">
+                {detail?.is_picture
+                  ? t("This study is one picture, so only model B reads it:")
+                  : modelBShown
+                    ? t("This study has results from two AI models:")
+                    : t("This study has the AI's results:")}
+              </p>
+              <div className="mt-2 grid gap-2 md:grid-cols-2">
+                {!detail?.is_picture && (
+                  <a href="#model-a" className="flex items-start gap-2 rounded-md bg-white p-2.5 text-sm text-slate-700 shadow-sm hover:ring-2 hover:ring-teal-300">
+                    <ModelBadge model="A" />
+                    <span>
+                      <b>{t("Model A")}</b> — {t("the coloured structures on the image and the grade table, level by level. You can correct it: change a grade, then Save.")}
+                    </span>
+                  </a>
+                )}
+                {(modelBShown || detail?.is_picture) && (
+                  <a href="#model-b" className="flex items-start gap-2 rounded-md bg-white p-2.5 text-sm text-slate-700 shadow-sm hover:ring-2 hover:ring-violet-300">
+                    <ModelBadge model="B" />
+                    <span>
+                      <b>{t("Model B")}</b> — {t("yes/no for the whole image, for comparison only. It cannot be edited.")}
+                    </span>
+                  </a>
                 )}
               </div>
-            )}
-
-            <p className="mt-2 text-xs text-slate-400">
-              {t("Sent corrections are reviewed later; they do not change the next patient's result.")}
-            </p>
-          </div>
-          {/* About this tool — what it predicts + disclaimer (collapsible) */}
-          <details className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-            <summary className="flex cursor-pointer items-center gap-2 text-base font-bold text-slate-800">
-              <span className="h-4 w-1 rounded bg-gradient-to-b from-teal-500 to-cyan-500" />
-              {t("About this tool")}
-            </summary>
-            <div className="mt-3 space-y-3 text-xs text-slate-600">
-              <p>
-                {t("This tool automatically reads a lumbar spine MRI and produces radiological grades for each intervertebral disc level (T12–L1 down to L5–S1). Click a level in the table to jump to its slice; you can correct any grade and save it.")}
-              </p>
-              <div>
-                <p className="mb-1 font-semibold text-slate-700">
-                  {t("What it predicts")}
-                </p>
-                <ul className="space-y-1.5">
-                  {PREDICTION_GUIDE.map((g) => (
-                    <li key={g.name}>
-                      <span className="font-medium text-slate-700">
-                        {g.name}
-                      </span>{" "}
-                      <span className="text-slate-400">({g.scale})</span> —{" "}
-                      {t(g.meaning)}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <p className="rounded-md bg-amber-50 px-2.5 py-1.5 text-amber-700">
-                {t("⚠ Research use only — this is not a diagnostic tool or a medical device.")}
-              </p>
+              {!detail?.is_picture && <p className="mt-2 text-xs text-slate-600">
+                {modelBShown
+                  ? t("Steps: 1. check model A against the image and correct what is wrong · 2. compare with model B · 3. answer the survey (★ top right), which asks about each model separately.")
+                  : t("Steps: check the result against the image, correct what is wrong, then answer the survey (★ top right).")}
+              </p>}
             </div>
-          </details>
-        </aside>
+          )}
 
           {/* Abnormality grades — the single 11-label editable table */}
-          <div className="w-full basis-full rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <div id="model-a" className="w-full basis-full scroll-mt-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
             <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-slate-800">
-              <span className="h-4 w-1 rounded bg-gradient-to-b from-teal-500 to-cyan-500" />
-              {t("Abnormality grades")}
+              <ModelBadge model="A" />
+              {t("Model A — abnormality grades")}
+              <span className="text-xs font-normal text-slate-500">{t("(editable)")}</span>
             </h2>
             {runError && (
               <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
@@ -828,6 +833,7 @@ export default function Viewer() {
                 <GradeTable
                   grading={result.grading}
                   original={fullResult?.grading}
+                  highlight={tableHighlight}
                   onJump={setTargetSlice}
                   onEditSeverity={handleEditSeverity}
                 />
@@ -907,18 +913,120 @@ export default function Viewer() {
             ) : (
               !running && (
                 <p className="text-sm text-slate-500">
-                  {t("No AI results yet — click “✨ Run AI grading” (top right).")}
+                  {detail?.is_picture
+                    ? t("This study is one picture (PNG/JPG), so model A cannot grade it — it needs an MRI series (DICOM .zip, NIfTI or MHA). Model B's result is below.")
+                    : t("No AI results yet — click “✨ Run AI grading” (top right).")}
                 </p>
               )
             )}
           </div>
 
-          {/* Model B, for comparison only: renders nothing until our own
-              grading exists, and nothing at all if model B is absent. */}
-          {fullResult && result && studyId && (
-            <ReferenceBPanel studyId={studyId} gradedAt={fullResult} />
+          {/* Doctor feedback — corrections are queued for offline review */}
+          {!detail?.is_picture && (
+          <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+            <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-slate-800">
+              <span className="h-4 w-1 rounded bg-gradient-to-b from-indigo-500 to-violet-500" />
+              {t("Doctor feedback")}
+            </h2>
+            <p className="text-xs text-slate-600">
+              {t("When you fix a grade in the table above and press “Save corrections”, the change is recorded as expert feedback. Send them when you are ready.")}
+            </p>
+
+            {result && fullResult && (
+              <MyEdits
+                grading={result.grading}
+                original={fullResult.grading}
+                unsaved={dirty}
+                onRevert={handleRevertToAI}
+              />
+            )}
+
+            {corrections && (
+              <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3">
+                <div className="flex items-baseline justify-between text-xs">
+                  <span className="text-slate-600">{t("Waiting to be sent")}</span>
+                  <span className="text-lg font-bold text-indigo-600">
+                    {corrections.pending}
+                  </span>
+                </div>
+                <div className="mt-1 flex items-baseline justify-between text-xs text-slate-500">
+                  <span>{t("Already sent")}</span>
+                  <span>
+                    {corrections.submitted}
+                    {corrections.batches > 0 &&
+                      ` (${t("{n} batch(es)", { n: corrections.batches })})`}
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleSubmitCorrections}
+                  disabled={corrections.pending === 0 || submittingCorrections}
+                  className="mt-3 w-full rounded-md bg-indigo-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                >
+                  {submittingCorrections
+                    ? t("Sending…")
+                    : t("Send {n} correction(s)", { n: corrections.pending })}
+                </button>
+
+                {submitMessage && (
+                  <p className="mt-2 text-xs text-emerald-700">{submitMessage}</p>
+                )}
+              </div>
+            )}
+
+            <p className="mt-2 text-xs text-slate-400">
+              {t("Sent corrections are reviewed later; they do not change the next patient's result.")}
+            </p>
+          </div>
+
           )}
 
+          {/* Model B, for comparison only: renders nothing until our own
+              grading exists, and nothing at all if model B is absent. */}
+          {studyId && ((fullResult && result) || detail?.is_picture) && (
+            <ReferenceBPanel
+              studyId={studyId}
+              gradedAt={fullResult}
+              modelA={detail?.is_picture ? null : result?.grading}
+              // A picture is uploaded to be read by model B: show it even
+              // while the operator keeps model B hidden on scans.
+              alwaysShow={!!detail?.is_picture}
+            />
+          )}
+
+        <div className="flex flex-col gap-5">
+          {/* About this tool — what it predicts + disclaimer (collapsible) */}
+          <details className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+            <summary className="flex cursor-pointer items-center gap-2 text-base font-bold text-slate-800">
+              <span className="h-4 w-1 rounded bg-gradient-to-b from-teal-500 to-cyan-500" />
+              {t("About this tool")}
+            </summary>
+            <div className="mt-3 space-y-3 text-xs text-slate-600">
+              <p>
+                {t("This tool automatically reads a lumbar spine MRI and produces radiological grades for each intervertebral disc level (T12–L1 down to L5–S1). Click a level in the table to jump to its slice; you can correct any grade and save it.")}
+              </p>
+              <div>
+                <p className="mb-1 font-semibold text-slate-700">
+                  {t("What it predicts")}
+                </p>
+                <ul className="space-y-1.5">
+                  {PREDICTION_GUIDE.map((g) => (
+                    <li key={g.name}>
+                      <span className="font-medium text-slate-700">
+                        {g.name}
+                      </span>{" "}
+                      <span className="text-slate-400">({g.scale})</span> —{" "}
+                      {t(g.meaning)}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <p className="rounded-md bg-amber-50 px-2.5 py-1.5 text-amber-700">
+                {t("⚠ Research use only — this is not a diagnostic tool or a medical device.")}
+              </p>
+            </div>
+          </details>
           {/* Open by default: clinicians asked to see the meaning of each
               grade without hunting for it. */}
           <details open className="w-full basis-full rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
@@ -930,6 +1038,7 @@ export default function Viewer() {
               <LabelReference />
             </div>
           </details>
+        </div>
       </main>
     </div>
   );

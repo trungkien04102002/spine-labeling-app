@@ -577,6 +577,31 @@ def to_model_orientation(image: sitk.Image) -> sitk.Image:
     return sitk.DICOMOrient(image, MODEL_ORIENTATION)
 
 
+#: A single 2D picture (a screenshot or an exported frame) rather than a scan.
+IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg")
+
+
+def is_picture(path: str | None) -> bool:
+    """True for a study uploaded as one 2D image instead of an MRI series."""
+    return bool(path) and str(path).lower().endswith(IMAGE_SUFFIXES)
+
+
+def picture_to_web_form(path: str, out_dir: str) -> str:
+    """A PNG/JPEG as a one-slice grey NIfTI the viewer can show.
+
+    No geometry survives a picture, so the spacing is 1 mm and the direction
+    identity: the viewer only has to show the pixels the way they look.
+    """
+    from PIL import Image
+
+    gray = np.asarray(Image.open(path).convert("L"), dtype=np.uint8)
+    image = sitk.GetImageFromArray(gray[np.newaxis, :, :])
+    out_path = Path(out_dir) / f"{Path(path).stem}.nii.gz"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    sitk.WriteImage(image, str(out_path))
+    return str(out_path.resolve())
+
+
 def to_web_form(path: str, out_dir: str) -> str:
     """Convert a volume to a Cornerstone3D-friendly NIfTI (``.nii.gz``).
 

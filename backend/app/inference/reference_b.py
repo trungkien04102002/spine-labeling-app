@@ -34,7 +34,7 @@ import SimpleITK as sitk
 import torch
 from pydantic import BaseModel
 
-from app.inference.volume_io import _read_image, to_model_orientation
+from app.inference.volume_io import _read_image, is_picture, to_model_orientation
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -62,6 +62,9 @@ class ReferenceLabel(BaseModel):
 class ReferenceResult(BaseModel):
     model: str
     plane: str
+    #: "volume" = the mid-sagittal slice of a scan; "picture" = an uploaded
+    #: PNG/JPEG, read as it is.
+    source: str = "volume"
     slice_index: int
     slice_count: int
     threshold: float
@@ -72,9 +75,9 @@ class ReferenceResult(BaseModel):
     created_at: str
 
 
-def available() -> bool:
+def available(plane: str = PLANE) -> bool:
     """Whether model B can run on this machine (weights + transformers)."""
-    dataset = DATASET_BY_PLANE[PLANE]
+    dataset = DATASET_BY_PLANE[plane]
     files = [
         WEIGHTS_DIR / "swin_config.json",
         WEIGHTS_DIR / dataset / "vision.pt",
@@ -188,13 +191,32 @@ def predict_png(png: bytes, plane: str = PLANE, threshold: float = THRESHOLD):
     return results, override
 
 
-def run(volume_path: str, study_dir: Path) -> ReferenceResult:
-    """Run model B on a study's graded series and save result + input image."""
-    png, index, count = mid_sagittal_png(volume_path)
-    results, override = predict_png(png)
+def picture_png(path: str) -> bytes:
+    """An uploaded picture as PNG bytes, unchanged otherwise (as JIT-Web takes it)."""
+    from PIL import Image
+
+    buf = io.BytesIO()
+    Image.open(path).convert("RGB").save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def run(volume_path: str, study_dir: Path, plane: str = PLANE) -> ReferenceResult:
+    """Run model B on a study and save result + the image it read.
+
+    A scan gives its mid-sagittal slice (sagittal model only); an uploaded
+    picture is read as it is, with whichever plane the doctor says it shows.
+    """
+    picture = is_picture(volume_path)
+    if picture:
+        png, index, count = picture_png(volume_path), 0, 1
+    else:
+        plane = PLANE  # a scan is read on its sagittal series
+        png, index, count = mid_sagittal_png(volume_path)
+    results, override = predict_png(png, plane=plane)
     result = ReferenceResult(
-        model=f"{MODEL_NAME} {DATASET_BY_PLANE[PLANE]}",
-        plane=PLANE,
+        model=f"{MODEL_NAME} {DATASET_BY_PLANE[plane]}",
+        plane=plane,
+        source="picture" if picture else "volume",
         slice_index=index,
         slice_count=count,
         threshold=THRESHOLD,
