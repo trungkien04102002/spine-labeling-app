@@ -566,16 +566,16 @@ registerVi({
     "Trang web này dùng để làm gì?",
   "It reads a lumbar spine MRI for you: the AI colours the vertebrae and discs on the image and grades what is abnormal at each disc level (T12–L1 down to L5–S1). You check the result and correct anything it got wrong.":
     "Trang web đọc phim MRI cột sống thắt lưng: AI tô màu các đốt sống, đĩa đệm trên ảnh và chấm mức độ bất thường ở từng tầng đĩa đệm (từ T12–L1 đến L5–S1). Bác sĩ xem lại kết quả và sửa chỗ AI chấm sai.",
-  "Create a study, then upload the scan: the DICOM folder compressed into one .zip file.":
-    "Tạo ca mới, rồi tải phim lên: nén thư mục phim DICOM thành một file .zip.",
+  "Create a study, then upload the scan compressed into one .zip file. Only the sagittal (side view) lumbar series are needed, T2 first — their names usually contain “sag”, e.g. t2_tse_sag, SAG T2, T2 SAG FSE.":
+    "Tạo ca mới, rồi tải phim lên: nén thành một file .zip. Chỉ cần phim cắt dọc (sagittal) vùng thắt lưng, ưu tiên T2 — tên chuỗi thường có chữ “sag”, ví dụ t2_tse_sag, SAG T2, T2 SAG FSE.",
   "Open the study and press “✨ Run AI grading” — about 1–2 minutes.":
     "Mở ca và bấm “✨ Chạy chẩn đoán AI” — mất khoảng 1–2 phút.",
   "Look at the result, correct what is wrong, and press Save.":
     "Xem kết quả, sửa chỗ chưa đúng rồi bấm Lưu.",
   "When you are done, answer the short survey “★ Rate this software”.":
     "Dùng xong, bác sĩ trả lời khảo sát ngắn “★ Đánh giá phần mềm”.",
-  "Only sagittal (side view) T2 images are graded; axial images can be viewed but are not graded. A research tool — not a diagnosis.":
-    "AI chỉ chấm phim cắt dọc (sagittal) T2; phim cắt ngang (axial) xem được nhưng không được chấm. Đây là công cụ nghiên cứu, không thay cho chẩn đoán.",
+  "Only sagittal lumbar series are graded. Axial (cross-section, “tra”/“ax”) and coronal (“cor”) series are not graded yet — no need to upload them. A research tool — not a diagnosis.":
+    "AI chỉ chấm phim cắt dọc (sagittal) vùng thắt lưng. Phim cắt ngang (axial — tên có “tra”/“ax”) và cắt đứng ngang (coronal — tên có “cor”) chưa được chấm, không cần tải lên. Đây là công cụ nghiên cứu, không thay cho chẩn đoán.",
   "Our model vs model B (same question, 1–5)":
     "Mô hình A và mô hình B (cùng câu hỏi, thang 1–5)",
   "Question":

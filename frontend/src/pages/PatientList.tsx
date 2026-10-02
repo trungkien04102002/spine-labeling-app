@@ -282,7 +282,7 @@ export default function PatientList() {
               {t("It reads a lumbar spine MRI for you: the AI colours the vertebrae and discs on the image and grades what is abnormal at each disc level (T12–L1 down to L5–S1). You check the result and correct anything it got wrong.")}
             </p>
             <ol className="list-decimal space-y-1 pl-5">
-              <li>{t("Create a study, then upload the scan: the DICOM folder compressed into one .zip file.")}</li>
+              <li>{t("Create a study, then upload the scan compressed into one .zip file. Only the sagittal (side view) lumbar series are needed, T2 first — their names usually contain “sag”, e.g. t2_tse_sag, SAG T2, T2 SAG FSE.")}</li>
               <li>{t("Open the study and press “✨ Run AI grading” — about 1–2 minutes.")}</li>
               <li>{t("Look at the result, correct what is wrong, and press Save.")}</li>
               <li>{t("When you are done, answer the short survey “★ Rate this software”.")}</li>
@@ -291,7 +291,7 @@ export default function PatientList() {
               {t("Only have a picture (PNG/JPG), not the scan? Upload it the same way — then only model B reads it.")}
             </p>
             <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              {t("Only sagittal (side view) T2 images are graded; axial images can be viewed but are not graded. A research tool — not a diagnosis.")}
+              {t("Only sagittal lumbar series are graded. Axial (cross-section, “tra”/“ax”) and coronal (“cor”) series are not graded yet — no need to upload them. A research tool — not a diagnosis.")}
             </p>
           </div>
         </details>
