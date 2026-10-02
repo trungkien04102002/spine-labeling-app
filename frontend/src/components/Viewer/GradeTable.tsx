@@ -281,7 +281,7 @@ export default function GradeTable({ grading, onJump, onEditSeverity, original, 
     return (
       <tr key={c}>
         <th scope="row" style={{ ...sticky, textAlign: "left", padding: "6px 10px 6px 0", fontWeight: 600 }}>
-          <span style={{ whiteSpace: "nowrap" }}>
+          <span style={{ display: "inline-block", maxWidth: 170, lineHeight: 1.25 }}>
             {conditionHeader(c, lang, conditionLabel(c))}
           </span>
           {/* The English term stays under the Vietnamese one: it is what

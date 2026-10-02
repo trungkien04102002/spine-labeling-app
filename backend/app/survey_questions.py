@@ -81,11 +81,11 @@ QUESTIONS: list[Question] = [
     Question(5, "Hẹp ống sống trung tâm (canal stenosis)", "detail", GRADE, matrix=True),
     Question(6, "Hẹp lỗ liên hợp trái / phải (foraminal stenosis)", "detail", GRADE, matrix=True),
     Question(7, "Thoái hoá đĩa đệm (Pfirrmann)", "detail", GRADE, matrix=True),
-    Question(8, "Hẹp khe đĩa (disc narrowing)", "detail", GRADE, matrix=True),
+    Question(8, "Hẹp khe đĩa đệm (disc narrowing)", "detail", GRADE, matrix=True),
     Question(9, "Thoát vị đĩa đệm (disc herniation)", "detail", GRADE, matrix=True),
     Question(10, "Trượt đốt sống (spondylolisthesis)", "detail", GRADE, matrix=True),
-    Question(11, "Tổn thương tấm tận trên / dưới (endplate defect)", "detail", GRADE, matrix=True),
-    Question(12, "Thay đổi tuỷ xương trên / dưới — Modic (marrow)", "detail", GRADE, matrix=True),
+    Question(11, "Tổn thương mâm sụn trên / dưới (endplate defect)", "detail", GRADE, matrix=True),
+    Question(12, "Thay đổi Modic thân đốt trên / dưới (marrow)", "detail", GRADE, matrix=True),
 
     # --- Whether the presentation does any work ---------------------------
     Question(13, "Bảng kết quả (mỗi cột là một tầng đĩa đệm): xem nhanh được cả cột sống thắt lưng", "detail", SHOW),

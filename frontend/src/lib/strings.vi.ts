@@ -267,9 +267,9 @@ registerVi({
   "Forward slippage of one vertebra over another.":
     "Trượt đốt sống ra trước so với đốt bên dưới.",
   "Damage to the vertebral endplate.":
-    "Tổn thương tấm tận đốt sống.",
+    "Tổn thương mâm sụn (tấm tận) đốt sống.",
   "Modic vertebral bone-marrow signal changes.":
-    "Thay đổi tín hiệu tuỷ xương đốt sống kiểu Modic.",
+    "Thay đổi tín hiệu tuỷ xương thân đốt sát mâm sụn (thay đổi Modic).",
   "Protrusion/extrusion of disc material.":
     "Lồi/thoát vị nhân đệm.",
   "not on this scale":
@@ -495,9 +495,9 @@ registerVi({
   "“No finding” scored highest, so model B counts every other finding as No.":
     "“Không thấy bất thường” có xác suất cao nhất, nên mô hình B tính mọi dấu hiệu còn lại là Không.",
   "UP endplate":
-    "Tổn thương tấm tận trên",
+    "Tổn thương mâm sụn trên",
   "LOW endplate":
-    "Tổn thương tấm tận dưới",
+    "Tổn thương mâm sụn dưới",
   "Spondylolisthesis":
     "Trượt đốt sống",
   "Disc herniation":
@@ -507,7 +507,7 @@ registerVi({
   "Disc bulging":
     "Phồng đĩa đệm",
   "Modic":
-    "Thay đổi tuỷ xương (Modic)",
+    "Thay đổi Modic",
   "No Finding":
     "Không thấy bất thường",
   "Comparison model B":
@@ -627,7 +627,7 @@ registerVi({
   "Herniation":
     "Thoát vị đĩa đệm",
   "Modic Endplate Changes":
-    "Thay đổi tấm tận kiểu Modic",
+    "Thay đổi Modic",
   "Nerve Root Compression":
     "Chèn ép rễ thần kinh",
   "Schmorl's Node":
