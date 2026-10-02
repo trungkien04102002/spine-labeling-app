@@ -1,8 +1,14 @@
 import { readAdminKey, readRoom, writeRoom } from "./room";
 
+// Unset: the dev backend. Empty: whatever host served this page, so one build
+// works behind an IP, a tunnel or a domain alike -- resolved to an absolute
+// origin rather than left relative, because the image loader builds its
+// requests with `new URL()`, which rejects a bare path (black viewport).
+const CONFIGURED_API_URL = import.meta.env.VITE_API_URL as string | undefined;
 export const API_BASE_URL: string =
-  (import.meta.env.VITE_API_URL as string | undefined) ??
-  "http://localhost:8000";
+  CONFIGURED_API_URL === undefined
+    ? "http://localhost:8000"
+    : CONFIGURED_API_URL || window.location.origin;
 
 export interface HealthResponse {
   status: string;
