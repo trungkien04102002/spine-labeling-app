@@ -73,7 +73,7 @@ export const CONDITIONS: Record<string, ConditionInfo> = {
     short: "Hẹp lỗ liên hợp trái",
     full: "Hẹp lỗ liên hợp bên trái",
     en: "L. foraminal",
-    definition: "Lỗ liên hợp — nơi rễ thần kinh đi ra khỏi ống sống — bị hẹp. Trường hợp nặng có thể chèn ép rễ thần kinh.",
+    definition: "Lỗ liên hợp (nơi rễ thần kinh đi ra khỏi ống sống) bị hẹp. Trường hợp nặng có thể chèn ép rễ thần kinh.",
     levels: CBAM_LEVELS,
   },
   right_foraminal: {
@@ -135,19 +135,19 @@ export const CONDITIONS: Record<string, ConditionInfo> = {
   },
   upper_marrow: {
     short: "Thay đổi Modic thân đốt trên",
-    full: "Thay đổi Modic — thân đốt phía trên đĩa đệm",
+    full: "Thay đổi Modic ở thân đốt phía trên đĩa đệm",
     en: "Upper marrow",
     definition: "Thay đổi tín hiệu tuỷ xương thân đốt sống sát mâm sụn (thay đổi Modic), ở thân đốt phía trên đĩa đang xét. Không phải đa u tuỷ xương.",
     levels: BINARY("Có thay đổi Modic."),
-    caveat: "Nhãn này không phân biệt Modic type 1, 2, 3 hay hỗn hợp — mọi type đều là “Có”.",
+    caveat: "Nhãn này không phân biệt Modic type 1, 2, 3 hay hỗn hợp: mọi type đều là “Có”.",
   },
   lower_marrow: {
     short: "Thay đổi Modic thân đốt dưới",
-    full: "Thay đổi Modic — thân đốt phía dưới đĩa đệm",
+    full: "Thay đổi Modic ở thân đốt phía dưới đĩa đệm",
     en: "Lower marrow",
     definition: "Như trên, ở thân đốt phía dưới đĩa đang xét.",
     levels: BINARY("Có thay đổi Modic."),
-    caveat: "Nhãn này không phân biệt Modic type 1, 2, 3 hay hỗn hợp — mọi type đều là “Có”.",
+    caveat: "Nhãn này không phân biệt Modic type 1, 2, 3 hay hỗn hợp: mọi type đều là “Có”.",
   },
   disc_herniation: {
     short: "Thoát vị đĩa đệm",

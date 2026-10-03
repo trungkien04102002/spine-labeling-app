@@ -252,11 +252,11 @@ export default function Survey() {
     <div className="mx-auto max-w-3xl px-4 py-8">
       <h1 className="text-xl font-bold text-slate-800">Phiếu đánh giá phần mềm</h1>
       <p className="mt-2 text-sm text-slate-600">
-        Khoảng 5 phút. Bác sĩ chấm từng mặt của kết quả AI — vùng tô, điểm
-        chẩn đoán của cả 11 nhãn, khi AI sai, cách trình bày — {SCALE_HINT}.
+        Khoảng 5 phút. Bác sĩ chấm từng mặt của kết quả AI: vùng tô, điểm
+        chẩn đoán của cả 11 nhãn, khi AI sai, cách trình bày ({SCALE_HINT}).
       </p>
       <p className="mt-1 text-sm text-slate-500">
-        Không có câu trả lời đúng hay sai — đánh giá thấp cũng có ích như đánh
+        Không có câu trả lời đúng hay sai. Đánh giá thấp cũng có ích như đánh
         giá cao.
       </p>
 

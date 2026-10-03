@@ -83,7 +83,7 @@ registerVi({
   "Delete study":
     "Xoá ca",
   "No studies yet — create one to get started.":
-    "Chưa có ca nào — tạo ca mới để bắt đầu.",
+    "Chưa có ca nào. Bấm “+ Ca mới” để bắt đầu.",
   "No matches for the current search / filter.":
     "Không có ca nào khớp với từ khoá / bộ lọc.",
   "{n} patient":
@@ -103,7 +103,7 @@ registerVi({
   "The grades come from the":
     "Điểm được chấm trên chuỗi",
   "series. Browse any series freely — switching does not change the grades.":
-    "— có thể xem các chuỗi khác thoải mái, đổi chuỗi không làm đổi điểm.",
+    "(có thể xem các chuỗi khác thoải mái, đổi chuỗi không làm đổi điểm).",
   "Browse any plane freely. “Run AI grading” always grades the sagittal series, whichever one you are viewing.":
     "Có thể xem mọi mặt cắt. “Chạy chẩn đoán AI” luôn chấm trên chuỗi sagittal, bất kể đang xem chuỗi nào.",
   "Saved as a new corrected version.":
@@ -111,7 +111,7 @@ registerVi({
   "No corrections are waiting to be sent.":
     "Không có hiệu chỉnh nào đang chờ gửi.",
   "Sent {n} correction(s). Thank you — they are reviewed later and do not change any result right away.":
-    "Đã gửi {n} hiệu chỉnh. Cảm ơn bác sĩ — hiệu chỉnh sẽ được xem xét sau, không làm đổi kết quả nào ngay lập tức.",
+    "Đã gửi {n} hiệu chỉnh. Cảm ơn bác sĩ! Hiệu chỉnh sẽ được xem xét sau, không làm đổi kết quả nào ngay lập tức.",
   "← Worklist":
     "← Danh sách ca",
   "Study {id}":
@@ -123,7 +123,7 @@ registerVi({
   "Grading progress":
     "Tiến độ chấm",
   "Usually 3–5 minutes. Press it and leave it: you can even leave this page — the run continues on the server and the result is saved.":
-    "Thường mất 3–5 phút. Cứ bấm rồi để đó chờ — có thể rời trang, máy chủ vẫn chạy và tự lưu kết quả.",
+    "Thường mất 3–5 phút. Cứ bấm rồi để đó chờ. Bác sĩ có thể rời trang, máy chủ vẫn chạy và tự lưu kết quả.",
   "Saving…":
     "Đang lưu…",
   "Undo mask edit":
@@ -139,11 +139,11 @@ registerVi({
   "What it predicts":
     "AI chấm những gì",
   "⚠ Research use only — this is not a diagnostic tool or a medical device.":
-    "⚠ Chỉ dùng cho nghiên cứu — đây không phải công cụ chẩn đoán hay thiết bị y tế.",
+    "⚠ Chỉ dùng cho nghiên cứu. Đây không phải công cụ chẩn đoán hay thiết bị y tế.",
   "Structures":
     "Cấu trúc giải phẫu",
   "Click it on the image, or pick it here — the fill tools are off until a structure is chosen.":
-    "Bấm lên ảnh hoặc chọn tên ở đây để chọn đốt sống / đĩa đệm cần tô — chưa chọn thì chưa tô được.",
+    "Bấm lên ảnh hoặc chọn tên ở đây để chọn đốt sống / đĩa đệm cần tô. Chưa chọn thì chưa tô được.",
   "Click a structure here, or point at it on the image, to switch what is painted.":
     "Bấm vào tên ở đây hoặc bấm lên ảnh để chọn đốt sống / đĩa đệm cần tô.",
   "Doctor feedback":
@@ -163,13 +163,13 @@ registerVi({
   "Sent corrections are reviewed later; they do not change the next patient's result.":
     "Hiệu chỉnh đã gửi sẽ được xem xét sau, không làm đổi kết quả của bệnh nhân kế tiếp.",
   "Model versions — review and switch on →":
-    "Phiên bản mô hình — duyệt và bật →",
+    "Phiên bản mô hình: duyệt và bật →",
   "Abnormality grades":
     "Điểm bất thường",
   "Canal and foraminal stenosis are missing.":
     "Thiếu nhãn hẹp ống sống và hẹp lỗ liên hợp.",
   "They are graded around the lumbar discs found by the segmentation, and the segmentation of this study has no lumbar discs — only the other 8 labels are shown. Re-upload the study and run again; if it persists, check the segmentation.":
-    "Ba nhãn này được chấm quanh các đĩa đệm thắt lưng mà AI tô trên phim, nhưng ở ca này AI không tô được đĩa đệm thắt lưng nào — chỉ hiện 8 nhãn còn lại. Hãy tải ảnh lên lại và chạy lại; nếu vẫn vậy, hãy xem lại vùng tô.",
+    "Ba nhãn này được chấm quanh các đĩa đệm thắt lưng mà AI tô trên phim, nhưng ở ca này AI không tô được đĩa đệm thắt lưng nào, nên chỉ hiện 8 nhãn còn lại. Hãy tải ảnh lên lại và chạy lại; nếu vẫn vậy, hãy xem lại vùng tô.",
   "No segmentation for this study, so there is nothing these grades were measured from. Click “✨ Run AI grading” to segment and grade the current image.":
     "Ca này chưa có vùng tô, nên các điểm này không khớp với ảnh đang xem. Bấm “✨ Chạy chẩn đoán AI” để AI tô và chấm lại ảnh này.",
   "Undo mask edit (Ctrl+Z)":
@@ -193,7 +193,7 @@ registerVi({
   "SpineNet-labelled mid-sagittal slice":
     "Lát cắt sagittal giữa có nhãn của SpineNet",
   "No AI results yet — click “✨ Run AI grading” (top right).":
-    "Chưa có kết quả AI — bấm “✨ Chạy chẩn đoán AI” (góc trên bên phải).",
+    "Chưa có kết quả AI. Bấm “✨ Chạy chẩn đoán AI” (góc trên bên phải).",
   "Level":
     "Tầng",
   "Graded by the vendored upstream SpineNet. Corrections here are saved and exported, but re-training does not use them.":
@@ -203,7 +203,7 @@ registerVi({
   "confidence {p}%":
     "độ tin cậy {p}%",
   "Graded by the vendored upstream SpineNet. Corrections to these columns are saved with the study and included in the export, but the re-training loop does not use them — it re-trains only Canal, L. foraminal and R. foraminal, the three heads of the app's own model.":
-    "Do SpineNet chấm. Hiệu chỉnh ở các cột này được lưu cùng ca và có trong tệp xuất, nhưng vòng huấn luyện lại không dùng chúng — nó chỉ huấn luyện lại Canal, L. foraminal và R. foraminal, ba nhánh của mô hình riêng của đề tài.",
+    "Do SpineNet chấm. Hiệu chỉnh ở các cột này được lưu cùng ca và có trong tệp xuất, nhưng vòng huấn luyện lại không dùng chúng. Vòng này chỉ huấn luyện lại Canal, L. foraminal và R. foraminal, ba nhánh của mô hình riêng của đề tài.",
   "Segmentation":
     "Vùng tô",
   "Opacity":
@@ -229,11 +229,11 @@ registerVi({
   "Size":
     "Cỡ",
   "Click the structure on the image — nothing is selected yet.":
-    "Bấm vào cấu trúc trên ảnh — chưa chọn gì.",
+    "Bấm vào cấu trúc trên ảnh (chưa chọn gì).",
   "Click the structure on the image.":
     "Bấm vào cấu trúc trên ảnh.",
   "Nothing there — that is background.":
-    "Không có gì ở đó — đó là nền.",
+    "Chỗ đó là nền, không có cấu trúc nào.",
   "Sagittal":
     "Sagittal",
   "Axial":
@@ -275,13 +275,13 @@ registerVi({
   "not on this scale":
     "sai thang",
   "Low confidence ({p}%) — review":
-    "Độ tin cậy thấp ({p}%) — nên kiểm lại",
+    "Độ tin cậy thấp ({p}%), nên kiểm lại",
   "Choose a structure…":
     "Chọn cấu trúc…",
   "Label reference: what each grade means":
     "Bảng tra nhãn: mỗi mức điểm nghĩa là gì",
   "More columns to the side — use the arrows, drag the bar, or Shift + scroll.":
-    "Còn cột ở bên cạnh — bấm mũi tên, kéo thanh cuộn, hoặc giữ Shift rồi cuộn chuột.",
+    "Còn cột ở bên cạnh: bấm mũi tên, kéo thanh cuộn, hoặc giữ Shift rồi cuộn chuột.",
   "Scroll left":
     "Cuộn sang trái",
   "Scroll right":
@@ -297,7 +297,7 @@ registerVi({
   "Sample cases to try":
     "Ca mẫu để thử",
   "Already graded by the AI. Your copy is yours alone — edit it freely.":
-    "Đã được AI chấm sẵn. Bản sao là của riêng bác sĩ — cứ sửa thoải mái.",
+    "Đã được AI chấm sẵn. Bản sao là của riêng bác sĩ, cứ sửa thoải mái.",
   "Adding…":
     "Đang thêm…",
   "Your room is empty. Add a sample case above, or create a study and upload your own scan.":
@@ -315,7 +315,7 @@ registerVi({
   "Type the same name again, on any computer, to come back to your room.":
     "Nhập lại đúng tên này, trên bất kỳ máy nào, để quay lại phòng của mình.",
   "Pick a name others will not use — two people with the same name share one room.":
-    "Chọn tên không trùng người khác — hai người cùng tên sẽ vào chung một phòng.",
+    "Chọn tên không trùng người khác, vì hai người cùng tên sẽ vào chung một phòng.",
   "Wrong passphrase.":
     "Sai mật khẩu.",
   "Admin":
@@ -355,7 +355,7 @@ registerVi({
   "Export trial data":
     "Xuất dữ liệu",
   "Everything the trial produced, in one file, straight to this computer. Download it before destroying the rented box — its disk goes with it.":
-    "Toàn bộ dữ liệu thử nghiệm trong một tệp, tải thẳng về máy này. Tải trước khi huỷ máy thuê — ổ đĩa của nó mất theo.",
+    "Toàn bộ dữ liệu thử nghiệm trong một tệp, tải thẳng về máy này. Nhớ tải trước khi huỷ máy thuê, vì ổ đĩa của máy đó mất theo.",
   "Preparing…":
     "Đang chuẩn bị…",
   "⬇ Download everything (.zip)":
@@ -371,7 +371,7 @@ registerVi({
   "A copy of the whole database, for anything the CSVs miss.":
     "Bản sao toàn bộ cơ sở dữ liệu, cho những gì CSV không có.",
   "Images clinicians uploaded are not in the zip — they can be hundreds of MB. Copy them off the box separately; see DEPLOY_VAST.md.":
-    "Ảnh bác sĩ tải lên không nằm trong tệp zip — có thể tới hàng trăm MB. Chép riêng khỏi máy thuê; xem DEPLOY_VAST.md.",
+    "Ảnh bác sĩ tải lên không nằm trong tệp zip (có thể tới hàng trăm MB). Chép riêng khỏi máy thuê, xem DEPLOY_VAST.md.",
   "Clinician view ↗":
     "Giao diện bác sĩ ↗",
   "Lock":
@@ -422,7 +422,7 @@ registerVi({
   "Your 4-digit PIN":
     "Mã PIN 4 số của bác sĩ",
   "This room has no PIN yet — you will choose one after entering.":
-    "Phòng này chưa có mã PIN — bác sĩ sẽ đặt mã ngay sau khi vào.",
+    "Phòng này chưa có mã PIN. Bác sĩ sẽ đặt mã ngay sau khi vào.",
   "Not you? Pick another name":
     "Không phải bác sĩ? Chọn tên khác",
   "Pick your name":
@@ -454,11 +454,11 @@ registerVi({
   "Choose a 4-digit PIN. Next time, pick your name on the first screen and type it to come back here.":
     "Bác sĩ đặt mã 4 số. Lần sau, ở trang đầu tiên bấm vào tên mình và nhập mã này là quay lại đây.",
   "That name already has a room — its link is in the list below.":
-    "Tên này đã có phòng — link của phòng nằm trong danh sách bên dưới.",
+    "Tên này đã có phòng. Link của phòng nằm trong danh sách bên dưới.",
   "Reset the PIN of “{name}”? Their room opens without a PIN until they choose a new one.":
     "Đặt lại PIN của “{name}”? Phòng sẽ mở không cần PIN cho tới khi bác sĩ đặt mã mới.",
   "Send each clinician their link. If they lose it or forget their PIN, copy it again from here — the link opens the room without a PIN.":
-    "Gửi mỗi bác sĩ link của họ. Nếu bác sĩ mất link hoặc quên PIN, sao chép lại từ đây — mở bằng link thì không cần PIN.",
+    "Gửi mỗi bác sĩ link của họ. Nếu bác sĩ mất link hoặc quên PIN, sao chép lại từ đây. Mở bằng link thì không cần PIN.",
   "PIN":
     "PIN",
   "Set":
@@ -557,11 +557,11 @@ registerVi({
   "What you changed on this study":
     "Những gì bác sĩ đã sửa ở ca này",
   "Nothing yet — every grade is still the AI's.":
-    "Chưa sửa gì — mọi kết quả vẫn là của AI.",
+    "Chưa sửa gì, mọi kết quả vẫn là của AI.",
   "Not saved yet — press Save under the table.":
-    "Chưa lưu — bấm Lưu bên dưới bảng.",
+    "Chưa lưu. Bấm Lưu bên dưới bảng.",
   "Changed by you — the AI said: {v}":
-    "Bác sĩ đã sửa — AI chấm: {v}",
+    "Bác sĩ đã sửa (AI chấm: {v})",
   "What is this website?":
     "Trang web này dùng để làm gì?",
   "It reads a lumbar spine MRI for you: the AI colours the vertebrae and discs on the image and grades what is abnormal at each disc level (T12–L1 down to L5–S1). You check the result and correct anything it got wrong.":
@@ -569,13 +569,13 @@ registerVi({
   "Create a study, then upload the scan compressed into one .zip file.":
     "Tạo ca mới, rồi tải phim lên: nén thành một file .zip.",
   "Open the study and press “✨ Run AI grading” — about 3–5 minutes. Press it and leave it to run.":
-    "Mở ca và bấm “✨ Chạy chẩn đoán AI” — mất khoảng 3–5 phút. Cứ bấm rồi để đó chờ.",
+    "Mở ca và bấm “✨ Chạy chẩn đoán AI”. Mất khoảng 3–5 phút, cứ bấm rồi để đó chờ.",
   "Look at the result, correct what is wrong, and press Save.":
     "Xem kết quả, sửa chỗ chưa đúng rồi bấm Lưu.",
   "When you are done, answer the short survey “★ Rate this software”.":
     "Dùng xong, bác sĩ trả lời khảo sát ngắn “★ Đánh giá phần mềm”.",
   "Only sagittal lumbar series are graded. Axial (cross-section, “tra”/“ax”) and coronal (“cor”) series are not graded yet — no need to upload them. A research tool — not a diagnosis.":
-    "AI chỉ chấm phim cắt dọc (sagittal) vùng thắt lưng. Phim cắt ngang (axial — tên có “tra”/“ax”) và cắt đứng ngang (coronal — tên có “cor”) chưa được chấm, không cần tải lên. Đây là công cụ nghiên cứu, không thay cho chẩn đoán.",
+    "AI chỉ chấm phim cắt dọc (sagittal) vùng thắt lưng. Phim cắt ngang (axial, tên có “tra” hoặc “ax”) và cắt đứng ngang (coronal, tên có “cor”) chưa được chấm, không cần tải lên. Đây là công cụ nghiên cứu, không thay cho chẩn đoán.",
   "Our model vs model B (same question, 1–5)":
     "Mô hình A và mô hình B (cùng câu hỏi, thang 1–5)",
   "Question":
@@ -587,7 +587,7 @@ registerVi({
   "Red = the lower-rated model on that question.":
     "Màu đỏ = mô hình bị chấm thấp hơn ở câu đó.",
   "Model B — results to compare":
-    "Mô hình B — kết quả để đối chiếu",
+    "Mô hình B: kết quả để đối chiếu",
   "A second AI model, run on the same study. It reads one image (the middle slice, shown here) and answers yes/no for the whole image, not per disc level. The “Model A” column is model A's answer for the same finding: yes if it found it at any level.":
     "Một mô hình AI thứ hai, chạy trên cùng ca. Mô hình này đọc một ảnh (lát giữa, hình bên trái) và trả lời có/không cho cả ảnh, không chia theo tầng đĩa đệm. Cột “Mô hình A” là câu trả lời của mô hình A cho cùng dấu hiệu: “Có” nếu thấy ở ít nhất một tầng.",
   "Model B: probability":
@@ -597,13 +597,13 @@ registerVi({
   "Model A has no matching finding":
     "Mô hình A không chấm dấu hiệu này",
   "Model A — abnormality grades":
-    "Mô hình A — Điểm bất thường",
+    "Mô hình A: điểm bất thường",
   "Model A — abnormal findings":
-    "Mô hình A — Tóm tắt bất thường",
+    "Mô hình A: tóm tắt bất thường",
   "A picture can only be read by model B. Model A needs an MRI series.":
     "Ảnh 2D chỉ mô hình B đọc được. Mô hình A cần phim MRI.",
   "This study is one picture (PNG/JPG), so model A cannot grade it — it needs an MRI series (DICOM .zip, NIfTI or MHA). Model B's result is below.":
-    "Ca này là một ảnh 2D (PNG/JPG) nên mô hình A không chấm được — mô hình A cần phim MRI (thư mục DICOM nén .zip, NIfTI hoặc MHA). Kết quả của mô hình B ở bên dưới.",
+    "Ca này là một ảnh 2D (PNG/JPG) nên mô hình A không chấm được. Mô hình A cần phim MRI (thư mục DICOM nén .zip, NIfTI hoặc MHA). Kết quả của mô hình B ở bên dưới.",
   "This picture is a:":
     "Ảnh này là:",
   "Sagittal (side view)":
@@ -635,15 +635,15 @@ registerVi({
   "Spinal Canal Stenosis":
     "Hẹp ống sống",
   "MRI: DICOM folder as .zip, or .mha / .nii / .nii.gz. Or one picture (.png / .jpg) for model B only.":
-    "Phim MRI: thư mục DICOM nén .zip, hoặc file .mha / .nii / .nii.gz. Hoặc một ảnh (.png / .jpg) — chỉ mô hình B đọc.",
+    "Phim MRI: thư mục DICOM nén .zip, hoặc file .mha / .nii / .nii.gz. Hoặc một ảnh (.png / .jpg), khi đó chỉ mô hình B đọc.",
   "Only have a picture (PNG/JPG), not the scan? Upload it the same way — then only model B reads it.":
-    "Chỉ có ảnh chụp (PNG/JPG), không có phim? Vẫn tải lên như trên — khi đó chỉ mô hình B đọc ảnh.",
+    "Chỉ có ảnh chụp (PNG/JPG), không có phim? Vẫn tải lên như trên, khi đó chỉ mô hình B đọc ảnh.",
   "Back to the AI's grade":
     "Trả về kết quả AI",
   "Put everything back to the AI's grades":
     "Trả tất cả về kết quả AI",
   "Not saved yet — press Save under the table. Undo (Ctrl+Z) also steps back.":
-    "Chưa lưu — bấm Lưu bên dưới bảng. Nút Hoàn tác (Ctrl+Z) cũng lùi lại từng bước.",
+    "Chưa lưu. Bấm Lưu bên dưới bảng. Nút Hoàn tác (Ctrl+Z) cũng lùi lại từng bước.",
   "This study has results from two AI models:":
     "Ca này có kết quả của hai mô hình AI:",
   "This study has the AI's results:":
@@ -653,7 +653,7 @@ registerVi({
   "yes/no for the whole image, for comparison only. It cannot be edited.":
     "có/không cho cả ảnh, chỉ để đối chiếu. Không sửa được.",
   "Steps: 1. check model A against the image and correct what is wrong · 2. compare with model B · 3. answer the survey (★ top right), which asks about each model separately.":
-    "Các bước: 1. đối chiếu mô hình A với ảnh và sửa chỗ sai · 2. so với mô hình B · 3. trả lời khảo sát (★ góc trên bên phải) — có phần riêng cho từng mô hình.",
+    "Các bước: 1. đối chiếu mô hình A với ảnh và sửa chỗ sai · 2. so với mô hình B · 3. trả lời khảo sát (★ góc trên bên phải), có phần riêng cho từng mô hình.",
   "Steps: check the result against the image, correct what is wrong, then answer the survey (★ top right).":
     "Các bước: đối chiếu kết quả với ảnh, sửa chỗ sai, rồi trả lời khảo sát (★ góc trên bên phải).",
   "(editable)":
@@ -661,17 +661,17 @@ registerVi({
   "(not editable)":
     "(chỉ xem)",
   "Only what is not normal. Click a level, or one finding, to go to it in the model A table below — it will flash.":
-    "Chỉ liệt kê chỗ bất thường. Bấm vào một tầng (hoặc một dấu hiệu) để đi tới đúng ô đó trong bảng mô hình A bên dưới — ô sẽ nhấp nháy.",
+    "Chỉ liệt kê chỗ bất thường. Bấm vào một tầng (hoặc một dấu hiệu) để đi tới đúng ô đó trong bảng mô hình A bên dưới, ô sẽ nhấp nháy.",
   "see in table":
     "xem trong bảng",
   "This study is one picture, so only model B reads it:":
     "Ca này là một ảnh 2D nên chỉ mô hình B đọc được:",
   "Model B reads the uploaded picture and answers yes/no for the whole image. Say whether the picture is a side view (sagittal) or a cross-section (axial): model B has a version for each.":
-    "Mô hình B đọc ảnh đã tải lên và trả lời có/không cho cả ảnh. Bác sĩ chọn ảnh là cắt dọc (sagittal) hay cắt ngang (axial) — mô hình B có bản riêng cho từng loại.",
+    "Mô hình B đọc ảnh đã tải lên và trả lời có/không cho cả ảnh. Bác sĩ chọn ảnh là cắt dọc (sagittal) hay cắt ngang (axial), vì mô hình B có bản riêng cho từng loại.",
   "Only the sagittal (side view) lumbar series are needed, T2 first":
     "Chỉ cần phim cắt dọc (sagittal) vùng thắt lưng, ưu tiên T2",
   "— their names usually contain “sag”, e.g. t2_tse_sag, SAG T2, T2 SAG FSE.":
-    "— tên chuỗi thường có chữ “sag”, ví dụ t2_tse_sag, SAG T2, T2 SAG FSE.",
+    "(tên chuỗi thường có chữ “sag”, ví dụ t2_tse_sag, SAG T2, T2 SAG FSE).",
   "User guide (PDF)":
     "Tải hướng dẫn sử dụng (PDF)",
   "Click to read":

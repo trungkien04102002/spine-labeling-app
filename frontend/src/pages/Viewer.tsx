@@ -691,7 +691,7 @@ export default function Viewer() {
                       <span className="font-medium text-slate-700">
                         {g.name}
                       </span>{" "}
-                      <span className="text-slate-400">({g.scale})</span> —{" "}
+                      <span className="text-slate-400">({g.scale})</span>:{" "}
                       {t(g.meaning)}
                     </li>
                   ))}
