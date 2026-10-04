@@ -235,6 +235,8 @@ interface Props {
   seriesKey?: string | number | null;
   /** Change it to reload image + labelmap, e.g. after a grading run wrote a new mask. */
   reloadKey?: unknown;
+  /** Change to reload only the segmentation over the current picture. */
+  maskKey?: unknown;
   /** Optional overlay pinned inside the image box (e.g. a PACS-style header). */
   overlay?: ReactNode;
   /** When set, scroll the stack to this slice index (jump-to-disc). */
@@ -287,6 +289,7 @@ export default function CornerstoneViewport({
   apiBaseUrl,
   seriesKey,
   reloadKey,
+  maskKey,
   overlay,
   targetSlice,
   segLabels,
@@ -314,6 +317,7 @@ export default function CornerstoneViewport({
   const viewportRef = useRef<Types.IStackViewport | null>(null);
   const engineRef = useRef<RenderingEngine | null>(null);
   const labelmapIdsRef = useRef<string[]>([]);
+  const imageIdsRef = useRef<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   // Set when a mask exists but belongs to a different acquisition than the one
   // on screen -- a fact worth stating, not an error.
@@ -376,6 +380,91 @@ export default function CornerstoneViewport({
     hoverLabel == null
       ? null
       : (legendEntries.find((e) => e.id === hoverLabel) ?? null);
+
+  // Load the study's mask onto the stack already on screen. Split out of the
+  // load effect so a new mask (a grading run finishing) can be put on the
+  // picture alone: reloading everything blanked the image for seconds and
+  // threw away the doctor's slice, zoom and window.
+  const attachMaskRef = useRef<
+    (imageIds: string[], isCancelled: () => boolean) => Promise<void>
+  >(async () => {});
+  attachMaskRef.current = async (imageIds, isCancelled) => {
+    // Overlay the segmentation labelmap if the study has one. The mask is a
+    // NIfTI with the same geometry as the display volume, so its per-slice
+    // imageIds line up 1:1 with the base stack.
+    const maskUrl = `${apiBaseUrl}/studies/${studyId}/mask.nii.gz?v=${Date.now()}`;
+    const hasMask = (await fetch(maskUrl, { cache: "no-store" })).ok;
+    if (hasMask && !isCancelled()) {
+      const maskImageIds = await createNiftiImageIdsAndCacheMetadata({
+        url: maskUrl,
+      });
+      fixNiftiSlicePositions(maskImageIds);
+      if (isCancelled()) return;
+      // A stack-viewport labelmap needs images that are *derived* from the
+      // base stack (registered as such in the cache). Load the mask's pixels,
+      // create blank derived labelmaps from the base stack, then copy the mask
+      // voxels into them slice-by-slice (index-aligned: same NIfTI geometry).
+      const maskImages = await Promise.all(
+        maskImageIds.map((id) => imageLoader.loadAndCacheImage(id)),
+      );
+      if (isCancelled()) return;
+      const derivedImages =
+        imageLoader.createAndCacheDerivedLabelmapImages(imageIds);
+      // The mask belongs to whichever series the AI ran on. Browsing a
+      // different acquisition (axial vs sagittal) hands us a labelmap of a
+      // different shape; copying it in would throw "offset is out of bounds"
+      // and, worse, a same-sized-but-different series would silently paint
+      // one acquisition's anatomy onto another's.
+      const fitsThisSeries =
+        maskImages.length === derivedImages.length &&
+        maskImages.every(
+          (img, i) =>
+            img.getPixelData().length ===
+            derivedImages[i].getPixelData().length,
+        );
+      if (!fitsThisSeries) {
+        setSegForeign(true);
+      } else {
+        for (let i = 0; i < derivedImages.length; i++) {
+          derivedImages[i].getPixelData().set(maskImages[i].getPixelData());
+        }
+        const labelmapImageIds = derivedImages.map((img) => img.imageId);
+        labelmapIdsRef.current = labelmapImageIds;
+        segmentation.addSegmentations([
+          {
+            segmentationId,
+            representation: {
+              type: SegmentationRepresentations.Labelmap,
+              data: { imageIds: labelmapImageIds },
+            },
+          },
+        ]);
+        await segmentation.addLabelmapRepresentationToViewport(viewportId, [
+          { segmentationId, type: SegmentationRepresentations.Labelmap },
+        ]);
+        for (let id = 1; id < 256; id++) {
+          const [r, g, b] = structureColor(id);
+          segmentation.config.color.setSegmentIndexColor(
+            viewportId,
+            segmentationId,
+            id,
+            [r, g, b, 255],
+          );
+        }
+        // The pixel data was written after the images were cached; tell the
+        // segmentation machinery so it (re)builds textures and repaints.
+        segmentation.triggerSegmentationEvents.triggerSegmentationDataModified(
+          segmentationId,
+        );
+        // Strokes recorded against the previous labelmap can only be replayed
+        // into voxels that no longer exist, so this labelmap starts with an
+        // empty history -- and the page has to forget its mask steps too.
+        resetMaskHistory();
+        historyResetRef.current?.();
+        if (!isCancelled()) setSegAvailable(true);
+      }
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -453,6 +542,7 @@ export default function CornerstoneViewport({
 
       const viewport = engine.getViewport(viewportId) as Types.IStackViewport;
       viewportRef.current = viewport;
+      imageIdsRef.current = imageIds;
       // Read-only handle for diagnosing a viewer on a remote box (DevTools).
       (window as unknown as { __spineViewer?: unknown }).__spineViewer = { viewport, imageIds };
       // Start on the middle slice (most informative for a sagittal stack).
@@ -469,81 +559,7 @@ export default function CornerstoneViewport({
       setBrightness(0);
       setContrast(0);
 
-      // Overlay the segmentation labelmap if the study has one. The mask is a
-      // NIfTI with the same geometry as the display volume, so its per-slice
-      // imageIds line up 1:1 with the base stack.
-      const maskUrl = `${apiBaseUrl}/studies/${studyId}/mask.nii.gz?v=${Date.now()}`;
-      const hasMask = (await fetch(maskUrl, { cache: "no-store" })).ok;
-      if (hasMask && !cancelled) {
-        const maskImageIds = await createNiftiImageIdsAndCacheMetadata({
-          url: maskUrl,
-        });
-        fixNiftiSlicePositions(maskImageIds);
-        if (cancelled) return;
-        // A stack-viewport labelmap needs images that are *derived* from the
-        // base stack (registered as such in the cache). Load the mask's pixels,
-        // create blank derived labelmaps from the base stack, then copy the mask
-        // voxels into them slice-by-slice (index-aligned: same NIfTI geometry).
-        const maskImages = await Promise.all(
-          maskImageIds.map((id) => imageLoader.loadAndCacheImage(id)),
-        );
-        if (cancelled) return;
-        const derivedImages =
-          imageLoader.createAndCacheDerivedLabelmapImages(imageIds);
-        // The mask belongs to whichever series the AI ran on. Browsing a
-        // different acquisition (axial vs sagittal) hands us a labelmap of a
-        // different shape; copying it in would throw "offset is out of bounds"
-        // and, worse, a same-sized-but-different series would silently paint
-        // one acquisition's anatomy onto another's.
-        const fitsThisSeries =
-          maskImages.length === derivedImages.length &&
-          maskImages.every(
-            (img, i) =>
-              img.getPixelData().length ===
-              derivedImages[i].getPixelData().length,
-          );
-        if (!fitsThisSeries) {
-          setSegForeign(true);
-        } else {
-          for (let i = 0; i < derivedImages.length; i++) {
-            derivedImages[i].getPixelData().set(maskImages[i].getPixelData());
-          }
-          const labelmapImageIds = derivedImages.map((img) => img.imageId);
-          labelmapIdsRef.current = labelmapImageIds;
-          segmentation.addSegmentations([
-            {
-              segmentationId,
-              representation: {
-                type: SegmentationRepresentations.Labelmap,
-                data: { imageIds: labelmapImageIds },
-              },
-            },
-          ]);
-          await segmentation.addLabelmapRepresentationToViewport(viewportId, [
-            { segmentationId, type: SegmentationRepresentations.Labelmap },
-          ]);
-          for (let id = 1; id < 256; id++) {
-            const [r, g, b] = structureColor(id);
-            segmentation.config.color.setSegmentIndexColor(
-              viewportId,
-              segmentationId,
-              id,
-              [r, g, b, 255],
-            );
-          }
-          // The pixel data was written after the images were cached; tell the
-          // segmentation machinery so it (re)builds textures and repaints.
-          segmentation.triggerSegmentationEvents.triggerSegmentationDataModified(
-            segmentationId,
-          );
-          // Strokes recorded against the previous labelmap can only be replayed
-          // into voxels that no longer exist, so this labelmap starts with an
-          // empty history -- and the page has to forget its mask steps too.
-          resetMaskHistory();
-          historyResetRef.current?.();
-          if (!cancelled) setSegAvailable(true);
-        }
-      }
+      await attachMaskRef.current(imageIds, () => cancelled);
 
       if (cancelled) return;
       // Fit once layout has settled: resize with keepCamera=false recomputes
@@ -562,6 +578,7 @@ export default function CornerstoneViewport({
     return () => {
       cancelled = true;
       viewportRef.current = null;
+      imageIdsRef.current = [];
       engineRef.current = null;
       labelmapIdsRef.current = [];
       resetMaskHistory();
@@ -576,6 +593,29 @@ export default function CornerstoneViewport({
       }
     };
   }, [studyId, apiBaseUrl, seriesKey, reloadKey, viewportId, segmentationId, toolGroupId]);
+
+  // A new mask for the picture already on screen: swap the overlay only.
+  // Skipped until the load effect has a stack up (it loads the mask itself).
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    const imageIds = imageIdsRef.current;
+    if (maskKey === undefined || !viewport || imageIds.length === 0) return;
+    let cancelled = false;
+    segmentation.removeSegmentation(segmentationId);
+    labelmapIdsRef.current = [];
+    attachMaskRef
+      .current(imageIds, () => cancelled)
+      .then(() => {
+        if (!cancelled) viewport.render();
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [maskKey]);
 
   // Re-fit the image whenever the viewport box resizes (window resize, layout
   // reflow when the grade panel wraps below on narrow screens, etc.).
@@ -768,14 +808,14 @@ export default function CornerstoneViewport({
   // by Cornerstone's LUT keyed on the label id = segment index).
   useEffect(() => {
     if (!segAvailable || !segLabels) return;
+    // Colours come from the fixed palette, not from the live segmentation:
+    // when a grading run finishes, the labels change in the same render that
+    // swaps the labelmap, and asking the half-removed segmentation for a
+    // colour returned null and took the whole page down (2026-10-04).
     const entries: LegendEntry[] = Object.entries(segLabels).map(
       ([id, name]) => {
-        const c = segmentation.config.color.getSegmentIndexColor(
-          viewportId,
-          segmentationId,
-          Number(id),
-        );
-        return { id: Number(id), name, color: [c[0], c[1], c[2]] };
+        const [r, g, b] = structureColor(Number(id));
+        return { id: Number(id), name, color: [r, g, b] };
       },
     );
     setLegendEntries(entries);

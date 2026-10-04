@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 from app.config import Settings, get_settings
 from app.db import get_db
 from app.export import build_export_zip
+from app.jobs import jobs
 from app.inference import reference_b
 from app.inference.volume_io import (
     _read_image,
@@ -48,6 +49,13 @@ from app.schemas import (
 logger = logging.getLogger("uvicorn.error")
 
 router = APIRouter(tags=["studies"])
+
+
+BUSY_UPLOAD = (
+    "This study is being graded right now. Wait until it finishes "
+    "(about 1–2 minutes), then upload again."
+)
+BUSY_DELETE = "This study is being graded right now. Wait until it finishes, then delete it."
 
 
 @router.post("/studies", status_code=201)
@@ -115,6 +123,8 @@ def delete_study(
     study = db.get(Study, study_id)
     if study is None:
         raise HTTPException(status_code=404, detail=f"Unknown study: {study_id}")
+    if jobs.running_for("grade_full", study_id) is not None:
+        raise HTTPException(status_code=409, detail=BUSY_DELETE)
     db.query(Annotation).filter_by(study_id=study_id).delete()
     db.query(CorrectionLog).filter_by(study_id=study_id).delete()
     db.query(Series).filter_by(study_id=study_id).delete()
@@ -172,6 +182,10 @@ def upload_study(
     study = db.get(Study, study_id)
     if study is None:
         raise HTTPException(status_code=404, detail=f"Unknown study: {study_id}")
+    # A new upload replaces the scan the running job is reading, which then
+    # fails half way (2026-10-04) and leaves the old scan's mask on the new one.
+    if jobs.running_for("grade_full", study_id) is not None:
+        raise HTTPException(status_code=409, detail=BUSY_UPLOAD)
 
     study_dir = Path(settings.data_dir) / study_id
     study_dir.mkdir(parents=True, exist_ok=True)

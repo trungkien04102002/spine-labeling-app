@@ -289,7 +289,7 @@ export default function PatientList() {
                 </mark>{" "}
                 {t("— their names usually contain “sag”, e.g. t2_tse_sag, SAG T2, T2 SAG FSE.")}
               </li>
-              <li>{t("Open the study and press “✨ Run AI grading” — about 3–5 minutes. Press it and leave it to run.")}</li>
+              <li>{t("Open the study and press “✨ Run AI grading” — about 1–2 minutes. Press it and leave it to run.")}</li>
               <li>{t("Look at the result, correct what is wrong, and press Save.")}</li>
               <li>{t("When you are done, answer the short survey “★ Rate this software”.")}</li>
             </ol>
@@ -411,7 +411,7 @@ export default function PatientList() {
 
         {error && (
           <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm text-rose-700">
-            {error}
+            {t(error)}
           </div>
         )}
 

@@ -281,7 +281,9 @@ export default function Viewer() {
   const [job, setJob] = useState<JobOut | null>(null);
   // Bumped when a grading run finishes, so the viewport reloads and shows the
   // new segmentation without the doctor pressing F5.
-  const [gradeRun, setGradeRun] = useState(0);
+  // Bumped when a grading run writes a new mask: the viewer swaps the overlay
+  // in place instead of reloading the picture.
+  const [maskRun, setMaskRun] = useState(0);
   // A level (or one finding) picked in the summary, for the table to scroll
   // to and pulse.
   const [tableHighlight, setTableHighlight] = useState<
@@ -375,7 +377,7 @@ export default function Viewer() {
           segShown = true;
           setPreviewLabels(current.segmentation_labels);
           getStudyDetail(studyId).then(setDetail).catch(() => {});
-          setGradeRun((n) => n + 1);
+          setMaskRun((n) => n + 1);
         }
       }
 
@@ -392,7 +394,7 @@ export default function Viewer() {
       setDirty(false);
       getStudyDetail(studyId).then(setDetail).catch(() => {});
       getSeries(studyId).then(setSeries).catch(() => {});
-      setGradeRun((n) => n + 1);
+      setMaskRun((n) => n + 1);
     } catch (err) {
       setRunError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -671,7 +673,7 @@ export default function Viewer() {
               </span>
             </div>
             <p className="mx-auto mt-1 max-w-7xl text-[11px] text-teal-50/80">
-              {t("Usually 3–5 minutes. Press it and leave it: you can even leave this page — the run continues on the server and the result is saved.")}
+              {t("Usually 1–2 minutes. Press it and leave it: you can even leave this page — the run continues on the server and the result is saved.")}
             </p>
           </div>
         )}
@@ -739,7 +741,7 @@ export default function Viewer() {
                 studyId={studyId}
                 apiBaseUrl={API_BASE_URL}
                 seriesKey={series.find((s) => s.is_active)?.id ?? null}
-                reloadKey={gradeRun}
+                maskKey={maskRun}
                 overlay={detail ? <InfoOverlay detail={detail} /> : null}
                 targetSlice={targetSlice}
                 segLabels={previewLabels ?? result?.segmentation.labels}

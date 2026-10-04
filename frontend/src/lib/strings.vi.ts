@@ -122,8 +122,8 @@ registerVi({
     "✨ Chạy chẩn đoán AI",
   "Grading progress":
     "Tiến độ chấm",
-  "Usually 3–5 minutes. Press it and leave it: you can even leave this page — the run continues on the server and the result is saved.":
-    "Thường mất 3–5 phút. Cứ bấm rồi để đó chờ. Bác sĩ có thể rời trang, máy chủ vẫn chạy và tự lưu kết quả.",
+  "Usually 1–2 minutes. Press it and leave it: you can even leave this page — the run continues on the server and the result is saved.":
+    "Thường mất 1–2 phút. Cứ bấm rồi để đó chờ. Bác sĩ có thể rời trang, máy chủ vẫn chạy và tự lưu kết quả.",
   "Saving…":
     "Đang lưu…",
   "Undo mask edit":
@@ -250,6 +250,10 @@ registerVi({
     "Đang khởi động",
   "Segmenting vertebrae":
     "Đang tô đốt sống và đĩa đệm",
+  "This study is being graded right now. Wait until it finishes (about 1–2 minutes), then upload again.":
+    "Ca này đang được AI chấm. Đợi chấm xong (khoảng 1–2 phút) rồi hãy tải ảnh lên lại.",
+  "This study is being graded right now. Wait until it finishes, then delete it.":
+    "Ca này đang được AI chấm. Đợi chấm xong rồi hãy xoá.",
   "Segmentation ready. Grading each disc":
     "Đã tô xong vùng giải phẫu (đang hiện trên ảnh). Đang chấm điểm từng đĩa đệm",
   "Detecting and grading discs":
@@ -570,8 +574,8 @@ registerVi({
     "Trang web đọc phim MRI cột sống thắt lưng: AI tô màu các đốt sống, đĩa đệm trên ảnh và chấm mức độ bất thường ở từng tầng đĩa đệm (từ T12–L1 đến L5–S1). Bác sĩ xem lại kết quả và sửa chỗ AI chấm sai.",
   "Create a study, then upload the scan compressed into one .zip file.":
     "Tạo ca mới, rồi tải phim lên: nén thành một file .zip.",
-  "Open the study and press “✨ Run AI grading” — about 3–5 minutes. Press it and leave it to run.":
-    "Mở ca và bấm “✨ Chạy chẩn đoán AI”. Mất khoảng 3–5 phút, cứ bấm rồi để đó chờ.",
+  "Open the study and press “✨ Run AI grading” — about 1–2 minutes. Press it and leave it to run.":
+    "Mở ca và bấm “✨ Chạy chẩn đoán AI”. Mất khoảng 1–2 phút, cứ bấm rồi để đó chờ.",
   "Look at the result, correct what is wrong, and press Save.":
     "Xem kết quả, sửa chỗ chưa đúng rồi bấm Lưu.",
   "When you are done, answer the short survey “★ Rate this software”.":
