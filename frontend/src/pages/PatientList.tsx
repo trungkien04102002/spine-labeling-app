@@ -214,7 +214,7 @@ export default function PatientList() {
     <div className="min-h-screen">
       {/* Brand header */}
       <header className="bg-gradient-to-r from-teal-600 to-cyan-500 shadow-md">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-3 px-4 py-4 sm:px-6">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/20 text-lg backdrop-blur">
               🩻
@@ -228,12 +228,12 @@ export default function PatientList() {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             {/* The room, and the way out of it. The operator's buttons that
                 used to sit here (the correction queue, model versions) moved
                 behind /admin: a clinician has no business switching the model
                 that grades everyone else. */}
-            <span className="flex items-center gap-2 rounded-lg bg-white/15 px-3 py-1.5 text-xs text-white">
+            <span className="flex items-center gap-2 whitespace-nowrap rounded-lg bg-white/15 px-3 py-1.5 text-xs text-white">
               <span className="text-teal-50/80">{t("Room")}</span>
               <span className="font-semibold">{room?.name}</span>
               <button
@@ -247,17 +247,19 @@ export default function PatientList() {
             <Link
               to="/survey"
               title={t("A short survey, about 5 minutes")}
-              className="flex items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-teal-700 shadow-sm transition hover:bg-teal-50"
+              className="flex items-center gap-2 whitespace-nowrap rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-teal-700 shadow-sm transition hover:bg-teal-50"
             >
               <span>★ {t("Rate this software")}</span>
             </Link>
-            <StatusPill backend={backend} />
+            <span className="hidden sm:inline-flex">
+              <StatusPill backend={backend} />
+            </span>
             <LangToggle />
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-6 py-8">
+      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
         {noPin && (
           <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4">
             <p className="text-sm font-semibold text-amber-800">

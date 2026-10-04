@@ -600,11 +600,11 @@ export default function Viewer() {
     <div className="min-h-screen">
       {/* Colorful brand header */}
       <header className="bg-gradient-to-r from-teal-600 to-cyan-500 shadow-md">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3.5">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 sm:px-6">
           <div className="flex items-center gap-3 text-white">
             <Link
               to="/"
-              className="rounded-lg bg-white/15 px-2.5 py-1 text-xs font-medium backdrop-blur transition hover:bg-white/25"
+              className="whitespace-nowrap rounded-lg bg-white/15 px-2.5 py-1 text-xs font-medium backdrop-blur transition hover:bg-white/25"
             >
               {t("← Worklist")}
             </Link>
@@ -615,7 +615,7 @@ export default function Viewer() {
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           {/* The room and the survey are on this page too: most of a visit is
               spent here, and the survey link was easy to miss on the list. */}
           <span className="hidden items-center gap-2 rounded-lg bg-white/15 px-3 py-1.5 text-xs text-white md:flex">
@@ -632,7 +632,7 @@ export default function Viewer() {
           <Link
             to="/survey"
             title={t("A short survey, about 5 minutes")}
-            className="rounded-lg border border-white/60 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/15"
+            className="whitespace-nowrap rounded-lg border border-white/60 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/15"
           >
             ★ {t("Rate this software")}
           </Link>
@@ -641,7 +641,7 @@ export default function Viewer() {
             onClick={handleRunAI}
             disabled={running || !!detail?.is_picture}
             title={detail?.is_picture ? t("A picture can only be read by model B. Model A needs an MRI series.") : undefined}
-            className="rounded-lg bg-white px-4 py-1.5 text-sm font-semibold text-teal-700 shadow-sm transition hover:bg-teal-50 disabled:opacity-60"
+            className="whitespace-nowrap rounded-lg bg-white px-4 py-1.5 text-sm font-semibold text-teal-700 shadow-sm transition hover:bg-teal-50 disabled:opacity-60"
           >
             {running ? t("Grading…") : t("✨ Run AI grading")}
           </button>
@@ -652,7 +652,7 @@ export default function Viewer() {
             elapsed time — rather than a bare spinner or a fake smooth bar —
             is what lets a doctor tell steady progress from a stall. */}
         {running && (
-          <div className="border-t border-white/20 bg-teal-700/40 px-6 py-2">
+          <div className="border-t border-white/20 bg-teal-700/40 px-4 py-2 sm:px-6">
             <div className="mx-auto flex max-w-7xl items-center gap-3">
               <div
                 className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/25"
@@ -679,7 +679,7 @@ export default function Viewer() {
         )}
       </header>
 
-      <main className="mx-auto flex max-w-7xl flex-col gap-5 px-6 py-6">
+      <main className="mx-auto flex max-w-7xl flex-col gap-5 px-4 py-4 sm:px-6 sm:py-6">
           {/* About this tool — first on the page, collapsed; the button says it opens. */}
           <details className="group rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
             <summary className="flex cursor-pointer list-none items-center gap-2 text-base font-bold text-slate-800 [&::-webkit-details-marker]:hidden">
@@ -767,9 +767,18 @@ export default function Viewer() {
               />
             )}
           </div>
-          <p className="mt-2 text-xs text-slate-500">
-            {t("Wheel: scroll slices · Left drag: window/level · Middle drag: pan · Right drag: zoom")}
-          </p>
+          {/* Plain words, one gesture per item: "window/level" meant nothing
+              to the clinicians reading it. */}
+          <div className="mt-2 text-xs text-slate-500">
+            <span className="font-semibold text-slate-600">{t("Mouse on the picture:")}</span>
+            <ul className="mt-1 grid gap-x-6 gap-y-0.5 sm:grid-cols-2">
+              <li>{t("Scroll the wheel: previous / next slice")}</li>
+              <li>{t("Hold the left button and drag: brightness and contrast")}</li>
+              <li>{t("Hold the right button and drag: zoom in / out")}</li>
+              <li>{t("Hold the wheel down and drag: move the picture")}</li>
+            </ul>
+            <p className="mt-1">{t("No mouse (touchpad)? Use the ◀ ▶, ＋ －, brightness and contrast buttons above the picture.")}</p>
+          </div>
         </section>
         <div className="relative">
         <aside className="flex flex-col gap-5 lg:absolute lg:inset-0 lg:overflow-y-auto lg:pr-1">

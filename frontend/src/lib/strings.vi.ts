@@ -130,8 +130,18 @@ registerVi({
     "Hoàn tác sửa vùng tô",
   "Undo":
     "Hoàn tác",
-  "Wheel: scroll slices · Left drag: window/level · Middle drag: pan · Right drag: zoom":
-    "Cuộn chuột: chuyển lát cắt · Kéo chuột trái: chỉnh cửa sổ/mức · Kéo chuột giữa: di chuyển · Kéo chuột phải: phóng to",
+  "Mouse on the picture:":
+    "Dùng chuột trên ảnh:",
+  "Scroll the wheel: previous / next slice":
+    "Lăn con lăn: chuyển sang lát cắt trước / sau",
+  "Hold the left button and drag: brightness and contrast":
+    "Giữ chuột trái rồi kéo: chỉnh độ sáng và độ tương phản",
+  "Hold the right button and drag: zoom in / out":
+    "Giữ chuột phải rồi kéo: phóng to / thu nhỏ",
+  "Hold the wheel down and drag: move the picture":
+    "Nhấn giữ con lăn rồi kéo: di chuyển ảnh",
+  "No mouse (touchpad)? Use the ◀ ▶, ＋ －, brightness and contrast buttons above the picture.":
+    "Không có chuột (dùng touchpad)? Bấm các nút ◀ ▶, ＋ －, Độ sáng, Độ tương phản ở phía trên ảnh.",
   "About this tool":
     "Giới thiệu công cụ",
   "This tool automatically reads a lumbar spine MRI and produces radiological grades for each intervertebral disc level (T12–L1 down to L5–S1). Click a level in the table to jump to its slice; you can correct any grade and save it.":
