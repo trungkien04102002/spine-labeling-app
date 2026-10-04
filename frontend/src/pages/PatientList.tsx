@@ -489,9 +489,9 @@ export default function PatientList() {
                     {studies.map((study: StudyOut) => (
                       <div
                         key={study.id}
-                        className="flex items-center gap-3 border-b border-slate-50 px-4 py-2.5 pl-12 last:border-b-0 hover:bg-teal-50/40"
+                        className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-slate-50 px-4 py-2.5 last:border-b-0 hover:bg-teal-50/40 sm:pl-12"
                       >
-                        <span className="w-40 font-medium text-slate-800">
+                        <span className="font-medium text-slate-800 sm:w-40">
                           {displayStudyId(study.id)}
                         </span>
                         <span className="rounded-md bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-600">
@@ -500,14 +500,17 @@ export default function PatientList() {
                         <span className="text-xs text-slate-400">
                           {fmtDate(study.created_at)}
                         </span>
-                        <span className="flex-1" />
+                        {/* The status and the buttons go together, and drop to
+                            their own line when the row is too narrow: on a
+                            phone they were cut off past the card's edge. */}
+                        <div className="ml-auto flex items-center gap-2">
                         {study.has_volume ? (
-                          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
+                          <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
                             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                             {t("Ready")}
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-400">
+                          <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-400">
                             <span className="h-1.5 w-1.5 rounded-full bg-slate-300" />
                             {t("No volume")}
                           </span>
@@ -529,7 +532,7 @@ export default function PatientList() {
                         <button
                           onClick={() => fileInputs.current[study.id]?.click()}
                           disabled={uploading === study.id}
-                          className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-400 hover:bg-slate-50 disabled:opacity-50"
+                          className="whitespace-nowrap rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-400 hover:bg-slate-50 disabled:opacity-50"
                         >
                           {uploading === study.id
                             ? t("Uploading…")
@@ -540,7 +543,7 @@ export default function PatientList() {
                         {study.has_volume ? (
                           <Link
                             to={`/viewer/${study.id}`}
-                            className="rounded-lg bg-gradient-to-r from-teal-600 to-cyan-500 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:brightness-110"
+                            className="whitespace-nowrap rounded-lg bg-gradient-to-r from-teal-600 to-cyan-500 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:brightness-110"
                           >
                             {t("Open →")}
                           </Link>
@@ -556,6 +559,7 @@ export default function PatientList() {
                         >
                           🗑
                         </button>
+                        </div>
                       </div>
                     ))}
                   </div>
