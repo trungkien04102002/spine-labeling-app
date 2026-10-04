@@ -71,6 +71,9 @@ def _load_model() -> GradingModelWithCBAM:
         state_dict = checkpoint
 
     model.load_state_dict(state_dict)
+    from app.inference.device import grading_device
+
+    model.to(grading_device())
     model.eval()
     return model
 
@@ -98,6 +101,7 @@ def _grade_crop(
     """Grade one `(9, 112, 224)` crop -> one `GradingItem` per condition head."""
     # [9, 112, 224] -> [1, 1, 9, 112, 224] (batch, channel dims).
     tensor = torch.from_numpy(volume).float().unsqueeze(0).unsqueeze(0)
+    tensor = tensor.to(next(model.parameters()).device)
     with torch.no_grad():
         outputs = model(tensor)
 

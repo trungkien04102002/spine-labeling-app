@@ -45,24 +45,16 @@ def merge_gradings(
     return kept_spinenet + list(cbam_items)
 
 
-def run_cbam_grading(
-    volume_path: str,
-) -> tuple[list[GradingItem], str, dict[int, str]]:
-    """Run the existing seg -> crop -> CBAM grading path (unchanged; see
-    `app/inference/local.py::LocalBackend`) to get canal/foraminal items.
-
-    Returns ``(cbam_items, mask_path, labels)`` -- the raw labelmap path and its
-    present-label map are threaded back out so the caller can persist the mask
-    for the viewer instead of discarding the segmentation this already ran.
-    """
-    mask_path, labels = run_segmentation(volume_path)
+def grade_with_cbam(volume_path: str, mask_path: str) -> list[GradingItem]:
+    """The seg -> crop -> CBAM path (as `app/inference/local.py::LocalBackend`)
+    for the canal/foraminal items, on a segmentation already made."""
     # Image and labelmap through the same reorientation, so the crops are cut
     # from the model's orientation and still line up voxel for voxel. The
     # labelmap shares its input's geometry, which is what makes that hold.
     vol_arr = sitk.GetArrayFromImage(to_model_orientation(_read_image(volume_path)))
     mask_arr = sitk.GetArrayFromImage(to_model_orientation(_read_image(mask_path)))
     crops = extract_disc_crops(vol_arr, mask_arr)
-    return grade_crops(crops), mask_path, labels
+    return grade_crops(crops)
 
 
 def build_full_grading(
@@ -71,12 +63,14 @@ def build_full_grading(
     """Run SpineNet + the CBAM path, merge them, and render the labelled slice.
 
     Args:
-        progress: optional ``(stage: str, percent: int) -> None`` callback. The
+        progress: optional ``(stage, percent, **partial) -> None`` callback. The
             stage boundaries are reported honestly rather than interpolated:
             segmentation is a shell-out to TotalSpineSeg with no progress of its
             own, so the percentage sits still while it runs and the stage label
             plus elapsed time carry the information. A smooth-looking fake bar
-            would only make a stall indistinguishable from progress.
+            would only make a stall indistinguishable from progress. Once the
+            segmentation exists it is passed as ``mask_path=`` / ``labels=``
+            so the caller can show it while the grading runs.
 
     Returns:
         ``(result, slice_png_bytes, mask_path, labels)`` -- the caller persists
@@ -84,13 +78,18 @@ def build_full_grading(
         labelmap the CBAM path already produced; the caller reorients it into the
         study dir and fills ``result.segmentation``).
     """
-    def report(stage: str, percent: int) -> None:
+    def report(stage: str, percent: int, **partial) -> None:
         if progress is not None:
-            progress(stage, percent)
+            progress(stage, percent, **partial)
 
-    # By far the longest step: TotalSpineSeg segmentation plus CBAM grading.
+    # By far the longest step.
     report("Segmenting vertebrae", 10)
-    cbam_items, mask_path, labels = run_cbam_grading(volume_path)
+    mask_path, labels = run_segmentation(volume_path)
+    # Handed out before any grading, so the doctor sees the segmentation on
+    # the image first and the diagnoses after, instead of both at once at the
+    # very end (a clinician found the all-at-once arrival confusing).
+    report("Segmentation ready. Grading each disc", 50, mask_path=mask_path, labels=labels)
+    cbam_items = grade_with_cbam(volume_path, mask_path)
 
     report("Detecting and grading discs", 70)
     spinenet_result = run_spinenet_grading_on_study_volume(volume_path)

@@ -34,6 +34,9 @@ class JobOut(BaseModel):
     percent: int
     elapsed_seconds: float
     error: str | None
+    #: Set once the segmentation is on disk (label id -> name): the viewer can
+    #: show it while the grading carries on.
+    segmentation_labels: dict[int, str] | None = None
 
     @classmethod
     def from_job(cls, job: Job) -> "JobOut":
@@ -44,6 +47,7 @@ class JobOut(BaseModel):
             percent=job.percent,
             elapsed_seconds=round(job.elapsed_seconds, 1),
             error=job.error,
+            segmentation_labels=job.partial.get("segmentation_labels"),
         )
 
 
@@ -99,13 +103,23 @@ def run_and_persist_full_grading(
     study = _require_gradable_study(db, study_id)
     # Always grade the sagittal series, whichever one the doctor is viewing.
     volume_path = grading_volume_path(db, study)
-    result, png_bytes, mask_path, labels = build_full_grading(
-        study_id, volume_path, progress=progress
-    )
-    mark_analyzed(db, study)
-
     study_dir = Path(settings.data_dir) / study_id
     study_dir.mkdir(parents=True, exist_ok=True)
+
+    def step(stage: str, percent: int, mask_path: str | None = None, labels=None) -> None:
+        # The segmentation is published as soon as it exists, so the viewer
+        # can draw it while the discs are still being graded.
+        partial = {}
+        if mask_path is not None:
+            to_web_mask(mask_path, str(study_dir))
+            partial["segmentation_labels"] = labels
+        if progress is not None:
+            progress(stage, percent, **partial)
+
+    result, png_bytes, mask_path, labels = build_full_grading(
+        study_id, volume_path, progress=step
+    )
+    mark_analyzed(db, study)
 
     # Reorient the raw labelmap into the study dir (aligned to the viewer volume)
     # and expose it via the API path, exactly like /infer does.

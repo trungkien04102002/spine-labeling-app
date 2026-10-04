@@ -247,6 +247,8 @@ export default function Viewer() {
   const result = gradeHistory.state;
   const [targetSlice, setTargetSlice] = useState<number | null>(null);
   const [running, setRunning] = useState(false);
+  // The segmentation's labels while a run is still grading (null otherwise).
+  const [previewLabels, setPreviewLabels] = useState<Record<string, string> | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -357,14 +359,24 @@ export default function Viewer() {
     setRunning(true);
     setRunError(null);
     setJob(null);
+    setEditMode(false);
     try {
       let current = await startFullGrading(studyId);
       setJob(current);
 
+      let segShown = false;
       while (current.status === "running") {
         await new Promise((resolve) => setTimeout(resolve, 2000));
         current = await getJob(current.id);
         setJob(current);
+        // Segmentation first, diagnoses after: draw the mask as soon as it
+        // exists, while the discs are still being graded.
+        if (!segShown && current.segmentation_labels) {
+          segShown = true;
+          setPreviewLabels(current.segmentation_labels);
+          getStudyDetail(studyId).then(setDetail).catch(() => {});
+          setGradeRun((n) => n + 1);
+        }
       }
 
       if (current.status === "error") {
@@ -386,6 +398,7 @@ export default function Viewer() {
     } finally {
       setRunning(false);
       setJob(null);
+      setPreviewLabels(null);
     }
   }
 
@@ -711,7 +724,7 @@ export default function Viewer() {
         <div
           className={
             "grid gap-5 " +
-            (result && detail?.has_mask ? "lg:grid-cols-[minmax(0,3fr)_minmax(280px,1fr)]" : "")
+            (detail?.has_mask ? "lg:grid-cols-[minmax(0,3fr)_minmax(280px,1fr)]" : "")
           }
         >
         <section className="min-w-0">
@@ -729,7 +742,8 @@ export default function Viewer() {
                 reloadKey={gradeRun}
                 overlay={detail ? <InfoOverlay detail={detail} /> : null}
                 targetSlice={targetSlice}
-                segLabels={result?.segmentation.labels}
+                segLabels={previewLabels ?? result?.segmentation.labels}
+                editDisabled={running}
                 editMode={editMode}
                 onEditModeChange={setEditMode}
                 activeLabel={activeLabel}

@@ -441,6 +441,8 @@ export interface JobOut {
   percent: number;
   elapsed_seconds: number;
   error: string | null;
+  /** Set once the segmentation is ready, before the grades (label id -> name). */
+  segmentation_labels?: Record<string, string> | null;
 }
 
 /**

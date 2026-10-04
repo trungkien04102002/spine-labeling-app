@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     # ("libgomp: Thread creation failed" / "Background workers died"). Cap low.
     seg_max_workers: int = 1
     seg_max_workers_nnunet: int = 1
+    # SpineNet + the CBAM model: "auto" = the GPU when torch sees one, else CPU.
+    # "cpu" forces the old behaviour (e.g. to compare outputs).
+    grading_device: str = "auto"
 
     # Re-training (POST /corrections/batches/{id}/retrain) mixes ~200 ORIGINAL
     # discs into the corrections so the heads stay anchored to the distribution

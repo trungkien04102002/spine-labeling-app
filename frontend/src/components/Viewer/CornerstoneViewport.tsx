@@ -241,6 +241,8 @@ interface Props {
   targetSlice?: number | null;
   /** Present labelmap labels (id -> name) for the edit label picker. */
   segLabels?: Record<string, string>;
+  /** Hide mask editing (e.g. while a grading run is still writing the mask). */
+  editDisabled?: boolean;
   /**
    * Mask editing is controlled by the page, not by this component, so the
    * Structures panel beside the image can act as the brush's picker and the
@@ -288,6 +290,7 @@ export default function CornerstoneViewport({
   overlay,
   targetSlice,
   segLabels,
+  editDisabled,
   editMode = false,
   onEditModeChange,
   activeLabel = null,
@@ -1030,7 +1033,7 @@ export default function CornerstoneViewport({
               onChange={(e) => setSegOpacity(Number(e.target.value))}
             />
           </label>
-          {MASK_EDIT_ENABLED && (
+          {MASK_EDIT_ENABLED && !editDisabled && (
             <label>
               <input
                 type="checkbox"
@@ -1041,7 +1044,7 @@ export default function CornerstoneViewport({
               {t("Edit mask")}
             </label>
           )}
-          {MASK_EDIT_ENABLED && editMode && (
+          {MASK_EDIT_ENABLED && editMode && !editDisabled && (
             <>
               <button
                 type="button"

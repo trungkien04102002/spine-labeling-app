@@ -35,7 +35,7 @@ logger = logging.getLogger("uvicorn.error")
 class ProgressFn(Protocol):
     """Called by long-running work to report which stage it reached."""
 
-    def __call__(self, stage: str, percent: int) -> None: ...
+    def __call__(self, stage: str, percent: int, **partial) -> None: ...
 
 
 @dataclass
@@ -47,6 +47,9 @@ class Job:
     stage: str = "Starting"
     percent: int = 0
     error: str | None = None
+    #: What the work has finished so far and the client may show early
+    #: (full grading: the segmentation's labels, before the grades exist).
+    partial: dict = field(default_factory=dict)
     started_at: datetime.datetime = field(default_factory=datetime.datetime.utcnow)
     finished_at: datetime.datetime | None = None
 
@@ -100,10 +103,11 @@ class JobRegistry:
             self._jobs[job.id] = job
             self._evict_old_locked()
 
-        def report(stage: str, percent: int) -> None:
+        def report(stage: str, percent: int, **partial) -> None:
             with self._lock:
                 job.stage = stage
                 job.percent = max(0, min(100, percent))
+                job.partial.update(partial)
 
         def run() -> None:
             started = time.monotonic()

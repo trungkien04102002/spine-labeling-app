@@ -94,12 +94,14 @@ _SPINENET_COLUMNS: list[tuple[str, int, int, Callable[[int], str]]] = [
 
 @lru_cache(maxsize=1)
 def _load_spinenet():
-    """Load the upstream SpineNet pipeline once (CPU) and cache it."""
+    """Load the upstream SpineNet pipeline once and cache it."""
     if str(_SPINENET_PKG_PARENT) not in sys.path:
         sys.path.insert(0, str(_SPINENET_PKG_PARENT))
     from spinenet import SpineNet
 
-    return SpineNet(device="cpu", verbose=False, scan_type="lumbar")
+    from app.inference.device import grading_device
+
+    return SpineNet(device=grading_device(), verbose=False, scan_type="lumbar")
 
 
 @dataclass

@@ -250,6 +250,8 @@ registerVi({
     "Đang khởi động",
   "Segmenting vertebrae":
     "Đang tô đốt sống và đĩa đệm",
+  "Segmentation ready. Grading each disc":
+    "Đã tô xong vùng giải phẫu (đang hiện trên ảnh). Đang chấm điểm từng đĩa đệm",
   "Detecting and grading discs":
     "Đang phát hiện và chấm đĩa đệm",
   "Merging results":
