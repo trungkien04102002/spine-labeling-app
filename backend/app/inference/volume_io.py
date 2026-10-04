@@ -12,6 +12,7 @@ Cornerstone3D renders volumes through its NIfTI volume loader, so
 
 from __future__ import annotations
 
+import dataclasses
 import shutil
 import zipfile
 from dataclasses import dataclass
@@ -283,7 +284,9 @@ def fill_missing_weighting(series: list) -> None:
     export blanks one name and the timings are gone too (RSNA), the unnamed
     sagittal beside a named T1 is the T2 -- and it is the series the models
     must read, so it also has to sort ahead of the T1. Works on anything with
-    ``description`` and ``orientation`` attributes; edits in place.
+    ``description`` and ``orientation`` attributes; edits the list in place
+    (a frozen `SeriesInfo` is swapped for a renamed copy, a database row is
+    renamed directly).
     """
     sagittal = [s for s in series if s.orientation == "sagittal"]
     names = [(s.description or "").upper() for s in sagittal]
@@ -291,7 +294,11 @@ def fill_missing_weighting(series: list) -> None:
     has_t2 = any("T2" in n or "STIR" in n for n in names)
     unnamed = [s for s in sagittal if not s.description]
     if has_t1 and not has_t2 and len(unnamed) == 1:
-        unnamed[0].description = "T2"
+        target = unnamed[0]
+        if isinstance(target, SeriesInfo):
+            series[series.index(target)] = dataclasses.replace(target, description="T2")
+        else:
+            target.description = "T2"
 
 
 def _not_diagnostic(series_dir: Path, n_files: int) -> str | None:
