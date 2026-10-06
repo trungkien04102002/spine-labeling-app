@@ -140,8 +140,8 @@ registerVi({
     "Giữ chuột phải rồi kéo: phóng to / thu nhỏ",
   "Hold the wheel down and drag: move the picture":
     "Nhấn giữ con lăn rồi kéo: di chuyển ảnh",
-  "No mouse (touchpad)? Use the ◀ ▶, ＋ －, brightness and contrast buttons above the picture.":
-    "Không có chuột (dùng touchpad)? Bấm các nút ◀ ▶, ＋ －, Độ sáng, Độ tương phản ở phía trên ảnh.",
+  "No mouse (touchpad)? Use the ◀ ▶, ＋ －, brightness and contrast buttons just under the picture.":
+    "Không có chuột (dùng touchpad)? Bấm các nút ◀ ▶, ＋ －, Độ sáng, Độ tương phản ngay dưới ảnh.",
   "About this tool":
     "Giới thiệu công cụ",
   "This tool automatically reads a lumbar spine MRI and produces radiological grades for each intervertebral disc level (T12–L1 down to L5–S1). Click a level in the table to jump to its slice; you can correct any grade and save it.":
@@ -582,8 +582,16 @@ registerVi({
     "Trang web này dùng để làm gì?",
   "It reads a lumbar spine MRI for you: the AI colours the vertebrae and discs on the image and grades what is abnormal at each disc level (T12–L1 down to L5–S1). You check the result and correct anything it got wrong.":
     "Trang web đọc phim MRI cột sống thắt lưng: AI tô màu các đốt sống, đĩa đệm trên ảnh và chấm mức độ bất thường ở từng tầng đĩa đệm (từ T12–L1 đến L5–S1). Bác sĩ xem lại kết quả và sửa chỗ AI chấm sai.",
-  "Create a study, then upload the scan compressed into one .zip file.":
-    "Tạo ca mới, rồi tải phim lên: nén thành một file .zip.",
+  "Press “+ New study”, type a study code and the patient's name, then press “Create”.":
+    "Bấm “+ Ca mới”, nhập mã ca và tên bệnh nhân, rồi bấm “Tạo”.",
+  "On the new study's row, press “Upload” and choose the scan, compressed into one .zip file.":
+    "Ở dòng ca vừa tạo, bấm “Tải lên” và chọn file phim đã nén thành một file .zip.",
+  "When the study shows “Ready”, press “Open →”. On the study page press “✨ Run AI grading” at the top right: about 1–2 minutes, press it and leave it to run.":
+    "Khi ca hiện “Sẵn sàng”, bấm “Mở →”. Trong trang ca, bấm “✨ Chạy chẩn đoán AI” ở góc trên bên phải: mất khoảng 1–2 phút, cứ bấm rồi để đó chờ.",
+  "Look at the result, change any cell that is wrong, and press “Save corrections”.":
+    "Xem kết quả, sửa ô nào chưa đúng rồi bấm “Lưu hiệu chỉnh”.",
+  "When you are done, press “★ Rate this software” at the top right and answer the short survey (about 5 minutes).":
+    "Dùng xong, bấm “★ Đánh giá phần mềm” ở góc trên bên phải và trả lời phiếu đánh giá ngắn (khoảng 5 phút).",
   "Open the study and press “✨ Run AI grading” — about 1–2 minutes. Press it and leave it to run.":
     "Mở ca và bấm “✨ Chạy chẩn đoán AI”. Mất khoảng 1–2 phút, cứ bấm rồi để đó chờ.",
   "Look at the result, correct what is wrong, and press Save.":

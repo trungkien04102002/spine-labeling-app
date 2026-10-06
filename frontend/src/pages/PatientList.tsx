@@ -284,16 +284,19 @@ export default function PatientList() {
               {t("It reads a lumbar spine MRI for you: the AI colours the vertebrae and discs on the image and grades what is abnormal at each disc level (T12–L1 down to L5–S1). You check the result and correct anything it got wrong.")}
             </p>
             <ol className="list-decimal space-y-1 pl-5">
+              {/* Every step names the button to press, as it reads on screen:
+                  "open the study" alone left clinicians looking for how. */}
+              <li>{t("Press “+ New study”, type a study code and the patient's name, then press “Create”.")}</li>
               <li>
-                {t("Create a study, then upload the scan compressed into one .zip file.")}{" "}
+                {t("On the new study's row, press “Upload” and choose the scan, compressed into one .zip file.")}{" "}
                 <mark className="rounded bg-amber-200 px-1 font-semibold text-slate-900">
                   {t("Only the sagittal (side view) lumbar series are needed, T2 first")}
                 </mark>{" "}
                 {t("— their names usually contain “sag”, e.g. t2_tse_sag, SAG T2, T2 SAG FSE.")}
               </li>
-              <li>{t("Open the study and press “✨ Run AI grading” — about 1–2 minutes. Press it and leave it to run.")}</li>
-              <li>{t("Look at the result, correct what is wrong, and press Save.")}</li>
-              <li>{t("When you are done, answer the short survey “★ Rate this software”.")}</li>
+              <li>{t("When the study shows “Ready”, press “Open →”. On the study page press “✨ Run AI grading” at the top right: about 1–2 minutes, press it and leave it to run.")}</li>
+              <li>{t("Look at the result, change any cell that is wrong, and press “Save corrections”.")}</li>
+              <li>{t("When you are done, press “★ Rate this software” at the top right and answer the short survey (about 5 minutes).")}</li>
             </ol>
             <p className="text-xs text-slate-600">
               {t("Only have a picture (PNG/JPG), not the scan? Upload it the same way — then only model B reads it.")}

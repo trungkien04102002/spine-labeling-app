@@ -600,7 +600,7 @@ export default function Viewer() {
     <div className="min-h-screen">
       {/* Colorful brand header */}
       <header className="bg-gradient-to-r from-teal-600 to-cyan-500 shadow-md">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 sm:px-6">
+        <div className="mx-auto flex max-w-7xl 2xl:max-w-[1680px] flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 sm:px-6">
           <div className="flex items-center gap-3 text-white">
             <Link
               to="/"
@@ -653,7 +653,7 @@ export default function Viewer() {
             is what lets a doctor tell steady progress from a stall. */}
         {running && (
           <div className="border-t border-white/20 bg-teal-700/40 px-4 py-2 sm:px-6">
-            <div className="mx-auto flex max-w-7xl items-center gap-3">
+            <div className="mx-auto flex max-w-7xl 2xl:max-w-[1680px] items-center gap-3">
               <div
                 className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/25"
                 role="progressbar"
@@ -672,14 +672,14 @@ export default function Viewer() {
                 {job ? ` · ${formatElapsed(job.elapsed_seconds)}` : ""}
               </span>
             </div>
-            <p className="mx-auto mt-1 max-w-7xl text-[11px] text-teal-50/80">
+            <p className="mx-auto mt-1 max-w-7xl 2xl:max-w-[1680px] text-[11px] text-teal-50/80">
               {t("Usually 1–2 minutes. Press it and leave it: you can even leave this page — the run continues on the server and the result is saved.")}
             </p>
           </div>
         )}
       </header>
 
-      <main className="mx-auto flex max-w-7xl flex-col gap-5 px-4 py-4 sm:px-6 sm:py-6">
+      <main className="mx-auto flex max-w-7xl 2xl:max-w-[1680px] flex-col gap-5 px-4 py-4 sm:px-6 sm:py-6">
           {/* About this tool — first on the page, collapsed; the button says it opens. */}
           <details className="group rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
             <summary className="flex cursor-pointer list-none items-center gap-2 text-base font-bold text-slate-800 [&::-webkit-details-marker]:hidden">
@@ -777,7 +777,7 @@ export default function Viewer() {
               <li>{t("Hold the right button and drag: zoom in / out")}</li>
               <li>{t("Hold the wheel down and drag: move the picture")}</li>
             </ul>
-            <p className="mt-1">{t("No mouse (touchpad)? Use the ◀ ▶, ＋ －, brightness and contrast buttons above the picture.")}</p>
+            <p className="mt-1">{t("No mouse (touchpad)? Use the ◀ ▶, ＋ －, brightness and contrast buttons just under the picture.")}</p>
           </div>
         </section>
         <div className="relative">

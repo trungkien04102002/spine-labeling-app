@@ -1008,38 +1008,6 @@ export default function CornerstoneViewport({
           Switch back to the series marked <strong>AI</strong> to see or edit it.
         </p>
       )}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-slate-200 bg-white px-3 py-2 text-xs text-slate-700">
-        <span className="flex items-center gap-1">
-          <button type="button" onClick={() => stepSlice(-1)} disabled={sliceIndex <= 0} className={VIEW_BTN} title={t("Previous slice")}>
-            ◀
-          </button>
-          <span className="min-w-[72px] text-center tabular-nums">
-            {t("Slice {i} / {n}", { i: sliceIndex + 1, n: sliceCount })}
-          </span>
-          <button type="button" onClick={() => stepSlice(1)} disabled={sliceIndex >= sliceCount - 1} className={VIEW_BTN} title={t("Next slice")}>
-            ▶
-          </button>
-        </span>
-        <span className="flex items-center gap-1">
-          <button type="button" onClick={() => zoomBy(1.25)} className={VIEW_BTN} title={t("Zoom in")}>
-            ＋
-          </button>
-          <button type="button" onClick={() => zoomBy(0.8)} className={VIEW_BTN} title={t("Zoom out")}>
-            －
-          </button>
-        </span>
-        <label className="flex items-center gap-1.5">
-          ☀ {t("Brightness")}
-          <input type="range" min={-100} max={100} step={5} value={brightness} onChange={(e) => setBrightness(Number(e.target.value))} className="w-24" />
-        </label>
-        <label className="flex items-center gap-1.5">
-          ◐ {t("Contrast")}
-          <input type="range" min={-100} max={100} step={5} value={contrast} onChange={(e) => setContrast(Number(e.target.value))} className="w-24" />
-        </label>
-        <button type="button" onClick={resetView} className={VIEW_BTN + " px-2.5"} title={t("Back to the original picture")}>
-          ⟲ {t("Reset image")}
-        </button>
-      </div>
       {segAvailable && (
         <div
           style={{
@@ -1234,6 +1202,40 @@ export default function CornerstoneViewport({
           }}
         />
         {overlay}
+      </div>
+      {/* Below the picture, next to the mouse help: clinicians looked for the
+          slice and zoom buttons where the instructions are (2026-10-06). */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-slate-200 bg-white px-3 py-2 text-xs text-slate-700">
+        <span className="flex items-center gap-1">
+          <button type="button" onClick={() => stepSlice(-1)} disabled={sliceIndex <= 0} className={VIEW_BTN} title={t("Previous slice")}>
+            ◀
+          </button>
+          <span className="min-w-[72px] text-center tabular-nums">
+            {t("Slice {i} / {n}", { i: sliceIndex + 1, n: sliceCount })}
+          </span>
+          <button type="button" onClick={() => stepSlice(1)} disabled={sliceIndex >= sliceCount - 1} className={VIEW_BTN} title={t("Next slice")}>
+            ▶
+          </button>
+        </span>
+        <span className="flex items-center gap-1">
+          <button type="button" onClick={() => zoomBy(1.25)} className={VIEW_BTN} title={t("Zoom in")}>
+            ＋
+          </button>
+          <button type="button" onClick={() => zoomBy(0.8)} className={VIEW_BTN} title={t("Zoom out")}>
+            －
+          </button>
+        </span>
+        <label className="flex items-center gap-1.5">
+          ☀ {t("Brightness")}
+          <input type="range" min={-100} max={100} step={5} value={brightness} onChange={(e) => setBrightness(Number(e.target.value))} className="w-24" />
+        </label>
+        <label className="flex items-center gap-1.5">
+          ◐ {t("Contrast")}
+          <input type="range" min={-100} max={100} step={5} value={contrast} onChange={(e) => setContrast(Number(e.target.value))} className="w-24" />
+        </label>
+        <button type="button" onClick={resetView} className={VIEW_BTN + " px-2.5"} title={t("Back to the original picture")}>
+          ⟲ {t("Reset image")}
+        </button>
       </div>
     </div>
   );

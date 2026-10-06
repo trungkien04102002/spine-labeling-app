@@ -20,6 +20,13 @@ import {
 
 const SCALE_HINT = "1 = rất kém · 5 = rất tốt";
 
+/** The red star on a question the form cannot be sent without. */
+function RequiredMark({ show }: { show: boolean }) {
+  return show ? (
+    <span className="ml-0.5 font-bold text-rose-600" aria-label="bắt buộc">*</span>
+  ) : null;
+}
+
 function QuestionRow({
   question,
   index,
@@ -39,6 +46,7 @@ function QuestionRow({
       <p className="mb-3 text-sm text-slate-800">
         <span className="mr-2 font-semibold text-slate-400">{index + 1}.</span>
         {question.text}
+        <RequiredMark show={!!question.required} />
       </p>
       <div className="flex flex-wrap gap-2">
         {labels.map((label, i) => {
@@ -112,6 +120,7 @@ function QuestionMatrix({
                   className="py-2 pr-3 text-left text-[13px] font-normal text-slate-700"
                 >
                   {q.text}
+                  <RequiredMark show={!!q.required} />
                 </th>
                 {labels.map((label, i) => {
                   const score = i + 1;
@@ -259,6 +268,11 @@ export default function Survey() {
         Không có câu trả lời đúng hay sai. Đánh giá thấp cũng có ích như đánh
         giá cao.
       </p>
+      {/* Clinicians asked which questions they must answer: a red star, and
+          one line saying what it means (they used to learn only at the end). */}
+      <p className="mt-1 text-sm text-slate-500">
+        Câu có dấu <span className="font-bold text-rose-600">*</span> là bắt buộc. Các câu khác bác sĩ trả lời nếu muốn.
+      </p>
 
       {error && (
         <div className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
@@ -362,17 +376,20 @@ export default function Survey() {
       <div className="mt-5 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
         <div className="pt-1">
           <p className="text-sm text-slate-700">Thông tin người đánh giá</p>
+          <p className="mt-0.5 text-xs text-slate-500">
+            Không bắt buộc. Bác sĩ có thể để trống để đánh giá ẩn danh.
+          </p>
           <div className="mt-2 grid gap-3 sm:grid-cols-2">
             <input
               value={respondent}
               onChange={(e) => setRespondent(e.target.value)}
-              placeholder="Họ tên"
+              placeholder="Họ tên (có thể để trống)"
               className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
             />
             <input
               value={role}
               onChange={(e) => setRole(e.target.value)}
-              placeholder="Chuyên khoa / vị trí"
+              placeholder="Chuyên khoa / vị trí (có thể để trống)"
               className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
             />
           </div>
@@ -381,9 +398,8 @@ export default function Survey() {
 
       <div className="mt-4 flex items-center justify-between gap-4">
         <span className="text-sm text-slate-500">
-          {/* No "required"/"optional" labels on the questions: the doctor
-              answers what they choose. Only if the few core questions are
-              still blank does the page say which ones stop the send. */}
+          {/* The starred questions still blank, by number, so the doctor
+              knows exactly what stops the send. */}
           {missing.length > 0 && form != null
             ? `Cần trả lời thêm câu ${missing.join(", ")} để gửi`
             : ""}
