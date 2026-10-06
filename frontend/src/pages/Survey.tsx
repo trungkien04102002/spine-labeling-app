@@ -303,8 +303,8 @@ export default function Survey() {
           {isPairGroup(group) &&
             pairs.map((p) => {
               const rows = [
-                { id: p.a, label: "Mô hình A" },
-                { id: p.b, label: "Mô hình B" },
+                { id: p.a, label: "Mô hình AI A" },
+                { id: p.b, label: "Mô hình AI B" },
               ].filter((r) => r.id != null && byId.get(r.id)?.group === group);
               if (rows.length === 0) return null;
               return (

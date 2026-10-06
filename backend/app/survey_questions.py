@@ -51,7 +51,7 @@ ERRORS = "Khi AI sai"
 SHOW = "Cách trình bày kết quả"
 USE = "Sử dụng trong công việc"
 UX = "Đánh giá chung về phần mềm"
-COMPARE = "Mô hình A và mô hình B theo từng tiêu chí"
+COMPARE = "Mô hình AI A và mô hình AI B theo từng tiêu chí"
 
 # QUESTION IDS ARE PERMANENT ONCE ANY RESPONSE EXISTS. Answers are stored as
 # {id: score}, so renumbering silently re-labels every answer already given:
@@ -112,10 +112,10 @@ QUESTIONS: list[Question] = [
     # same way, so the two means sit side by side: which model clinicians
     # found worse is a direct comparison, not two unrelated numbers. Never
     # required, never counted in the clinical score.
-    Question(25, "Kết quả mô hình B: khớp với đánh giá của tôi", "reference_b", COMPARE),
-    Question(26, "Mô hình B, tổn thương nặng: phát hiện được, không bỏ sót", "reference_b", COMPARE),
-    Question(27, "Mô hình B, ca bình thường: không báo bệnh nhầm", "reference_b", COMPARE),
-    Question(28, "Kết quả mô hình B: đủ tin cậy để tham khảo khi đọc phim", "reference_b", COMPARE),
+    Question(25, "Kết quả mô hình AI B: khớp với đánh giá của tôi", "reference_b", COMPARE),
+    Question(26, "Mô hình AI B, tổn thương nặng: phát hiện được, không bỏ sót", "reference_b", COMPARE),
+    Question(27, "Mô hình AI B, ca bình thường: không báo bệnh nhầm", "reference_b", COMPARE),
+    Question(28, "Kết quả mô hình AI B: đủ tin cậy để tham khảo khi đọc phim", "reference_b", COMPARE),
 ]
 
 #: model B item -> the item asking the same of our own grades.
@@ -126,8 +126,8 @@ MODEL_B_PAIRS = {25: 4, 26: 17, 27: 18, 28: 20}
 # B, so a clinician rates the two while the comparison is fresh rather than
 # recalling model A's answer a page later; then the software.
 SECTIONS = [
-    ("Phần 1. Mô hình A: vùng tô và từng nhãn", [SEG, GRADE, ERRORS]),
-    ("Phần 2. So sánh lâm sàng: mô hình A và mô hình B", [COMPARE]),
+    ("Phần 1. Mô hình AI A: vùng tô và từng nhãn", [SEG, GRADE, ERRORS]),
+    ("Phần 2. So sánh lâm sàng: mô hình AI A và mô hình AI B", [COMPARE]),
     ("Phần 3. Phần mềm", [SHOW, USE, UX]),
 ]
 #: Phần 2's title when model B is hidden and only model A's rows remain.

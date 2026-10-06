@@ -489,13 +489,13 @@ registerVi({
     "Phòng này đã có mã PIN.",
   // Comparison model B (components/Viewer/ReferenceBPanel.tsx)
   "For comparison: model B":
-    "Kết quả tham khảo: mô hình B",
+    "Kết quả tham khảo: mô hình AI B",
   "Another AI model, run alongside for you to compare. It reads only one image (the middle slice, shown here) and answers for the whole image, not per disc level. It does not change the grades above.":
     "Một mô hình AI khác, chạy song song để bác sĩ so sánh. Mô hình này chỉ đọc một ảnh (lát giữa, hình bên trái) và trả lời chung cho cả ảnh, không chia theo từng tầng đĩa đệm. Kết quả này không làm thay đổi bảng phía trên.",
   "Running model B…":
-    "Đang chạy mô hình B…",
+    "Đang chạy mô hình AI B…",
   "Image model B read":
-    "Ảnh mô hình B đã đọc",
+    "Ảnh mô hình AI B đã đọc",
   "Slice {i} of {n}":
     "Lát {i} / {n}",
   "Finding":
@@ -509,7 +509,7 @@ registerVi({
   "No":
     "Không",
   "“No finding” scored highest, so model B counts every other finding as No.":
-    "“Không thấy bất thường” có xác suất cao nhất, nên mô hình B tính mọi dấu hiệu còn lại là Không.",
+    "“Không thấy bất thường” có xác suất cao nhất, nên mô hình AI B tính mọi dấu hiệu còn lại là Không.",
   "UP endplate":
     "Tổn thương mâm sụn trên",
   "LOW endplate":
@@ -527,21 +527,21 @@ registerVi({
   "No Finding":
     "Không thấy bất thường",
   "Comparison model B":
-    "Mô hình B (so sánh)",
+    "Mô hình AI B (so sánh)",
   "Hide from clinicians":
     "Ẩn với bác sĩ",
   "Show to clinicians":
     "Hiện cho bác sĩ",
   "Model B runs after every AI grading and its answer is saved (in the export as reference_b.csv). This switch only decides whether clinicians see it, as a panel under the grade table.":
-    "Mô hình B luôn chạy ngầm sau mỗi lần AI chấm và kết quả được lưu lại (trong file xuất dữ liệu là reference_b.csv). Nút này chỉ quyết định bác sĩ có thấy ô kết quả mô hình B dưới bảng phân độ hay không.",
+    "Mô hình AI B luôn chạy ngầm sau mỗi lần AI chấm và kết quả được lưu lại (trong file xuất dữ liệu là reference_b.csv). Nút này chỉ quyết định bác sĩ có thấy ô kết quả mô hình AI B dưới bảng phân độ hay không.",
   "Model B is not installed on this server.":
-    "Máy chủ này chưa cài mô hình B.",
+    "Máy chủ này chưa cài mô hình AI B.",
   "Now: shown to clinicians.":
     "Hiện tại: bác sĩ ĐANG thấy.",
   "Now: hidden from clinicians.":
     "Hiện tại: đang ẩn với bác sĩ.",
   "Model B's answer for every study it read, for comparison.":
-    "Kết quả của mô hình B cho mọi ca nó đã đọc, để so sánh.",
+    "Kết quả của mô hình AI B cho mọi ca nó đã đọc, để so sánh.",
   "Previous slice":
     "Lát trước",
   "Next slice":
@@ -581,7 +581,7 @@ registerVi({
   "What is this website?":
     "Trang web này dùng để làm gì?",
   "It reads a lumbar spine MRI for you: the AI colours the vertebrae and discs on the image and grades what is abnormal at each disc level (T12–L1 down to L5–S1). You check the result and correct anything it got wrong.":
-    "Trang web đọc phim MRI cột sống thắt lưng: AI tô màu các đốt sống, đĩa đệm trên ảnh và chấm mức độ bất thường ở từng tầng đĩa đệm (từ T12–L1 đến L5–S1). Bác sĩ xem lại kết quả và sửa chỗ AI chấm sai.",
+    "Trang web đọc phim MRI cột sống thắt lưng: AI tô màu các đốt sống, đĩa đệm trên ảnh và chấm mức độ bất thường ở từng tầng đĩa đệm (từ T12–L1 đến L5–S1). Có hai mô hình AI khác nhau (gọi là A và B) cùng đọc mỗi ca, nên kết quả có thể khác nhau. AI đọc trước; bác sĩ xem lại, sửa chỗ AI chấm sai và so sánh hai mô hình.",
   "Press “+ New study”, type a study code and the patient's name, then press “Create”.":
     "Bấm “+ Ca mới”, nhập mã ca và tên bệnh nhân, rồi bấm “Tạo”.",
   "On the new study's row, press “Upload” and choose the scan, compressed into one .zip file.":
@@ -601,33 +601,33 @@ registerVi({
   "Only sagittal lumbar series are graded. Axial (cross-section, “tra”/“ax”) and coronal (“cor”) series are not graded yet — no need to upload them. A research tool — not a diagnosis.":
     "AI chỉ chấm phim cắt dọc (sagittal) vùng thắt lưng. Phim cắt ngang (axial, tên có “tra” hoặc “ax”) và cắt đứng ngang (coronal, tên có “cor”) chưa được chấm, không cần tải lên. Đây là công cụ nghiên cứu, không thay cho chẩn đoán.",
   "Our model vs model B (same question, 1–5)":
-    "Mô hình A và mô hình B (cùng câu hỏi, thang 1–5)",
+    "Mô hình AI A và mô hình AI B (cùng câu hỏi, thang 1–5)",
   "Question":
     "Câu hỏi",
   "Our model":
-    "Mô hình A",
+    "Mô hình AI A",
   "Model B":
-    "Mô hình B",
+    "Mô hình AI B",
   "Red = the lower-rated model on that question.":
     "Màu đỏ = mô hình bị chấm thấp hơn ở câu đó.",
   "Model B — results to compare":
-    "Mô hình B: kết quả để đối chiếu",
+    "Mô hình AI B: kết quả để đối chiếu",
   "A second AI model, run on the same study. It reads one image (the middle slice, shown here) and answers yes/no for the whole image, not per disc level. The “Model A” column is model A's answer for the same finding: yes if it found it at any level.":
-    "Một mô hình AI thứ hai, chạy trên cùng ca. Mô hình này đọc một ảnh (lát giữa, hình bên trái) và trả lời có/không cho cả ảnh, không chia theo tầng đĩa đệm. Cột “Mô hình A” là câu trả lời của mô hình A cho cùng dấu hiệu: “Có” nếu thấy ở ít nhất một tầng.",
+    "Một mô hình AI thứ hai, chạy trên cùng ca. Mô hình này đọc một ảnh (lát giữa, hình bên trái) và trả lời có/không cho cả ảnh, không chia theo tầng đĩa đệm. Cột “Mô hình AI A” là câu trả lời của mô hình AI A cho cùng dấu hiệu: “Có” nếu thấy ở ít nhất một tầng.",
   "Model B: probability":
-    "Mô hình B: xác suất",
+    "Mô hình AI B: xác suất",
   "Model A":
-    "Mô hình A",
+    "Mô hình AI A",
   "Model A has no matching finding":
-    "Mô hình A không chấm dấu hiệu này",
+    "Mô hình AI A không chấm dấu hiệu này",
   "Model A — abnormality grades":
-    "Mô hình A: điểm bất thường",
+    "Mô hình AI A: điểm bất thường",
   "Model A — abnormal findings":
-    "Mô hình A: tóm tắt bất thường",
+    "Mô hình AI A: tóm tắt bất thường",
   "A picture can only be read by model B. Model A needs an MRI series.":
-    "Ảnh 2D chỉ mô hình B đọc được. Mô hình A cần phim MRI.",
+    "Ảnh 2D chỉ mô hình AI B đọc được. Mô hình AI A cần phim MRI.",
   "This study is one picture (PNG/JPG), so model A cannot grade it — it needs an MRI series (DICOM .zip, NIfTI or MHA). Model B's result is below.":
-    "Ca này là một ảnh 2D (PNG/JPG) nên mô hình A không chấm được. Mô hình A cần phim MRI (thư mục DICOM nén .zip, NIfTI hoặc MHA). Kết quả của mô hình B ở bên dưới.",
+    "Ca này là một ảnh 2D (PNG/JPG) nên mô hình AI A không chấm được. Mô hình AI A cần phim MRI (thư mục DICOM nén .zip, NIfTI hoặc MHA). Kết quả của mô hình AI B ở bên dưới.",
   "This picture is a:":
     "Ảnh này là:",
   "Sagittal (side view)":
@@ -659,9 +659,9 @@ registerVi({
   "Spinal Canal Stenosis":
     "Hẹp ống sống",
   "MRI: DICOM folder as .zip, or .mha / .nii / .nii.gz. Or one picture (.png / .jpg) for model B only.":
-    "Phim MRI: thư mục DICOM nén .zip, hoặc file .mha / .nii / .nii.gz. Hoặc một ảnh (.png / .jpg), khi đó chỉ mô hình B đọc.",
+    "Phim MRI: thư mục DICOM nén .zip, hoặc file .mha / .nii / .nii.gz. Hoặc một ảnh (.png / .jpg), khi đó chỉ mô hình AI B đọc.",
   "Only have a picture (PNG/JPG), not the scan? Upload it the same way — then only model B reads it.":
-    "Chỉ có ảnh chụp (PNG/JPG), không có phim? Vẫn tải lên như trên, khi đó chỉ mô hình B đọc ảnh.",
+    "Chỉ có ảnh chụp (PNG/JPG), không có phim? Vẫn tải lên như trên, khi đó chỉ mô hình AI B đọc ảnh.",
   "Back to the AI's grade":
     "Trả về kết quả AI",
   "Put everything back to the AI's grades":
@@ -669,15 +669,15 @@ registerVi({
   "Not saved yet — press Save under the table. Undo (Ctrl+Z) also steps back.":
     "Chưa lưu. Bấm Lưu bên dưới bảng. Nút Hoàn tác (Ctrl+Z) cũng lùi lại từng bước.",
   "This study has results from two AI models:":
-    "Ca này có kết quả của hai mô hình AI:",
+    "Hai mô hình AI khác nhau đã cùng đọc phim này, nên kết quả có thể khác nhau. A và B đều là AI; bác sĩ là người kiểm tra:",
   "This study has the AI's results:":
     "Ca này có kết quả của AI:",
   "the coloured structures on the image and the grade table, level by level. You can correct it: change a grade, then Save.":
-    "vùng tô màu trên ảnh và bảng điểm theo từng tầng. Bác sĩ sửa được: đổi mức độ rồi bấm Lưu.",
+    "tô màu trên ảnh và chấm điểm từng tầng đĩa đệm. Bác sĩ xem lại, chỗ nào AI A chấm sai thì sửa rồi bấm Lưu.",
   "yes/no for the whole image, for comparison only. It cannot be edited.":
-    "có/không cho cả ảnh, chỉ để đối chiếu. Không sửa được.",
+    "một AI khác, chỉ trả lời có/không cho cả ảnh. Dùng để so với AI A, không sửa được.",
   "Steps: 1. check model A against the image and correct what is wrong · 2. compare with model B · 3. answer the survey (★ top right), which asks about each model separately.":
-    "Các bước: 1. đối chiếu mô hình A với ảnh và sửa chỗ sai · 2. so với mô hình B · 3. trả lời khảo sát (★ góc trên bên phải), có phần riêng cho từng mô hình.",
+    "Thứ tự: 1. AI đọc phim trước (ca đã có màu là AI đã đọc xong) · 2. bác sĩ xem lại kết quả mô hình AI A, sửa chỗ sai · 3. so với mô hình AI B · 4. trả lời khảo sát (★ góc trên bên phải), chấm riêng từng mô hình AI.",
   "Steps: check the result against the image, correct what is wrong, then answer the survey (★ top right).":
     "Các bước: đối chiếu kết quả với ảnh, sửa chỗ sai, rồi trả lời khảo sát (★ góc trên bên phải).",
   "(editable)":
@@ -685,13 +685,13 @@ registerVi({
   "(not editable)":
     "(chỉ xem)",
   "Only what is not normal. Click a level, or one finding, to go to it in the model A table below — it will flash.":
-    "Chỉ liệt kê chỗ bất thường. Bấm vào một tầng (hoặc một dấu hiệu) để đi tới đúng ô đó trong bảng mô hình A bên dưới, ô sẽ nhấp nháy.",
+    "Chỉ liệt kê chỗ bất thường. Bấm vào một tầng (hoặc một dấu hiệu) để đi tới đúng ô đó trong bảng mô hình AI A bên dưới, ô sẽ nhấp nháy.",
   "see in table":
     "xem trong bảng",
   "This study is one picture, so only model B reads it:":
-    "Ca này là một ảnh 2D nên chỉ mô hình B đọc được:",
+    "Ca này là một ảnh 2D nên chỉ mô hình AI B đọc được:",
   "Model B reads the uploaded picture and answers yes/no for the whole image. Say whether the picture is a side view (sagittal) or a cross-section (axial): model B has a version for each.":
-    "Mô hình B đọc ảnh đã tải lên và trả lời có/không cho cả ảnh. Bác sĩ chọn ảnh là cắt dọc (sagittal) hay cắt ngang (axial), vì mô hình B có bản riêng cho từng loại.",
+    "Mô hình AI B đọc ảnh đã tải lên và trả lời có/không cho cả ảnh. Bác sĩ chọn ảnh là cắt dọc (sagittal) hay cắt ngang (axial), vì mô hình AI B có bản riêng cho từng loại.",
   "Only the sagittal (side view) lumbar series are needed, T2 first":
     "Chỉ cần phim cắt dọc (sagittal) vùng thắt lưng, ưu tiên T2",
   "— their names usually contain “sag”, e.g. t2_tse_sag, SAG T2, T2 SAG FSE.":
