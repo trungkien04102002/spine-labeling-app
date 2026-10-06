@@ -458,6 +458,11 @@ export function startFullGrading(studyId: string): Promise<JobOut> {
   });
 }
 
+/** How many surveys this room has already sent (answered once per clinician). */
+export function getMySurveys(): Promise<{ count: number; last: string | null }> {
+  return apiFetch<{ count: number; last: string | null }>("/survey/mine");
+}
+
 export function getJob(jobId: string): Promise<JobOut> {
   return apiFetch<JobOut>(`/jobs/${jobId}`);
 }

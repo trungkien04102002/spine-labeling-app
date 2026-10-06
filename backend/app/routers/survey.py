@@ -113,9 +113,10 @@ def submit_response(
 
     row = SurveyResponse(
         reader_id=reader.id if reader is not None else None,
-        # The room's name stands in when the form's name field is left blank,
-        # so a response is attributable without asking twice.
-        respondent=(payload.respondent or (reader.name if reader else None)),
+        # A blank name stays blank: the form tells clinicians that leaving it
+        # empty answers anonymously. The room link (reader_id) remains, so
+        # the operator can still tell a practice run from a clinician.
+        respondent=(payload.respondent or None),
         role=(payload.role or None),
         answers_json={str(k): v for k, v in payload.answers.items()},
         comment=(payload.comment or None),
@@ -128,6 +129,30 @@ def submit_response(
     db.commit()
     db.refresh(row)
     return {"id": row.id, "clinical_mean": row.clinical_mean}
+
+
+@router.get("/survey/mine")
+def my_responses(
+    db: Session = Depends(get_db),
+    reader: Reader | None = Depends(current_reader),
+) -> dict[str, object]:
+    """How many surveys this room has sent, so the form can say so.
+
+    The survey is answered once, after a few studies; a clinician who comes
+    back to it should see that theirs is already in.
+    """
+    if reader is None:
+        return {"count": 0, "last": None}
+    rows = (
+        db.query(SurveyResponse)
+        .filter_by(reader_id=reader.id)
+        .order_by(SurveyResponse.submitted_at.desc())
+        .all()
+    )
+    return {
+        "count": len(rows),
+        "last": rows[0].submitted_at.isoformat() if rows else None,
+    }
 
 
 @router.get("/survey/summary", dependencies=[Depends(require_admin)])

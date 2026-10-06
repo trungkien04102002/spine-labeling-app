@@ -296,7 +296,14 @@ export default function PatientList() {
               </li>
               <li>{t("When the study shows “Ready”, press “Open →”. On the study page press “✨ Run AI grading” at the top right: about 1–2 minutes, press it and leave it to run.")}</li>
               <li>{t("Look at the result, change any cell that is wrong, and press “Save corrections”.")}</li>
-              <li>{t("When you are done, press “★ Rate this software” at the top right and answer the short survey (about 5 minutes).")}</li>
+              {/* Highlighted like the sagittal note: the survey is what the
+                  trial is for, and a clinician asked for it to stand out. */}
+              <li>
+                <mark className="rounded bg-amber-200 px-1 font-semibold text-slate-900">
+                  {t("After a few studies (about 3–5), please press “★ Rate this software” at the top right and answer the survey once (about 5 minutes).")}
+                </mark>{" "}
+                {t("No survey per study.")}
+              </li>
             </ol>
             <p className="text-xs text-slate-600">
               {t("Only have a picture (PNG/JPG), not the scan? Upload it the same way — then only model B reads it.")}
@@ -368,7 +375,7 @@ export default function PatientList() {
               <input
                 value={newPatient}
                 onChange={(e) => setNewPatient(e.target.value)}
-                placeholder={t("existing name groups; new one creates a patient")}
+                placeholder={t("e.g. Nguyen Van A, or initials")}
                 className="w-72 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm text-slate-800"
               />
             </label>
@@ -379,6 +386,11 @@ export default function PatientList() {
             >
               {t("Create")}
             </button>
+            {/* Plain words for what the two fields are for; the old hint
+                ("existing name groups…") read as jargon to clinicians. */}
+            <p className="w-full text-xs text-slate-500">
+              {t("Study code: any short name to recognise the study. Several studies of the same patient: type the same patient name and they are listed together. Initials or a code are fine; no real name is needed.")}
+            </p>
           </div>
         )}
 

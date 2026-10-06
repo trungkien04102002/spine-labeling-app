@@ -866,12 +866,12 @@ export default function Viewer() {
                           t("The AI reads the scan first: a study with colours on it has been read."),
                           t("Check model A's result against the image and correct what is wrong, then Save."),
                           t("Compare with model B, further down the page."),
-                          t("Answer the survey (★ top right): it rates each AI model separately."),
+                          t("After a few studies (about 3–5), answer the survey once (★ top right), rating each AI model. No survey per study: the cells you corrected are that study's feedback."),
                         ]
                       : [
                           t("The AI reads the scan first: a study with colours on it has been read."),
                           t("Check the AI's result against the image and correct what is wrong, then Save."),
-                          t("Answer the survey (★ top right)."),
+                          t("After a few studies (about 3–5), answer the survey once (★ top right). No survey per study: the cells you corrected are that study's feedback."),
                         ]
                     ).map((step, i) => (
                       <li key={i} className="flex items-start gap-2 rounded-md border border-teal-200 bg-white p-2.5 text-sm text-slate-800 shadow-sm">

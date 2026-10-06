@@ -54,8 +54,10 @@ registerVi({
     "vd. case_042",
   "Patient name":
     "Tên bệnh nhân",
-  "existing name groups; new one creates a patient":
-    "trùng tên thì gộp; tên mới sẽ tạo bệnh nhân mới",
+  "e.g. Nguyen Van A, or initials":
+    "Ví dụ: Nguyễn Văn A, hoặc tên viết tắt",
+  "Study code: any short name to recognise the study. Several studies of the same patient: type the same patient name and they are listed together. Initials or a code are fine; no real name is needed.":
+    "Mã ca: tên ngắn bất kỳ để bác sĩ nhận ra ca. Nhiều ca của cùng một bệnh nhân thì nhập cùng một tên, các ca sẽ được xếp chung. Có thể dùng tên viết tắt hoặc mã, không cần tên thật.",
   "Modality":
     "Loại chụp",
   "Create":
@@ -694,6 +696,14 @@ registerVi({
     "Bác sĩ xem lại kết quả AI trên ảnh, sửa chỗ sai rồi bấm Lưu.",
   "Answer the survey (★ top right).":
     "Trả lời phiếu đánh giá (★ góc trên bên phải).",
+  "After a few studies (about 3–5), answer the survey once (★ top right), rating each AI model. No survey per study: the cells you corrected are that study's feedback.":
+    "Xem xong vài ca (khoảng 3–5 ca) thì trả lời phiếu đánh giá một lần (★ góc trên bên phải), chấm riêng từng mô hình AI. Không cần đánh giá từng ca: các ô bác sĩ sửa đã là phản hồi cho ca đó.",
+  "After a few studies (about 3–5), answer the survey once (★ top right). No survey per study: the cells you corrected are that study's feedback.":
+    "Xem xong vài ca (khoảng 3–5 ca) thì trả lời phiếu đánh giá một lần (★ góc trên bên phải). Không cần đánh giá từng ca: các ô bác sĩ sửa đã là phản hồi cho ca đó.",
+  "After a few studies (about 3–5), please press “★ Rate this software” at the top right and answer the survey once (about 5 minutes).":
+    "Xem xong vài ca (khoảng 3–5 ca), nhờ bác sĩ bấm “★ Đánh giá phần mềm” ở góc trên bên phải và trả lời phiếu đánh giá một lần (khoảng 5 phút).",
+  "No survey per study.":
+    "Không cần đánh giá từng ca.",
   "(editable)":
     "(sửa được)",
   "(not editable)":

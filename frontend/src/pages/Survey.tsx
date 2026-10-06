@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import {
   getSurveyForm,
   submitSurvey,
+  getMySurveys,
   type SurveyForm,
   type SurveyQuestion,
 } from "../lib/api";
@@ -182,6 +183,10 @@ export default function Survey() {
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [done, setDone] = useState(false);
+  const [mine, setMine] = useState<{ count: number; last: string | null } | null>(null);
+  useEffect(() => {
+    getMySurveys().then(setMine).catch(() => {});
+  }, []);
 
   useEffect(() => {
     getSurveyForm()
@@ -268,6 +273,16 @@ export default function Survey() {
         Không có câu trả lời đúng hay sai. Đánh giá thấp cũng có ích như đánh
         giá cao.
       </p>
+      <p className="mt-1 text-sm font-semibold text-slate-700">
+        Phiếu này trả lời một lần, sau khi xem vài ca (khoảng 3–5 ca), không phải cho từng ca.
+      </p>
+      {mine && mine.count > 0 && (
+        <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          Phòng này đã gửi {mine.count} phiếu
+          {mine.last ? ` (lần cuối ${new Date(mine.last + "Z").toLocaleString("vi-VN")})` : ""}.
+          Không cần gửi lại sau mỗi ca. Nếu gửi nữa, phiếu mới sẽ được lưu thành một phiếu riêng.
+        </div>
+      )}
       {/* Clinicians asked which questions they must answer: a red star, and
           one line saying what it means (they used to learn only at the end). */}
       <p className="mt-1 text-sm text-slate-500">
@@ -377,7 +392,7 @@ export default function Survey() {
         <div className="pt-1">
           <p className="text-sm text-slate-700">Thông tin người đánh giá</p>
           <p className="mt-0.5 text-xs text-slate-500">
-            Không bắt buộc. Bác sĩ có thể để trống để đánh giá ẩn danh.
+            Không bắt buộc. Để trống thì phiếu không ghi họ tên (ẩn danh); nhóm nghiên cứu chỉ biết phiếu được gửi từ phòng nào.
           </p>
           <div className="mt-2 grid gap-3 sm:grid-cols-2">
             <input
