@@ -1009,16 +1009,6 @@ export default function Viewer() {
             )}
           </div>
 
-          {/* The clinician's own conclusion, in words, right under the table
-              it sums up. */}
-          {studyId && detail && (
-            <DoctorConclusion
-              studyId={studyId}
-              initialText={detail.doctor_conclusion}
-              initialSavedAt={detail.doctor_conclusion_at}
-            />
-          )}
-
           {/* Doctor feedback — corrections are queued for offline review */}
           {!detail?.is_picture && (
           <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
@@ -1090,6 +1080,17 @@ export default function Viewer() {
               // A picture is uploaded to be read by model B: show it even
               // while the operator keeps model B hidden on scans.
               alwaysShow={!!detail?.is_picture}
+            />
+          )}
+
+          {/* The clinician's own conclusion, last: the final word on the scan
+              after the AI A table and the AI B comparison. Kept away from the
+              corrections panel, which a clinician took for the place to type. */}
+          {studyId && detail && (
+            <DoctorConclusion
+              studyId={studyId}
+              initialText={detail.doctor_conclusion}
+              initialSavedAt={detail.doctor_conclusion_at}
             />
           )}
 

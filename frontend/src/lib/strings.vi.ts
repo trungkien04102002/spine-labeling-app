@@ -159,9 +159,9 @@ registerVi({
   "Click a structure here, or point at it on the image, to switch what is painted.":
     "Bấm vào tên ở đây hoặc bấm lên ảnh để chọn đốt sống / đĩa đệm cần tô.",
   "Doctor feedback":
-    "Phản hồi của bác sĩ",
+    "Các ô bác sĩ đã sửa trong bảng",
   "When you fix a grade in the table above and press “Save corrections”, the change is recorded as expert feedback. Send them when you are ready.":
-    "Khi bác sĩ sửa một điểm trong bảng phía trên và bấm “Lưu hiệu chỉnh”, thay đổi được ghi nhận là phản hồi chuyên gia. Bấm gửi khi đã sẵn sàng.",
+    "Khung này tự liệt kê các ô bác sĩ đã đổi trong bảng điểm mô hình AI A phía trên, bác sĩ không cần gõ gì ở đây. Sửa xong và bấm “Lưu hiệu chỉnh”, rồi bấm nút Gửi bên dưới để gửi cho nhóm nghiên cứu.",
   "Waiting to be sent":
     "Đang chờ gửi",
   "Already sent":
@@ -591,7 +591,7 @@ registerVi({
   "When the study shows “Ready”, press “Open →”. On the study page press “✨ Run AI grading” at the top right: about 1–2 minutes, press it and leave it to run.":
     "Khi ca hiện “Sẵn sàng”, bấm “Mở →”. Trong trang ca, bấm “✨ Chạy chẩn đoán AI” ở góc trên bên phải: mất khoảng 1–2 phút, cứ bấm rồi để đó chờ.",
   "Look at the result, change any cell that is wrong, and press “Save corrections”.":
-    "Xem kết quả, sửa ô nào chưa đúng rồi bấm “Lưu hiệu chỉnh”. Muốn thì ghi kết luận của mình ở ô “Kết luận của bác sĩ”.",
+    "Xem kết quả, sửa ô nào chưa đúng rồi bấm “Lưu hiệu chỉnh”. Muốn thì ghi kết luận của mình ở ô “Kết luận của bác sĩ” cuối trang ca.",
   "When you are done, press “★ Rate this software” at the top right and answer the short survey (about 5 minutes).":
     "Dùng xong, bấm “★ Đánh giá phần mềm” ở góc trên bên phải và trả lời phiếu đánh giá ngắn (khoảng 5 phút).",
   "Open the study and press “✨ Run AI grading” — about 1–2 minutes. Press it and leave it to run.":
@@ -687,13 +687,13 @@ registerVi({
   "The AI reads the scan first: a study with colours on it has been read.":
     "AI đọc phim trước: ca đã có màu trên ảnh là AI đã đọc xong.",
   "Check model A's result against the image and correct what is wrong, then Save.":
-    "Bác sĩ xem lại kết quả mô hình AI A trên ảnh, sửa chỗ sai rồi bấm Lưu. Muốn thì ghi kết luận của mình ở ô “Kết luận của bác sĩ” dưới bảng.",
+    "Bác sĩ xem lại kết quả mô hình AI A trên ảnh, sửa chỗ sai rồi bấm Lưu. Muốn thì ghi kết luận của mình ở ô “Kết luận của bác sĩ” cuối trang.",
   "Compare with model B, further down the page.":
     "So với kết quả mô hình AI B ở phía dưới trang.",
   "Answer the survey (★ top right): it rates each AI model separately.":
     "Trả lời phiếu đánh giá (★ góc trên bên phải), chấm riêng từng mô hình AI.",
   "Check the AI's result against the image and correct what is wrong, then Save.":
-    "Bác sĩ xem lại kết quả AI trên ảnh, sửa chỗ sai rồi bấm Lưu. Muốn thì ghi kết luận của mình ở ô “Kết luận của bác sĩ” dưới bảng.",
+    "Bác sĩ xem lại kết quả AI trên ảnh, sửa chỗ sai rồi bấm Lưu. Muốn thì ghi kết luận của mình ở ô “Kết luận của bác sĩ” cuối trang.",
   "Answer the survey (★ top right).":
     "Trả lời phiếu đánh giá (★ góc trên bên phải).",
   "After a few studies (about 3–5), answer the survey once (★ top right), rating each AI model. No survey per study: the cells you corrected are that study's feedback.":
@@ -707,7 +707,7 @@ registerVi({
   "Doctor's conclusion":
     "Kết luận của bác sĩ",
   "Write your own conclusion for this scan, in your words, if you wish: anything the grade buttons cannot say. Do not write the patient's name or other identifying details.":
-    "Bác sĩ ghi kết luận cuối cùng cho phim này bằng lời của mình, nếu muốn, kể cả những gì các nút chọn mức không nói được. Không ghi họ tên hay thông tin định danh bệnh nhân.",
+    "Ô để bác sĩ tự gõ kết luận cuối cùng cho phim này bằng lời của mình, nếu muốn, kể cả những gì các nút chọn mức không nói được. Không ghi họ tên hay thông tin định danh bệnh nhân.",
   "e.g. L4-L5 disc herniation to the left, touching the L5 root; mild canal stenosis.":
     "Ví dụ: Thoát vị đĩa đệm L4-L5 lệch trái, chạm rễ L5; hẹp ống sống nhẹ.",
   "Save conclusion":
