@@ -88,6 +88,25 @@ def corrections_csv(db: Session) -> str:
     )
 
 
+def conclusions_csv(db: Session) -> str:
+    """One row per study a clinician wrote a conclusion for."""
+    rooms = _room_names(db)
+    rows = []
+    for s in (
+        db.query(Study)
+        .filter(Study.doctor_conclusion.isnot(None))
+        .order_by(Study.doctor_conclusion_at)
+        .all()
+    ):
+        patient = db.get(Patient, s.patient_id) if s.patient_id else None
+        rows.append([
+            rooms.get(s.reader_id, "") if s.reader_id else "", s.id,
+            patient.name if patient else "", s.doctor_conclusion,
+            s.doctor_conclusion_at.isoformat() if s.doctor_conclusion_at else "",
+        ])
+    return _csv(["room", "study_id", "patient", "conclusion", "saved_at"], rows)
+
+
 def survey_csv(db: Session) -> str:
     rooms = _room_names(db)
     rows = []
@@ -127,6 +146,7 @@ questions.csv         the text of every Qn column
 corrections.csv       one row per grade a clinician changed. "before" is the
                       model's value only on a cell's FIRST edit; for agreement
                       with the model, take the earliest row per cell.
+conclusions.csv       the clinician's own written conclusion per study, if any
 reference_b.csv       comparison model B's answer per study (whole image, not
                       per level): one row per label, prediction 1 = yes
 spine.db              the full SQLite database, for anything the CSVs miss
@@ -190,6 +210,7 @@ def export_trial(
         z.writestr("questions.csv", questions_csv())
         z.writestr("corrections.csv", corrections_csv(db))
         z.writestr("reference_b.csv", reference_b_csv(settings))
+        z.writestr("conclusions.csv", conclusions_csv(db))
         snapshot = _snapshot(db)
         if snapshot is not None:
             z.writestr("spine.db", snapshot)

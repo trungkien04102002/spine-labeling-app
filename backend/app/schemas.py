@@ -45,6 +45,9 @@ class StudyDetail(BaseModel):
     dicom_tags: dict[str, str] = {}
     # Uploaded as one 2D picture: viewable, model B only, no model A grading.
     is_picture: bool = False
+    # The clinician's written conclusion, and when it was last saved.
+    doctor_conclusion: str | None = None
+    doctor_conclusion_at: datetime.datetime | None = None
 
 
 class SeriesOut(BaseModel):

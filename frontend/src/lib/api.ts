@@ -57,6 +57,9 @@ export interface StudyDetail {
   has_mask: boolean;
   /** Uploaded as one PNG/JPEG picture: model B only. */
   is_picture?: boolean;
+  /** The clinician's own written conclusion for this study, and when saved. */
+  doctor_conclusion?: string | null;
+  doctor_conclusion_at?: string | null;
   dimensions: number[] | null;
   spacing_mm: number[] | null;
   num_slices: number | null;
@@ -461,6 +464,18 @@ export function startFullGrading(studyId: string): Promise<JobOut> {
 /** How many surveys this room has already sent (answered once per clinician). */
 export function getMySurveys(): Promise<{ count: number; last: string | null }> {
   return apiFetch<{ count: number; last: string | null }>("/survey/mine");
+}
+
+/** Save (or clear, with "") the clinician's written conclusion for a study. */
+export function saveConclusion(
+  studyId: string,
+  text: string,
+): Promise<{ text: string | null; saved_at: string | null }> {
+  return apiFetch(`/studies/${studyId}/conclusion`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+  });
 }
 
 export function getJob(jobId: string): Promise<JobOut> {

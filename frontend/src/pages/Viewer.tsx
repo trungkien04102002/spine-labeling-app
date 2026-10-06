@@ -9,6 +9,7 @@ import ReferenceBPanel from "../components/Viewer/ReferenceBPanel";
 import FindingsSummary, { MyEdits } from "../components/Viewer/FindingsSummary";
 import ModelBadge from "../components/Viewer/ModelBadge";
 import LabelReference from "../components/Viewer/LabelReference";
+import DoctorConclusion from "../components/Viewer/DoctorConclusion";
 import Legend from "../components/Viewer/Legend";
 import { useHistory } from "../lib/history";
 import {
@@ -1007,6 +1008,16 @@ export default function Viewer() {
               )
             )}
           </div>
+
+          {/* The clinician's own conclusion, in words, right under the table
+              it sums up. */}
+          {studyId && detail && (
+            <DoctorConclusion
+              studyId={studyId}
+              initialText={detail.doctor_conclusion}
+              initialSavedAt={detail.doctor_conclusion_at}
+            />
+          )}
 
           {/* Doctor feedback — corrections are queued for offline review */}
           {!detail?.is_picture && (

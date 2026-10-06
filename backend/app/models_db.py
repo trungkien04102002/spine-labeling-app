@@ -127,6 +127,12 @@ class Study(Base):
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime, default=datetime.datetime.utcnow
     )
+    # The clinician's own conclusion for this scan, in their words (2026-10-06):
+    # what they would write on the report, beside the AI's per-level grades.
+    doctor_conclusion: Mapped[str | None] = mapped_column(Text, nullable=True)
+    doctor_conclusion_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime, nullable=True
+    )
 
 
 class Series(Base):

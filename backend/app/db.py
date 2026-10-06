@@ -54,6 +54,9 @@ _ADDED_COLUMNS: list[tuple[str, str, str]] = [
     ("readers", "code", "VARCHAR(16) NULL"),
     # Room PINs (2026-10-01): pick your name, then type your PIN.
     ("readers", "pin_hash", "VARCHAR(128) NULL"),
+    # The clinician's written conclusion per study (2026-10-06).
+    ("studies", "doctor_conclusion", "TEXT NULL"),
+    ("studies", "doctor_conclusion_at", "DATETIME NULL"),
 ]
 
 

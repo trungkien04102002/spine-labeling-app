@@ -13,6 +13,7 @@ import numpy as np
 import SimpleITK as sitk
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile
 from fastapi.responses import FileResponse
+from pydantic import BaseModel, Field
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
@@ -113,6 +114,34 @@ def update_study(
     return {"id": study.id, "modality": study.modality}
 
 
+class ConclusionIn(BaseModel):
+    text: str = Field(default="", max_length=4000)
+
+
+@router.put("/studies/{study_id}/conclusion")
+def save_conclusion(
+    study_id: str,
+    payload: ConclusionIn,
+    db: Session = Depends(get_db),
+) -> dict[str, object]:
+    """Save the clinician's own written conclusion for this study.
+
+    Free text, beside the AI's per-level grades: what a reader would write on
+    the report, including what the grade buttons cannot say. Empty clears it.
+    """
+    study = db.get(Study, study_id)
+    if study is None:
+        raise HTTPException(status_code=404, detail=f"Unknown study: {study_id}")
+    text_value = payload.text.strip()
+    study.doctor_conclusion = text_value or None
+    study.doctor_conclusion_at = datetime.datetime.utcnow() if text_value else None
+    db.commit()
+    return {
+        "text": study.doctor_conclusion,
+        "saved_at": study.doctor_conclusion_at.isoformat() if study.doctor_conclusion_at else None,
+    }
+
+
 @router.delete("/studies/{study_id}", status_code=204)
 def delete_study(
     study_id: str,
@@ -155,6 +184,8 @@ def get_study_detail(
         has_volume=bool(study.volume_path),
         has_mask=(Path(settings.data_dir) / study_id / "mask.nii.gz").is_file(),
         is_picture=is_picture(study.volume_path),
+        doctor_conclusion=study.doctor_conclusion,
+        doctor_conclusion_at=study.doctor_conclusion_at,
     )
     # Image metadata comes from the viewer NIfTI (already reoriented).
     if study.display_path and Path(study.display_path).is_file():
