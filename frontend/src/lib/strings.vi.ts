@@ -680,6 +680,20 @@ registerVi({
     "Thứ tự: 1. AI đọc phim trước (ca đã có màu là AI đã đọc xong) · 2. bác sĩ xem lại kết quả mô hình AI A, sửa chỗ sai · 3. so với mô hình AI B · 4. trả lời khảo sát (★ góc trên bên phải), chấm riêng từng mô hình AI.",
   "Steps: check the result against the image, correct what is wrong, then answer the survey (★ top right).":
     "Các bước: đối chiếu kết quả với ảnh, sửa chỗ sai, rồi trả lời khảo sát (★ góc trên bên phải).",
+  "What to do, in order:":
+    "Thứ tự làm:",
+  "The AI reads the scan first: a study with colours on it has been read.":
+    "AI đọc phim trước: ca đã có màu trên ảnh là AI đã đọc xong.",
+  "Check model A's result against the image and correct what is wrong, then Save.":
+    "Bác sĩ xem lại kết quả mô hình AI A trên ảnh, sửa chỗ sai rồi bấm Lưu.",
+  "Compare with model B, further down the page.":
+    "So với kết quả mô hình AI B ở phía dưới trang.",
+  "Answer the survey (★ top right): it rates each AI model separately.":
+    "Trả lời phiếu đánh giá (★ góc trên bên phải), chấm riêng từng mô hình AI.",
+  "Check the AI's result against the image and correct what is wrong, then Save.":
+    "Bác sĩ xem lại kết quả AI trên ảnh, sửa chỗ sai rồi bấm Lưu.",
+  "Answer the survey (★ top right).":
+    "Trả lời phiếu đánh giá (★ góc trên bên phải).",
   "(editable)":
     "(sửa được)",
   "(not editable)":

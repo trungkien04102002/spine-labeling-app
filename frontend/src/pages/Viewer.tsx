@@ -855,11 +855,35 @@ export default function Viewer() {
                   </a>
                 )}
               </div>
-              {!detail?.is_picture && <p className="mt-2 text-xs text-slate-600">
-                {modelBShown
-                  ? t("Steps: 1. check model A against the image and correct what is wrong · 2. compare with model B · 3. answer the survey (★ top right), which asks about each model separately.")
-                  : t("Steps: check the result against the image, correct what is wrong, then answer the survey (★ top right).")}
-              </p>}
+              {/* The order of work as four numbered steps, not a grey footnote:
+                  a clinician shown the page skipped the one-line version. */}
+              {!detail?.is_picture && (
+                <div className="mt-3">
+                  <p className="text-sm font-bold text-slate-800">{t("What to do, in order:")}</p>
+                  <ol className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                    {(modelBShown
+                      ? [
+                          t("The AI reads the scan first: a study with colours on it has been read."),
+                          t("Check model A's result against the image and correct what is wrong, then Save."),
+                          t("Compare with model B, further down the page."),
+                          t("Answer the survey (★ top right): it rates each AI model separately."),
+                        ]
+                      : [
+                          t("The AI reads the scan first: a study with colours on it has been read."),
+                          t("Check the AI's result against the image and correct what is wrong, then Save."),
+                          t("Answer the survey (★ top right)."),
+                        ]
+                    ).map((step, i) => (
+                      <li key={i} className="flex items-start gap-2 rounded-md border border-teal-200 bg-white p-2.5 text-sm text-slate-800 shadow-sm">
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-teal-600 text-xs font-bold text-white">
+                          {i + 1}
+                        </span>
+                        <span>{step}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              )}
             </div>
           )}
 
