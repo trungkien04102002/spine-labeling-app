@@ -106,12 +106,14 @@ def run_and_persist_full_grading(
     study_dir = Path(settings.data_dir) / study_id
     study_dir.mkdir(parents=True, exist_ok=True)
 
+    published: list[str] = []
+
     def step(stage: str, percent: int, mask_path: str | None = None, labels=None) -> None:
         # The segmentation is published as soon as it exists, so the viewer
         # can draw it while the discs are still being graded.
         partial = {}
         if mask_path is not None:
-            to_web_mask(mask_path, str(study_dir))
+            published.append(to_web_mask(mask_path, str(study_dir)))
             partial["segmentation_labels"] = labels
         if progress is not None:
             progress(stage, percent, **partial)
@@ -123,7 +125,9 @@ def run_and_persist_full_grading(
 
     # Reorient the raw labelmap into the study dir (aligned to the viewer volume)
     # and expose it via the API path, exactly like /infer does.
-    mask_fs_path = to_web_mask(mask_path, str(study_dir))
+    # Already written when the segmentation was published; writing it again
+    # here raced the viewer still downloading that first copy.
+    mask_fs_path = published[0] if published else to_web_mask(mask_path, str(study_dir))
     result.segmentation = SegmentationResult(
         mask_uri=f"/studies/{study_id}/mask.nii.gz", labels=labels
     )

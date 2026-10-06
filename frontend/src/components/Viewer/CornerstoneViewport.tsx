@@ -601,6 +601,8 @@ export default function CornerstoneViewport({
     const imageIds = imageIdsRef.current;
     if (maskKey === undefined || !viewport || imageIds.length === 0) return;
     let cancelled = false;
+    // A failed earlier attempt must not stay on screen over a mask that loads.
+    setError(null);
     segmentation.removeSegmentation(segmentationId);
     labelmapIdsRef.current = [];
     attachMaskRef
@@ -1218,7 +1220,8 @@ export default function CornerstoneViewport({
             position: "relative",
             width: "100%",
             // Responsive: scale with the viewport but stay in a sane range.
-            height: "min(72vh, 640px)",
+            // Tall enough to read on a 27" monitor, still inside one laptop screen.
+            height: "min(72vh, 900px)",
             minHeight: "360px",
             background: "black",
             overflow: "hidden",

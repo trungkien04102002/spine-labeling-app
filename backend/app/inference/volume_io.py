@@ -644,5 +644,10 @@ def to_web_mask(mask_path: str, out_dir: str) -> str:
     image = sitk.Cast(_orient_slices_last(_read_image(mask_path)), sitk.sitkUInt16)
     out_path = Path(out_dir) / "mask.nii.gz"
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    sitk.WriteImage(image, str(out_path))
+    # Written beside and renamed into place: the viewer may be downloading the
+    # mask while a grading run writes it, and half a gzip read as NIfTI fails
+    # with "Offset is outside the bounds of the DataView" (2026-10-06).
+    tmp_path = out_path.with_name(".mask.tmp.nii.gz")
+    sitk.WriteImage(image, str(tmp_path))
+    tmp_path.replace(out_path)
     return str(out_path.resolve())
