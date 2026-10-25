@@ -6,6 +6,7 @@ import {
   getHealth,
   getPatients,
   getMyRoom,
+  getReferenceBVisibility,
   getSamples,
   addSample,
   type SampleOut,
@@ -60,6 +61,13 @@ export default function PatientList() {
   const [backend, setBackend] = useState<BackendStatus>({ state: "loading" });
   const [patients, setPatients] = useState<PatientOut[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // A picture (PNG/JPG) is read only by model B: offer it only while B is on.
+  const [modelBShown, setModelBShown] = useState(false);
+  useEffect(() => {
+    getReferenceBVisibility()
+      .then((v) => setModelBShown(v.visible && v.installed))
+      .catch(() => setModelBShown(false));
+  }, []);
   const [noPin, setNoPin] = useState(false);
   const [uploading, setUploading] = useState<string | null>(null);
   const fileInputs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -305,9 +313,11 @@ export default function PatientList() {
                 {t("No survey per study.")}
               </li>
             </ol>
-            <p className="text-xs text-slate-600">
-              {t("Only have a picture (PNG/JPG), not the scan? Upload it the same way — then only model B reads it.")}
-            </p>
+            {modelBShown && (
+              <p className="text-xs text-slate-600">
+                {t("Only have a picture (PNG/JPG), not the scan? Upload it the same way — then only model B reads it.")}
+              </p>
+            )}
             <a
               href="/huong-dan-su-dung.pdf"
               target="_blank"
@@ -535,8 +545,10 @@ export default function PatientList() {
                             fileInputs.current[study.id] = el;
                           }}
                           type="file"
-                          accept=".zip,.mha,.nii,.nii.gz,.dcm,.png,.jpg,.jpeg"
-                          title={t("MRI: DICOM folder as .zip, or .mha / .nii / .nii.gz. Or one picture (.png / .jpg) for model B only.")}
+                          accept={".zip,.mha,.nii,.nii.gz,.dcm" + (modelBShown ? ",.png,.jpg,.jpeg" : "")}
+                          title={modelBShown
+                            ? t("MRI: DICOM folder as .zip, or .mha / .nii / .nii.gz. Or one picture (.png / .jpg) for model B only.")
+                            : t("MRI: DICOM folder as .zip, or .mha / .nii / .nii.gz.")}
                           className="hidden"
                           disabled={uploading === study.id}
                           onChange={(e) => {

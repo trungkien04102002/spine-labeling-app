@@ -23,6 +23,7 @@ from app.inference.volume_io import is_picture, to_web_mask
 from app.jobs import Job, jobs
 from app.models_db import Annotation, Study, grading_volume_path, mark_analyzed
 from app.schemas import FullGradingResult, InferResult, SegmentationResult
+from app.routers.reference_b import is_visible
 
 router = APIRouter(tags=["grade_full"])
 
@@ -157,8 +158,10 @@ def run_and_persist_full_grading(
     db.commit()
 
     # The comparison model, strictly after our own result is saved: it cannot
-    # raise, and a study it fails on simply shows no model-B panel.
-    reference_b.run_quietly(study_id, volume_path, study_dir)
+    # raise, and a study it fails on simply shows no model-B panel. Skipped
+    # while it is hidden from clinicians: nobody reads it, and it holds the GPU.
+    if is_visible(settings):
+        reference_b.run_quietly(study_id, volume_path, study_dir)
 
     return result
 

@@ -130,8 +130,13 @@ SECTIONS = [
     ("Phần 2. So sánh lâm sàng: mô hình AI A và mô hình AI B", [COMPARE]),
     ("Phần 3. Phần mềm", [SHOW, USE, UX]),
 ]
-#: Phần 2's title when model B is hidden and only model A's rows remain.
-COMPARE_TITLE_A_ONLY = "Phần 2. Đánh giá lâm sàng chung"
+#: Part titles when model B is hidden: with one model there is no "A".
+SECTION_TITLES_A_ONLY = {
+    "Phần 1. Mô hình AI A: vùng tô và từng nhãn": "Phần 1. Kết quả AI: vùng tô và từng nhãn",
+    "Phần 2. So sánh lâm sàng: mô hình AI A và mô hình AI B": "Phần 2. Đánh giá lâm sàng chung",
+}
+#: The COMPARE group's heading when model B is hidden.
+COMPARE_GROUP_A_ONLY = "Độ chính xác và độ tin cậy của kết quả AI"
 
 #: One criterion, asked of model A then model B, shown as a pair.
 COMPARE_PAIRS = [

@@ -161,7 +161,7 @@ registerVi({
   "Doctor feedback":
     "Các ô bác sĩ đã sửa trong bảng",
   "When you fix a grade in the table above and press “Save corrections”, the change is recorded as expert feedback. Send them when you are ready.":
-    "Khung này tự liệt kê các ô bác sĩ đã đổi trong bảng điểm mô hình AI A phía trên, bác sĩ không cần gõ gì ở đây. Sửa xong và bấm “Lưu hiệu chỉnh”, rồi bấm nút Gửi bên dưới để gửi cho nhóm nghiên cứu.",
+    "Khung này tự liệt kê các ô bác sĩ đã đổi trong bảng điểm phía trên, bác sĩ không cần gõ gì ở đây. Sửa xong và bấm “Lưu hiệu chỉnh”, rồi bấm nút Gửi bên dưới để gửi cho nhóm nghiên cứu.",
   "Waiting to be sent":
     "Đang chờ gửi",
   "Already sent":
@@ -583,7 +583,7 @@ registerVi({
   "What is this website?":
     "Trang web này dùng để làm gì?",
   "It reads a lumbar spine MRI for you: the AI colours the vertebrae and discs on the image and grades what is abnormal at each disc level (T12–L1 down to L5–S1). You check the result and correct anything it got wrong.":
-    "Trang web đọc phim MRI cột sống thắt lưng: AI tô màu các đốt sống, đĩa đệm trên ảnh và chấm mức độ bất thường ở từng tầng đĩa đệm (từ T12–L1 đến L5–S1). Có hai mô hình AI khác nhau (gọi là A và B) cùng đọc mỗi ca, nên kết quả có thể khác nhau. AI đọc trước; bác sĩ xem lại, sửa chỗ AI chấm sai và so sánh hai mô hình.",
+    "Trang web đọc phim MRI cột sống thắt lưng: AI tô màu các đốt sống, đĩa đệm trên ảnh và chấm mức độ bất thường ở từng tầng đĩa đệm (từ T12–L1 đến L5–S1). AI đọc trước; bác sĩ xem lại và sửa chỗ AI chấm sai.",
   "Press “+ New study”, type a study code and the patient's name, then press “Create”.":
     "Bấm “+ Ca mới”, nhập mã ca và tên bệnh nhân, rồi bấm “Tạo”.",
   "On the new study's row, press “Upload” and choose the scan, compressed into one .zip file.":
@@ -624,6 +624,16 @@ registerVi({
     "Mô hình AI A không chấm dấu hiệu này",
   "Model A — abnormality grades":
     "Mô hình AI A: điểm bất thường",
+  "AI — abnormal findings":
+    "AI: tóm tắt bất thường",
+  "AI — abnormality grades":
+    "AI: điểm bất thường",
+  "AI":
+    "AI",
+  "Only what is not normal. Click a level, or one finding, to go to it in the grade table below — it will flash.":
+    "Chỉ liệt kê chỗ bất thường. Bấm vào một tầng (hoặc một dấu hiệu) để đi tới đúng ô đó trong bảng điểm bên dưới, ô sẽ nhấp nháy.",
+  "MRI: DICOM folder as .zip, or .mha / .nii / .nii.gz.":
+    "Phim MRI: thư mục DICOM nén .zip, hoặc file .mha / .nii / .nii.gz.",
   "Model A — abnormal findings":
     "Mô hình AI A: tóm tắt bất thường",
   "A picture can only be read by model B. Model A needs an MRI series.":
@@ -675,7 +685,7 @@ registerVi({
   "This study has the AI's results:":
     "Ca này có kết quả của AI:",
   "the coloured structures on the image and the grade table, level by level. You can correct it: change a grade, then Save.":
-    "tô màu trên ảnh và chấm điểm từng tầng đĩa đệm. Bác sĩ xem lại, chỗ nào AI A chấm sai thì sửa rồi bấm Lưu.",
+    "tô màu trên ảnh và chấm điểm từng tầng đĩa đệm. Bác sĩ xem lại, chỗ nào AI chấm sai thì sửa rồi bấm Lưu.",
   "yes/no for the whole image, for comparison only. It cannot be edited.":
     "một AI khác, chỉ trả lời có/không cho cả ảnh. Dùng để so với AI A, không sửa được.",
   "Steps: 1. check model A against the image and correct what is wrong · 2. compare with model B · 3. answer the survey (★ top right), which asks about each model separately.":

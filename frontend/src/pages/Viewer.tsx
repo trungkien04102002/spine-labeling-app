@@ -792,6 +792,7 @@ export default function Viewer() {
               onShowInTable={(level, condition) =>
                 setTableHighlight({ level, condition, nonce: Date.now() })
               }
+              modelBShown={modelBShown}
             />
           )}
           {legend.length > 0 && (
@@ -838,12 +839,12 @@ export default function Viewer() {
                     ? t("This study has results from two AI models:")
                     : t("This study has the AI's results:")}
               </p>
-              <div className="mt-2 grid gap-2 md:grid-cols-2">
+              <div className={"mt-2 grid gap-2" + (modelBShown || detail?.is_picture ? " md:grid-cols-2" : "")}>
                 {!detail?.is_picture && (
                   <a href="#model-a" className="flex items-start gap-2 rounded-md bg-white p-2.5 text-sm text-slate-700 shadow-sm hover:ring-2 hover:ring-teal-300">
-                    <ModelBadge model="A" />
+                    {modelBShown && <ModelBadge model="A" />}
                     <span>
-                      <b>{t("Model A")}</b> — {t("the coloured structures on the image and the grade table, level by level. You can correct it: change a grade, then Save.")}
+                      <b>{modelBShown ? t("Model A") : t("AI")}</b> — {t("the coloured structures on the image and the grade table, level by level. You can correct it: change a grade, then Save.")}
                     </span>
                   </a>
                 )}
@@ -891,8 +892,8 @@ export default function Viewer() {
           {/* Abnormality grades — the single 11-label editable table */}
           <div id="model-a" className="w-full basis-full scroll-mt-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
             <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-slate-800">
-              <ModelBadge model="A" />
-              {t("Model A — abnormality grades")}
+              {modelBShown ? <ModelBadge model="A" /> : <span className="h-4 w-1 rounded bg-gradient-to-b from-teal-500 to-cyan-500" />}
+              {modelBShown ? t("Model A — abnormality grades") : t("AI — abnormality grades")}
               <span className="text-xs font-normal text-slate-500">{t("(editable)")}</span>
             </h2>
             {runError && (

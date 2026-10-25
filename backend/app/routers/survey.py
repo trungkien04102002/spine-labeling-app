@@ -20,9 +20,11 @@ from app.survey_questions import (
     CLINICAL_IDS,
     GROUPS,
     COMPARE_PAIRS,
-    COMPARE_TITLE_A_ONLY,
     MODEL_B_PAIRS,
+    COMPARE,
+    COMPARE_GROUP_A_ONLY,
     QUESTIONS,
+    SECTION_TITLES_A_ONLY,
     SECTIONS,
     REQUIRED_IDS,
     SCALE_LABELS,
@@ -56,22 +58,32 @@ def get_questions(settings: Settings = Depends(get_settings)) -> dict[str, objec
     """
     show_b = is_visible(settings)
     shown = [q for q in QUESTIONS if show_b or q.kind != "reference_b"]
+    # Without model B, nothing is compared: the group is named for what it
+    # asks of our own model, and its items render as plain questions in
+    # their own wording rather than as one-row "pairs" labelled "model A".
+    rename = {} if show_b else {COMPARE: COMPARE_GROUP_A_ONLY}
+
+    def group_name(g: str) -> str:
+        return rename.get(g, g)
+
     return {
-        "questions": [q.as_dict() for q in shown],
-        "groups": [g for g in GROUPS if any(q.group == g for q in shown)],
+        "questions": [{**q.as_dict(), "group": group_name(q.group)} for q in shown],
+        "groups": [group_name(g) for g in GROUPS if any(q.group == g for q in shown)],
         "sections": [
             {
-                "title": title if show_b or not title.startswith("Phần 2") else COMPARE_TITLE_A_ONLY,
-                "groups": [g for g in groups if any(q.group == g for q in shown)],
+                "title": title if show_b else SECTION_TITLES_A_ONLY.get(title, title),
+                "groups": [group_name(g) for g in groups if any(q.group == g for q in shown)],
             }
             for title, groups in SECTIONS
             if any(q.group in groups for q in shown)
         ],
         # Criteria asked of both models: render A and B together.
         "pairs": [
-            {"title": title, "a": a, "b": b if show_b else None}
+            {"title": title, "a": a, "b": b}
             for title, a, b in COMPARE_PAIRS
-        ],
+        ]
+        if show_b
+        else [],
         "scale": {
             "min": SCALE_MIN,
             "max": SCALE_MAX,

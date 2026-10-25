@@ -47,8 +47,11 @@ export default function FindingsSummary({
   original,
   onJump,
   onShowInTable,
+  modelBShown = false,
 }: {
   grading: GradingItem[];
+  /** Model B is on the page too: name this one "model A" to tell them apart. */
+  modelBShown?: boolean;
   /** The AI's own grades, to mark what the doctor has changed. */
   original?: GradingItem[] | null;
   onJump: (slice: number) => void;
@@ -72,11 +75,13 @@ export default function FindingsSummary({
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
       <h2 className="mb-1 flex items-center gap-2 text-base font-bold text-slate-800">
-        <ModelBadge model="A" />
-        {t("Model A — abnormal findings")}
+        {modelBShown ? <ModelBadge model="A" /> : <span className="h-4 w-1 rounded bg-gradient-to-b from-teal-500 to-cyan-500" />}
+        {modelBShown ? t("Model A — abnormal findings") : t("AI — abnormal findings")}
       </h2>
       <p className="mb-3 text-xs text-slate-500">
-        {t("Only what is not normal. Click a level, or one finding, to go to it in the model A table below — it will flash.")}
+        {modelBShown
+          ? t("Only what is not normal. Click a level, or one finding, to go to it in the model A table below — it will flash.")
+          : t("Only what is not normal. Click a level, or one finding, to go to it in the grade table below — it will flash.")}
       </p>
       {levels.length === 0 ? (
         <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
