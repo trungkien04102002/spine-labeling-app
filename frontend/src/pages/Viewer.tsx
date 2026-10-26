@@ -38,6 +38,7 @@ import {
 } from "../lib/api";
 import { LangToggle, useT } from "../lib/i18n";
 import { displayStudyId, useRoom } from "../lib/room";
+import { useViewOnly } from "../lib/appConfig";
 
 /**
  * Translucent metadata overlay pinned to a corner of the image, the way a PACS
@@ -167,10 +168,12 @@ function SeriesPicker({
   series,
   busy,
   onSelect,
+  viewOnly = false,
 }: {
   series: SeriesOut[];
   busy: boolean;
   onSelect: (id: number) => void;
+  viewOnly?: boolean;
 }) {
   const { t } = useT();
   if (series.length < 2) return null;
@@ -225,7 +228,9 @@ function SeriesPicker({
           </>
         ) : (
           <>
-            {t("Browse any plane freely. “Run AI grading” always grades the sagittal series, whichever one you are viewing.")}
+            {viewOnly
+              ? t("Browse any plane freely. The AI graded the sagittal series.")
+              : t("Browse any plane freely. “Run AI grading” always grades the sagittal series, whichever one you are viewing.")}
           </>
         )}
       </p>
@@ -248,6 +253,9 @@ export default function Viewer() {
   const result = gradeHistory.state;
   const [targetSlice, setTargetSlice] = useState<number | null>(null);
   const [running, setRunning] = useState(false);
+  // A view-only box: look, do not touch. Treated as view-only until known,
+  // so editing controls never flash up and vanish.
+  const ro = useViewOnly() ?? true;
   // The segmentation's labels while a run is still grading (null otherwise).
   const [previewLabels, setPreviewLabels] = useState<Record<string, string> | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
@@ -638,6 +646,7 @@ export default function Viewer() {
             ★ {t("Rate this software")}
           </Link>
           <LangToggle />
+          {!ro && (
           <button
             onClick={handleRunAI}
             disabled={running || !!detail?.is_picture}
@@ -646,6 +655,7 @@ export default function Viewer() {
           >
             {running ? t("Grading…") : t("✨ Run AI grading")}
           </button>
+          )}
           </div>
         </div>
 
@@ -736,6 +746,7 @@ export default function Viewer() {
               series={series}
               busy={seriesBusy}
               onSelect={handleSelectSeries}
+              viewOnly={ro}
             />
             {studyId && seriesLoaded && (
               <CornerstoneViewport
@@ -746,7 +757,7 @@ export default function Viewer() {
                 overlay={detail ? <InfoOverlay detail={detail} /> : null}
                 targetSlice={targetSlice}
                 segLabels={previewLabels ?? result?.segmentation.labels}
-                editDisabled={running}
+                editDisabled={running || ro}
                 editMode={editMode}
                 onEditModeChange={setEditMode}
                 activeLabel={activeLabel}
@@ -844,7 +855,10 @@ export default function Viewer() {
                   <a href="#model-a" className="flex items-start gap-2 rounded-md bg-white p-2.5 text-sm text-slate-700 shadow-sm hover:ring-2 hover:ring-teal-300">
                     {modelBShown && <ModelBadge model="A" />}
                     <span>
-                      <b>{modelBShown ? t("Model A") : t("AI")}</b> — {t("the coloured structures on the image and the grade table, level by level. You can correct it: change a grade, then Save.")}
+                      <b>{modelBShown ? t("Model A") : t("AI")}</b> —{" "}
+                      {ro
+                        ? t("the coloured structures on the image and the grade table, level by level, already read by the AI.")
+                        : t("the coloured structures on the image and the grade table, level by level. You can correct it: change a grade, then Save.")}
                     </span>
                   </a>
                 )}
@@ -863,7 +877,13 @@ export default function Viewer() {
                 <div className="mt-3">
                   <p className="text-sm font-bold text-slate-800">{t("What to do, in order:")}</p>
                   <ol className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                    {(modelBShown
+                    {(ro
+                      ? [
+                          t("The AI has already read this study: the colours on the image and the grade table below."),
+                          t("Compare the AI's result with the image: click a level in the table to jump to that disc."),
+                          t("After looking through the sample studies, answer the survey once (★ top right)."),
+                        ]
+                      : modelBShown
                       ? [
                           t("The AI reads the scan first: a study with colours on it has been read."),
                           t("Check model A's result against the image and correct what is wrong, then Save."),
@@ -894,7 +914,7 @@ export default function Viewer() {
             <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-slate-800">
               {modelBShown ? <ModelBadge model="A" /> : <span className="h-4 w-1 rounded bg-gradient-to-b from-teal-500 to-cyan-500" />}
               {modelBShown ? t("Model A — abnormality grades") : t("AI — abnormality grades")}
-              <span className="text-xs font-normal text-slate-500">{t("(editable)")}</span>
+              {!ro && <span className="text-xs font-normal text-slate-500">{t("(editable)")}</span>}
             </h2>
             {runError && (
               <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
@@ -924,8 +944,9 @@ export default function Viewer() {
                   original={fullResult?.grading}
                   highlight={tableHighlight}
                   onJump={setTargetSlice}
-                  onEditSeverity={handleEditSeverity}
+                  onEditSeverity={ro ? undefined : handleEditSeverity}
                 />
+                {!ro && (
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   {/* One pair of buttons for both kinds of edit: the label
                       names whichever comes off the timeline next, so it is
@@ -990,13 +1011,14 @@ export default function Viewer() {
                     </span>
                   )}
                 </div>
+                )}
                 {savedNote && (
                   <p className="mt-2 text-xs font-medium text-emerald-600">
                     {savedNote}
                   </p>
                 )}
                 <p className="mt-2 text-xs text-slate-400">
-                  {t("Click a level to jump; change a severity, then Save.")}
+                  {ro ? t("Click a level to jump to it on the image.") : t("Click a level to jump; change a severity, then Save.")}
                 </p>
               </>
             ) : (
@@ -1011,7 +1033,7 @@ export default function Viewer() {
           </div>
 
           {/* Doctor feedback — corrections are queued for offline review */}
-          {!detail?.is_picture && (
+          {!detail?.is_picture && !ro && (
           <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
             <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-slate-800">
               <span className="h-4 w-1 rounded bg-gradient-to-b from-indigo-500 to-violet-500" />
@@ -1087,7 +1109,7 @@ export default function Viewer() {
           {/* The clinician's own conclusion, last: the final word on the scan
               after the AI A table and the AI B comparison. Kept away from the
               corrections panel, which a clinician took for the place to type. */}
-          {studyId && detail && (
+          {studyId && detail && !ro && (
             <DoctorConclusion
               studyId={studyId}
               initialText={detail.doctor_conclusion}

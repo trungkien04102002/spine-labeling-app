@@ -1,9 +1,11 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+import hmac
+
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import Settings
@@ -36,6 +38,30 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="spine-labeling-app", lifespan=lifespan)
 
+_SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
+
+
+@app.middleware("http")
+async def refuse_writes_when_view_only(request: Request, call_next):
+    """In view-only mode, only the operator (admin passphrase) may write.
+
+    Added before CORS, so CORS stays the outer layer and the browser can read
+    the refusal instead of seeing an opaque network error.
+    """
+    settings = Settings()
+    if settings.view_only and request.method not in _SAFE_METHODS:
+        key = request.headers.get("x-admin-key") or ""
+        if not (
+            settings.admin_password
+            and hmac.compare_digest(key.encode(), settings.admin_password.encode())
+        ):
+            return JSONResponse(
+                {"detail": "This site is view-only: studies cannot be changed here."},
+                status_code=403,
+            )
+    return await call_next(request)
+
+
 # The Vite dev frontend is always allowed; extra origins (e.g. a laptop UI
 # hitting a directly-exposed remote backend) come from CORS_ORIGINS.
 _origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
@@ -67,6 +93,12 @@ app.include_router(trial.router)
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/app_config")
+def app_config() -> dict[str, bool]:
+    """What the pages need to know about this deployment before rendering."""
+    return {"view_only": Settings().view_only}
 
 
 # Serve the built frontend from this same app, so one public port serves the

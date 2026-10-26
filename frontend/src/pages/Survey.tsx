@@ -247,8 +247,8 @@ export default function Survey() {
     }
   }
 
-  // The questionnaire lives in a Google Form: send the clinician there with
-  // their room filled in, so the answer can be matched to their corrections.
+  // The questionnaire lives in a Google Form: send the clinician there. A
+  // ROOM_NAME in the link, if the Form asks for the room, is filled in.
   if (form?.form_url) {
     const url = form.form_url.replace("ROOM_NAME", encodeURIComponent(room?.name ?? ""));
     return (
@@ -257,7 +257,7 @@ export default function Survey() {
         <h1 className="text-xl font-bold text-slate-800">Phiếu đánh giá phần mềm</h1>
         <p className="mt-3 text-sm text-slate-700">
           Khoảng 5 phút. Phiếu này trả lời <b>một lần</b>, sau khi xem xong các ca mẫu, không phải cho từng ca.
-          Phiếu mở trong một thẻ mới (Google Form); ô “Phòng” đã điền sẵn.
+          Phiếu mở trong một thẻ mới (Google Form), ẩn danh: không cần đăng nhập, họ tên có thể để trống.
         </p>
         <a
           href={url}

@@ -18,6 +18,7 @@ import {
 import PinSetup from "../components/PinSetup";
 import { LangToggle, useT } from "../lib/i18n";
 import { displayStudyId, useRoom } from "../lib/room";
+import { useViewOnly } from "../lib/appConfig";
 
 type BackendStatus =
   | { state: "loading" }
@@ -61,6 +62,8 @@ export default function PatientList() {
   const [backend, setBackend] = useState<BackendStatus>({ state: "loading" });
   const [patients, setPatients] = useState<PatientOut[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // View-only box: the room's studies are all there is; nothing to add or change.
+  const ro = useViewOnly() ?? true;
   // A picture (PNG/JPG) is read only by model B: offer it only while B is on.
   const [modelBShown, setModelBShown] = useState(false);
   useEffect(() => {
@@ -268,7 +271,7 @@ export default function PatientList() {
       </header>
 
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
-        {noPin && (
+        {noPin && !ro && (
           <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4">
             <p className="text-sm font-semibold text-amber-800">
               {t("Your room has no PIN yet")}
@@ -289,8 +292,21 @@ export default function PatientList() {
           </summary>
           <div className="mt-3 space-y-3 text-sm text-slate-700">
             <p>
-              {t("It reads a lumbar spine MRI for you: the AI colours the vertebrae and discs on the image and grades what is abnormal at each disc level (T12–L1 down to L5–S1). You check the result and correct anything it got wrong.")}
+              {ro
+                ? t("It reads a lumbar spine MRI for you: the AI colours the vertebrae and discs on the image and grades what is abnormal at each disc level (T12–L1 down to L5–S1). Here you look at studies it has already read.")
+                : t("It reads a lumbar spine MRI for you: the AI colours the vertebrae and discs on the image and grades what is abnormal at each disc level (T12–L1 down to L5–S1). You check the result and correct anything it got wrong.")}
             </p>
+            {ro ? (
+            <ol className="list-decimal space-y-1 pl-5">
+              <li>{t("The sample studies below have already been read by the AI. Press “Open →” on a study to see it.")}</li>
+              <li>{t("Compare the AI's colours and grade table with the image. Nothing here can be changed, so feel free to click around.")}</li>
+              <li>
+                <mark className="rounded bg-amber-200 px-1 font-semibold text-slate-900">
+                  {t("After looking through the sample studies, please press “★ Rate this software” at the top right and answer the survey once (about 5 minutes).")}
+                </mark>
+              </li>
+            </ol>
+            ) : (
             <ol className="list-decimal space-y-1 pl-5">
               {/* Every step names the button to press, as it reads on screen:
                   "open the study" alone left clinicians looking for how. */}
@@ -313,6 +329,7 @@ export default function PatientList() {
                 {t("No survey per study.")}
               </li>
             </ol>
+            )}
             {modelBShown && (
               <p className="text-xs text-slate-600">
                 {t("Only have a picture (PNG/JPG), not the scan? Upload it the same way — then only model B reads it.")}
@@ -327,7 +344,9 @@ export default function PatientList() {
               📄 {t("User guide (PDF)")}
             </a>
             <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              {t("Only sagittal lumbar series are graded. Axial (cross-section, “tra”/“ax”) and coronal (“cor”) series are not graded yet — no need to upload them. A research tool — not a diagnosis.")}
+              {ro
+                ? t("A research tool — not a diagnosis.")
+                : t("Only sagittal lumbar series are graded. Axial (cross-section, “tra”/“ax”) and coronal (“cor”) series are not graded yet — no need to upload them. A research tool — not a diagnosis.")}
             </p>
           </div>
         </details>
@@ -352,13 +371,15 @@ export default function PatientList() {
               className="w-64 rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm text-slate-800 shadow-sm focus:border-teal-500 focus:outline-none"
             />
           </div>
+          {!ro && (
           <button
             onClick={() => setShowNew((v) => !v)}
             className="rounded-lg bg-gradient-to-r from-teal-600 to-cyan-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-110"
           >
             {showNew ? t("Cancel") : t("+ New study")}
           </button>
-          {samples.length > 0 && patients.length > 0 && (
+          )}
+          {!ro && samples.length > 0 && patients.length > 0 && (
             <button
               type="button"
               onClick={() => setShowSamples((v) => !v)}
@@ -369,7 +390,7 @@ export default function PatientList() {
           )}
         </div>
 
-        {showNew && (
+        {showNew && !ro && (
           <div className="mb-4 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <label className="flex flex-col gap-1 text-xs font-medium text-slate-500">
               {t("Study ID")}
@@ -407,7 +428,7 @@ export default function PatientList() {
         {/* Sample cases: open by default in an empty room, where they are the
             quickest way to see what the tool does; tucked away once the room
             has work of its own. */}
-        {samples.length > 0 && (showSamples || patients.length === 0) && (
+        {!ro && samples.length > 0 && (showSamples || patients.length === 0) && (
           <div className="mb-4 rounded-xl border border-teal-200 bg-teal-50/60 p-4">
             <div className="flex flex-wrap items-baseline gap-2">
               <h3 className="text-sm font-bold text-slate-800">{t("Sample cases to try")}</h3>
@@ -495,6 +516,7 @@ export default function PatientList() {
                     {readyCount < studies.length &&
                       ` · ${t("{n} ready", { n: readyCount })}`}
                   </span>
+                  {!ro && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -506,6 +528,7 @@ export default function PatientList() {
                   >
                     ✎
                   </button>
+                  )}
                 </div>
 
                 {/* Studies */}
@@ -556,6 +579,7 @@ export default function PatientList() {
                             if (file) handleUpload(study.id, file);
                           }}
                         />
+                        {!ro && (
                         <button
                           onClick={() => fileInputs.current[study.id]?.click()}
                           disabled={uploading === study.id}
@@ -567,6 +591,7 @@ export default function PatientList() {
                               ? t("Replace")
                               : t("Upload")}
                         </button>
+                        )}
                         {study.has_volume ? (
                           <Link
                             to={`/viewer/${study.id}`}
@@ -579,6 +604,7 @@ export default function PatientList() {
                             {t("Open")}
                           </span>
                         )}
+                        {!ro && (
                         <button
                           onClick={() => handleDelete(study.id)}
                           title={t("Delete study")}
@@ -586,6 +612,7 @@ export default function PatientList() {
                         >
                           🗑
                         </button>
+                        )}
                         </div>
                       </div>
                     ))}

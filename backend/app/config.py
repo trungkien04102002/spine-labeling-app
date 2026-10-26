@@ -23,12 +23,19 @@ class Settings(BaseSettings):
     # truth, from patients the model never trained on.
     sample_studies: str = "VAL-*"
 
-    # The questionnaire as a Google Form instead of the in-app one: its
-    # prefill link, with the literal ROOM_NAME where the room's name goes
-    # (tools/google_form/ makes the Form and prints this link). Answers then
+    # The questionnaire as a Google Form instead of the in-app one: its link
+    # (tools/google_form/ makes the Form and prints it; a literal ROOM_NAME in
+    # the link is replaced with the clinician's room name). Answers then
     # live in the Form's Sheet, safe from a box being destroyed. Empty means
     # the in-app form.
     survey_form_url: str = ""
+
+    # A box clinicians only look at: every study already graded, nothing to
+    # correct (there is no retraining loop to feed). The pages hide every
+    # editing control, and the server refuses every write that does not carry
+    # the admin passphrase -- so the operator can still set rooms up, and a
+    # stray click cannot start a 30-minute CPU grading on a small server.
+    view_only: bool = False
 
     # Passphrase for the operator pages (/admin): who is in which room, the
     # survey results, exports, switching models, re-training. Empty means no

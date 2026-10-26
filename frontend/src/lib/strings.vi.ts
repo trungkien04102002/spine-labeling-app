@@ -624,6 +624,28 @@ registerVi({
     "Mô hình AI A không chấm dấu hiệu này",
   "Model A — abnormality grades":
     "Mô hình AI A: điểm bất thường",
+  "the coloured structures on the image and the grade table, level by level, already read by the AI.":
+    "vùng tô màu trên ảnh và bảng điểm từng tầng đĩa đệm, AI đã đọc sẵn.",
+  "The AI has already read this study: the colours on the image and the grade table below.":
+    "AI đã đọc sẵn ca này: vùng tô màu trên ảnh và bảng điểm bên dưới.",
+  "Compare the AI's result with the image: click a level in the table to jump to that disc.":
+    "Bác sĩ đối chiếu kết quả AI với phim: bấm vào một tầng trong bảng để ảnh chuyển tới đĩa đệm đó.",
+  "After looking through the sample studies, answer the survey once (★ top right).":
+    "Xem xong các ca mẫu thì trả lời phiếu đánh giá một lần (★ góc trên bên phải).",
+  "Click a level to jump to it on the image.":
+    "Bấm vào một tầng để ảnh chuyển tới tầng đó.",
+  "The sample studies below have already been read by the AI. Press “Open →” on a study to see it.":
+    "Các ca mẫu bên dưới AI đã đọc sẵn. Bấm “Mở →” ở một ca để xem.",
+  "Compare the AI's colours and grade table with the image. Nothing here can be changed, so feel free to click around.":
+    "Đối chiếu vùng tô màu và bảng điểm của AI với phim. Trang này chỉ để xem, không sửa được gì, bác sĩ cứ bấm thoải mái.",
+  "After looking through the sample studies, please press “★ Rate this software” at the top right and answer the survey once (about 5 minutes).":
+    "Xem xong các ca mẫu, nhờ bác sĩ bấm “★ Đánh giá phần mềm” ở góc trên bên phải và trả lời phiếu một lần (khoảng 5 phút).",
+  "It reads a lumbar spine MRI for you: the AI colours the vertebrae and discs on the image and grades what is abnormal at each disc level (T12–L1 down to L5–S1). Here you look at studies it has already read.":
+    "Trang web đọc phim MRI cột sống thắt lưng: AI tô màu các đốt sống, đĩa đệm trên ảnh và chấm mức độ bất thường ở từng tầng đĩa đệm (từ T12–L1 đến L5–S1). Ở đây bác sĩ xem các ca AI đã đọc sẵn.",
+  "Browse any plane freely. The AI graded the sagittal series.":
+    "Có thể xem mọi mặt cắt. AI chấm trên chuỗi sagittal.",
+  "A research tool — not a diagnosis.":
+    "Đây là công cụ nghiên cứu, không thay cho chẩn đoán.",
   "AI — abnormal findings":
     "AI: tóm tắt bất thường",
   "AI — abnormality grades":

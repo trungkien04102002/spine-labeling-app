@@ -76,7 +76,7 @@ function contextHeaders(): Record<string, string> {
   return headers;
 }
 
-async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
   for (const [k, v] of Object.entries(contextHeaders())) {
     if (!headers.has(k)) headers.set(k, v);
