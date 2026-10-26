@@ -5,9 +5,9 @@ with the same ids as the in-app survey (backend/app/survey_questions.py).
 
 | Form question (Sheet column) | App id |
 |---|---|
-| Vùng AI tô: bám đúng bờ đốt sống và đĩa đệm trên phim | 1 |
-| Màu và đường viền vùng tô: dễ nhìn, không che mất chi tiết trên phim | 2 |
-| Vùng tô: giúp tìm nhanh tầng đĩa đệm cần xem | 3 |
+| Vùng AI tô trên phim [Vùng AI tô: bám đúng bờ đốt sống và đĩa đệm trên phim] | 1 |
+| Vùng AI tô trên phim [Màu và đường viền vùng tô: dễ nhìn, không che mất chi tiết trên phim] | 2 |
+| Vùng AI tô trên phim [Vùng tô: giúp tìm nhanh tầng đĩa đệm cần xem] | 3 |
 | AI chấm đúng tới mức nào, với từng loại bất thường? [Hẹp ống sống trung tâm (canal stenosis)] | 5 |
 | AI chấm đúng tới mức nào, với từng loại bất thường? [Hẹp lỗ liên hợp trái / phải (foraminal stenosis)] | 6 |
 | AI chấm đúng tới mức nào, với từng loại bất thường? [Thoái hoá đĩa đệm (Pfirrmann)] | 7 |
@@ -17,13 +17,13 @@ with the same ids as the in-app survey (backend/app/survey_questions.py).
 | AI chấm đúng tới mức nào, với từng loại bất thường? [Tổn thương mâm sụn trên / dưới (endplate defect)] | 11 |
 | AI chấm đúng tới mức nào, với từng loại bất thường? [Thay đổi Modic thân đốt trên / dưới (marrow)] | 12 |
 | Mức an toàn khi AI sai: chỉ lệch ít và tôi dễ nhận ra | 16 |
-| Nhìn chung, điểm chẩn đoán của AI: khớp với đánh giá của tôi | 4 |
-| Tổn thương nặng: AI phát hiện được, không bỏ sót | 17 |
-| Ca bình thường: AI không báo bệnh nhầm | 18 |
-| Kết quả AI: đủ tin cậy để tham khảo khi đọc phim | 20 |
-| Bảng kết quả (mỗi cột là một tầng đĩa đệm): xem nhanh được cả cột sống thắt lưng | 13 |
-| Bấm vào một tầng trong bảng để ảnh chuyển tới tầng đó: giúp đối chiếu kết quả với phim | 14 |
-| Thời gian đọc một ca: nhanh hơn so với tự đọc | 21 |
-| Dùng trong công việc thường ngày: phù hợp | 22 |
-| Đáp ứng nhu cầu công việc của tôi | 23 |
-| Phần mềm: dễ sử dụng | 24 |
+| Độ chính xác và độ tin cậy của kết quả AI [Nhìn chung, điểm chẩn đoán của AI: khớp với đánh giá của tôi] | 4 |
+| Độ chính xác và độ tin cậy của kết quả AI [Tổn thương nặng: AI phát hiện được, không bỏ sót] | 17 |
+| Độ chính xác và độ tin cậy của kết quả AI [Ca bình thường: AI không báo bệnh nhầm] | 18 |
+| Độ chính xác và độ tin cậy của kết quả AI [Kết quả AI: đủ tin cậy để tham khảo khi đọc phim] | 20 |
+| Cách trình bày kết quả [Bảng kết quả (mỗi cột là một tầng đĩa đệm): xem nhanh được cả cột sống thắt lưng] | 13 |
+| Cách trình bày kết quả [Bấm vào một tầng trong bảng để ảnh chuyển tới tầng đó: giúp đối chiếu kết quả với phim] | 14 |
+| Sử dụng trong công việc [Thời gian đọc một ca: nhanh hơn so với tự đọc] | 21 |
+| Sử dụng trong công việc [Dùng trong công việc thường ngày: phù hợp] | 22 |
+| Đánh giá chung về phần mềm [Đáp ứng nhu cầu công việc của tôi] | 23 |
+| Đánh giá chung về phần mềm [Phần mềm: dễ sử dụng] | 24 |

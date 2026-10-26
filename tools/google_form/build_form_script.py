@@ -48,6 +48,8 @@ GRID_HELP = (
     "đúng gần hết)."
 )
 
+ROW_HELP = "Chọn một ô cho mỗi hàng."
+
 
 def js(value: object) -> str:
     return json.dumps(value, ensure_ascii=False)
@@ -92,24 +94,27 @@ for sec in form["sections"]:
         in_group = [q for q in questions if q["group"] == group]
         if not in_group:
             continue
-        matrix = [q for q in in_group if q["matrix"]]
-        plain = [q for q in in_group if not q["matrix"]]
-        emit(f"  form.addSectionHeaderItem().setTitle({js(group)});")
-        for q in plain:
-            # All required: with three clinicians, one blank is a third of
-            # that question's data.
+        # All required: with three clinicians, one blank is a third of that
+        # question's data.
+        if len(in_group) == 1:
+            q = in_group[0]
             emit(f"  scale({js(q['text'])}, true);")
             mapping.append(f"| {q['text']} | {q['id']} |")
-        if matrix:
-            # Column headings are the words alone: "1 · Rất kém" read as two
-            # things, and the scale is already explained in the help text.
-            emit(f"  form.addGridItem().setTitle({js(GRID_TITLE)})")
-            emit(f"    .setHelpText({js(GRID_HELP)})")
-            emit(f"    .setRows({js([q['text'] for q in matrix])})")
-            emit(f"    .setColumns({js(labels)})")
-            emit("    .setRequired(true);")
-            for q in matrix:
-                mapping.append(f"| {GRID_TITLE} [{q['text']}] | {q['id']} |")
+            continue
+        # A group of questions on the same 1-5 scale is one grid, a row per
+        # question: fifteen full-width scale blocks made the Form read as
+        # far longer than its twenty-odd answers. Column headings are the
+        # words alone; "1 · Rất kém" read as two things.
+        is_labels = all(q["matrix"] for q in in_group)
+        title = GRID_TITLE if is_labels else group
+        help_text = GRID_HELP if is_labels else ROW_HELP
+        emit(f"  form.addGridItem().setTitle({js(title)})")
+        emit(f"    .setHelpText({js(help_text)})")
+        emit(f"    .setRows({js([q['text'] for q in in_group])})")
+        emit(f"    .setColumns({js(labels)})")
+        emit("    .setRequired(true);")
+        for q in in_group:
+            mapping.append(f"| {title} [{q['text']}] | {q['id']} |")
 
 emit("  form.addPageBreakItem().setTitle('GÓP Ý VÀ THÔNG TIN NGƯỜI ĐÁNH GIÁ');")
 emit("  form.addParagraphTextItem().setTitle('Bác sĩ có góp ý gì thêm cho phần mềm không?')")

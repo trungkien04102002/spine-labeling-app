@@ -17,34 +17,39 @@ function addItems(form) {
       .setBounds(1, 5).setLabels(LABELS[0], LABELS[4]).setRequired(required);
   }
   form.addPageBreakItem().setTitle("PHẦN 1. KẾT QUẢ AI: VÙNG TÔ VÀ TỪNG NHÃN");
-  form.addSectionHeaderItem().setTitle("Vùng AI tô trên phim");
-  scale("Vùng AI tô: bám đúng bờ đốt sống và đĩa đệm trên phim", true);
-  scale("Màu và đường viền vùng tô: dễ nhìn, không che mất chi tiết trên phim", true);
-  scale("Vùng tô: giúp tìm nhanh tầng đĩa đệm cần xem", true);
-  form.addSectionHeaderItem().setTitle("Điểm chẩn đoán");
+  form.addGridItem().setTitle("Vùng AI tô trên phim")
+    .setHelpText("Chọn một ô cho mỗi hàng.")
+    .setRows(["Vùng AI tô: bám đúng bờ đốt sống và đĩa đệm trên phim", "Màu và đường viền vùng tô: dễ nhìn, không che mất chi tiết trên phim", "Vùng tô: giúp tìm nhanh tầng đĩa đệm cần xem"])
+    .setColumns(["Rất kém", "Kém", "Trung bình", "Tốt", "Rất tốt"])
+    .setRequired(true);
   form.addGridItem().setTitle("AI chấm đúng tới mức nào, với từng loại bất thường?")
     .setHelpText("Mỗi hàng là một loại bất thường AI chấm trong bảng điểm. Bác sĩ chọn một ô cho mỗi hàng, từ Rất kém (AI chấm sai nhiều) đến Rất tốt (AI chấm đúng gần hết).")
     .setRows(["Hẹp ống sống trung tâm (canal stenosis)", "Hẹp lỗ liên hợp trái / phải (foraminal stenosis)", "Thoái hoá đĩa đệm (Pfirrmann)", "Hẹp khe đĩa đệm (disc narrowing)", "Thoát vị đĩa đệm (disc herniation)", "Trượt đốt sống (spondylolisthesis)", "Tổn thương mâm sụn trên / dưới (endplate defect)", "Thay đổi Modic thân đốt trên / dưới (marrow)"])
     .setColumns(["Rất kém", "Kém", "Trung bình", "Tốt", "Rất tốt"])
     .setRequired(true);
-  form.addSectionHeaderItem().setTitle("Khi AI sai");
   scale("Mức an toàn khi AI sai: chỉ lệch ít và tôi dễ nhận ra", true);
   form.addPageBreakItem().setTitle("PHẦN 2. ĐÁNH GIÁ LÂM SÀNG CHUNG");
-  form.addSectionHeaderItem().setTitle("Độ chính xác và độ tin cậy của kết quả AI");
-  scale("Nhìn chung, điểm chẩn đoán của AI: khớp với đánh giá của tôi", true);
-  scale("Tổn thương nặng: AI phát hiện được, không bỏ sót", true);
-  scale("Ca bình thường: AI không báo bệnh nhầm", true);
-  scale("Kết quả AI: đủ tin cậy để tham khảo khi đọc phim", true);
+  form.addGridItem().setTitle("Độ chính xác và độ tin cậy của kết quả AI")
+    .setHelpText("Chọn một ô cho mỗi hàng.")
+    .setRows(["Nhìn chung, điểm chẩn đoán của AI: khớp với đánh giá của tôi", "Tổn thương nặng: AI phát hiện được, không bỏ sót", "Ca bình thường: AI không báo bệnh nhầm", "Kết quả AI: đủ tin cậy để tham khảo khi đọc phim"])
+    .setColumns(["Rất kém", "Kém", "Trung bình", "Tốt", "Rất tốt"])
+    .setRequired(true);
   form.addPageBreakItem().setTitle("PHẦN 3. PHẦN MỀM");
-  form.addSectionHeaderItem().setTitle("Cách trình bày kết quả");
-  scale("Bảng kết quả (mỗi cột là một tầng đĩa đệm): xem nhanh được cả cột sống thắt lưng", true);
-  scale("Bấm vào một tầng trong bảng để ảnh chuyển tới tầng đó: giúp đối chiếu kết quả với phim", true);
-  form.addSectionHeaderItem().setTitle("Sử dụng trong công việc");
-  scale("Thời gian đọc một ca: nhanh hơn so với tự đọc", true);
-  scale("Dùng trong công việc thường ngày: phù hợp", true);
-  form.addSectionHeaderItem().setTitle("Đánh giá chung về phần mềm");
-  scale("Đáp ứng nhu cầu công việc của tôi", true);
-  scale("Phần mềm: dễ sử dụng", true);
+  form.addGridItem().setTitle("Cách trình bày kết quả")
+    .setHelpText("Chọn một ô cho mỗi hàng.")
+    .setRows(["Bảng kết quả (mỗi cột là một tầng đĩa đệm): xem nhanh được cả cột sống thắt lưng", "Bấm vào một tầng trong bảng để ảnh chuyển tới tầng đó: giúp đối chiếu kết quả với phim"])
+    .setColumns(["Rất kém", "Kém", "Trung bình", "Tốt", "Rất tốt"])
+    .setRequired(true);
+  form.addGridItem().setTitle("Sử dụng trong công việc")
+    .setHelpText("Chọn một ô cho mỗi hàng.")
+    .setRows(["Thời gian đọc một ca: nhanh hơn so với tự đọc", "Dùng trong công việc thường ngày: phù hợp"])
+    .setColumns(["Rất kém", "Kém", "Trung bình", "Tốt", "Rất tốt"])
+    .setRequired(true);
+  form.addGridItem().setTitle("Đánh giá chung về phần mềm")
+    .setHelpText("Chọn một ô cho mỗi hàng.")
+    .setRows(["Đáp ứng nhu cầu công việc của tôi", "Phần mềm: dễ sử dụng"])
+    .setColumns(["Rất kém", "Kém", "Trung bình", "Tốt", "Rất tốt"])
+    .setRequired(true);
   form.addPageBreakItem().setTitle('GÓP Ý VÀ THÔNG TIN NGƯỜI ĐÁNH GIÁ');
   form.addParagraphTextItem().setTitle('Bác sĩ có góp ý gì thêm cho phần mềm không?')
     .setHelpText('Ví dụ: ca nào AI chấm sai, chỗ nào khó dùng hay khó hiểu, cần thêm tính năng gì...');
