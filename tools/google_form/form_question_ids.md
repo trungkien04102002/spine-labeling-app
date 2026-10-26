@@ -19,10 +19,10 @@ with the same ids as the in-app survey (backend/app/survey_questions.py).
 | Mức an toàn khi AI sai: chỉ lệch ít và tôi dễ nhận ra | 16 |
 | Độ chính xác và độ tin cậy của kết quả AI [Nhìn chung, điểm chẩn đoán của AI: khớp với đánh giá của tôi] | 4 |
 | Độ chính xác và độ tin cậy của kết quả AI [Tổn thương nặng: AI phát hiện được, không bỏ sót] | 17 |
-| Độ chính xác và độ tin cậy của kết quả AI [Ca bình thường: AI không báo bệnh nhầm] | 18 |
+| Độ chính xác và độ tin cậy của kết quả AI [Không báo nhầm: chỗ bình thường, AI cũng chấm là bình thường] | 18 |
 | Độ chính xác và độ tin cậy của kết quả AI [Kết quả AI: đủ tin cậy để tham khảo khi đọc phim] | 20 |
-| Cách trình bày kết quả [Bảng kết quả (mỗi cột là một tầng đĩa đệm): xem nhanh được cả cột sống thắt lưng] | 13 |
-| Cách trình bày kết quả [Bấm vào một tầng trong bảng để ảnh chuyển tới tầng đó: giúp đối chiếu kết quả với phim] | 14 |
+| Cách trình bày kết quả [Bảng điểm: dễ đọc, xem nhanh được cả 5 tầng đĩa đệm] | 13 |
+| Cách trình bày kết quả [Bấm vào tầng trong bảng, ảnh tự chuyển tới tầng đó: tiện đối chiếu với phim] | 14 |
 | Sử dụng trong công việc [Thời gian đọc một ca: nhanh hơn so với tự đọc] | 21 |
 | Sử dụng trong công việc [Dùng trong công việc thường ngày: phù hợp] | 22 |
 | Đánh giá chung về phần mềm [Đáp ứng nhu cầu công việc của tôi] | 23 |

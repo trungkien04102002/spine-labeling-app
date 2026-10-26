@@ -88,15 +88,15 @@ QUESTIONS: list[Question] = [
     Question(12, "Thay đổi Modic thân đốt trên / dưới (marrow)", "detail", GRADE, matrix=True),
 
     # --- Whether the presentation does any work ---------------------------
-    Question(13, "Bảng kết quả (mỗi cột là một tầng đĩa đệm): xem nhanh được cả cột sống thắt lưng", "detail", SHOW),
-    Question(14, "Bấm vào một tầng trong bảng để ảnh chuyển tới tầng đó: giúp đối chiếu kết quả với phim", "detail", SHOW),
+    Question(13, "Bảng điểm: dễ đọc, xem nhanh được cả 5 tầng đĩa đệm", "detail", SHOW),
+    Question(14, "Bấm vào tầng trong bảng, ảnh tự chuyển tới tầng đó: tiện đối chiếu với phim", "detail", SHOW),
     # 15 asked about the SpineNet-labelled slice image, removed from the viewer
     # 2026-09-28 as taking space for no value. Retired, never to be reused.
 
     # --- How it fails, which accuracy alone cannot say --------------------
     Question(16, "Mức an toàn khi AI sai: chỉ lệch ít và tôi dễ nhận ra", "core", ERRORS),
     Question(17, "Tổn thương nặng: AI phát hiện được, không bỏ sót", "detail", COMPARE),
-    Question(18, "Ca bình thường: AI không báo bệnh nhầm", "detail", COMPARE),
+    Question(18, "Không báo nhầm: chỗ bình thường, AI cũng chấm là bình thường", "detail", COMPARE),
 
     # --- Whether it survives contact with a working day -------------------
     Question(19, "Sửa lại vùng tô và sửa điểm AI chấm: thuận tiện", "detail", USE),
@@ -114,7 +114,7 @@ QUESTIONS: list[Question] = [
     # required, never counted in the clinical score.
     Question(25, "Kết quả mô hình AI B: khớp với đánh giá của tôi", "reference_b", COMPARE),
     Question(26, "Mô hình AI B, tổn thương nặng: phát hiện được, không bỏ sót", "reference_b", COMPARE),
-    Question(27, "Mô hình AI B, ca bình thường: không báo bệnh nhầm", "reference_b", COMPARE),
+    Question(27, "Mô hình AI B, không báo nhầm: chỗ bình thường, AI cũng chấm là bình thường", "reference_b", COMPARE),
     Question(28, "Kết quả mô hình AI B: đủ tin cậy để tham khảo khi đọc phim", "reference_b", COMPARE),
 ]
 
@@ -142,7 +142,7 @@ COMPARE_GROUP_A_ONLY = "Độ chính xác và độ tin cậy của kết quả 
 COMPARE_PAIRS = [
     ("Khớp với đánh giá của tôi", 4, 25),
     ("Tổn thương nặng: phát hiện được, không bỏ sót", 17, 26),
-    ("Ca bình thường: không báo bệnh nhầm", 18, 27),
+    ("Không báo nhầm: chỗ bình thường, AI cũng chấm là bình thường", 18, 27),
     ("Đủ tin cậy để tham khảo khi đọc phim", 20, 28),
 ]
 

@@ -31,13 +31,13 @@ function addItems(form) {
   form.addPageBreakItem().setTitle("PHẦN 2. ĐÁNH GIÁ LÂM SÀNG CHUNG");
   form.addGridItem().setTitle("Độ chính xác và độ tin cậy của kết quả AI")
     .setHelpText("Chọn một ô cho mỗi hàng.")
-    .setRows(["Nhìn chung, điểm chẩn đoán của AI: khớp với đánh giá của tôi", "Tổn thương nặng: AI phát hiện được, không bỏ sót", "Ca bình thường: AI không báo bệnh nhầm", "Kết quả AI: đủ tin cậy để tham khảo khi đọc phim"])
+    .setRows(["Nhìn chung, điểm chẩn đoán của AI: khớp với đánh giá của tôi", "Tổn thương nặng: AI phát hiện được, không bỏ sót", "Không báo nhầm: chỗ bình thường, AI cũng chấm là bình thường", "Kết quả AI: đủ tin cậy để tham khảo khi đọc phim"])
     .setColumns(["Rất kém", "Kém", "Trung bình", "Tốt", "Rất tốt"])
     .setRequired(true);
   form.addPageBreakItem().setTitle("PHẦN 3. PHẦN MỀM");
   form.addGridItem().setTitle("Cách trình bày kết quả")
     .setHelpText("Chọn một ô cho mỗi hàng.")
-    .setRows(["Bảng kết quả (mỗi cột là một tầng đĩa đệm): xem nhanh được cả cột sống thắt lưng", "Bấm vào một tầng trong bảng để ảnh chuyển tới tầng đó: giúp đối chiếu kết quả với phim"])
+    .setRows(["Bảng điểm: dễ đọc, xem nhanh được cả 5 tầng đĩa đệm", "Bấm vào tầng trong bảng, ảnh tự chuyển tới tầng đó: tiện đối chiếu với phim"])
     .setColumns(["Rất kém", "Kém", "Trung bình", "Tốt", "Rất tốt"])
     .setRequired(true);
   form.addGridItem().setTitle("Sử dụng trong công việc")
