@@ -31,13 +31,11 @@ labels = form["scale"]["labels"]
 SKIP_IDS = {19}
 questions = [q for q in form["questions"] if q["id"] not in SKIP_IDS]
 
+# Two lines: the first draft's five read as a wall of rules. Required
+# questions need no note -- Google Forms marks them with * itself.
 INTRO = (
-    "Khoảng 5 phút. Bác sĩ chấm từng mặt của kết quả AI: vùng tô, điểm chẩn "
-    "đoán của cả 11 nhãn, khi AI sai, cách trình bày (1 = rất kém · 5 = rất tốt).\n"
-    "Không có câu trả lời đúng hay sai. Đánh giá thấp cũng có ích như đánh giá cao.\n"
-    "Phiếu này trả lời MỘT LẦN, sau khi xem xong các ca mẫu, không phải cho từng ca.\n"
-    "Phiếu ẩn danh: không thu email, không cần đăng nhập, họ tên có thể để trống.\n"
-    "Mọi câu chấm điểm đều bắt buộc (dấu *). Góp ý và họ tên thì không."
+    "Khoảng 5 phút, trả lời một lần sau khi xem xong các ca mẫu.\n"
+    "Phiếu ẩn danh, không cần đăng nhập. Không có đúng hay sai: đánh giá thấp cũng có ích."
 )
 
 

@@ -8,7 +8,7 @@ var LABELS = ["Rất kém", "Kém", "Trung bình", "Tốt", "Rất tốt"];
 
 function addItems(form) {
   form.setTitle('Phiếu đánh giá phần mềm Spine Labeling');
-  form.setDescription("Khoảng 5 phút. Bác sĩ chấm từng mặt của kết quả AI: vùng tô, điểm chẩn đoán của cả 11 nhãn, khi AI sai, cách trình bày (1 = rất kém · 5 = rất tốt).\nKhông có câu trả lời đúng hay sai. Đánh giá thấp cũng có ích như đánh giá cao.\nPhiếu này trả lời MỘT LẦN, sau khi xem xong các ca mẫu, không phải cho từng ca.\nPhiếu ẩn danh: không thu email, không cần đăng nhập, họ tên có thể để trống.\nMọi câu chấm điểm đều bắt buộc (dấu *). Góp ý và họ tên thì không.");
+  form.setDescription("Khoảng 5 phút, trả lời một lần sau khi xem xong các ca mẫu.\nPhiếu ẩn danh, không cần đăng nhập. Không có đúng hay sai: đánh giá thấp cũng có ích.");
   form.setCollectEmail(false);
   form.setProgressBar(true);
   form.setConfirmationMessage('Cảm ơn bác sĩ đã dành thời gian đánh giá!');
