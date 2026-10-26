@@ -84,6 +84,8 @@ def get_questions(settings: Settings = Depends(get_settings)) -> dict[str, objec
         ]
         if show_b
         else [],
+        # Set: the clinician is sent to this Google Form instead (see config).
+        "form_url": settings.survey_form_url or None,
         "scale": {
             "min": SCALE_MIN,
             "max": SCALE_MAX,

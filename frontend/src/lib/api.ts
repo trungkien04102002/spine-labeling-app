@@ -600,6 +600,8 @@ export type SurveyForm = {
   /** Criteria asked of both models: A's question id, then B's (null if hidden). */
   pairs?: { title: string; a: number; b: number | null }[];
   scale: { min: number; max: number; labels: string[] };
+  /** The questionnaire is a Google Form: its prefill link, ROOM_NAME to fill. */
+  form_url?: string | null;
 };
 
 export type SurveyQuestionStat = SurveyQuestion & {

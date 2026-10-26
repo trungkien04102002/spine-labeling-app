@@ -23,6 +23,13 @@ class Settings(BaseSettings):
     # truth, from patients the model never trained on.
     sample_studies: str = "VAL-*"
 
+    # The questionnaire as a Google Form instead of the in-app one: its
+    # prefill link, with the literal ROOM_NAME where the room's name goes
+    # (tools/google_form/ makes the Form and prints this link). Answers then
+    # live in the Form's Sheet, safe from a box being destroyed. Empty means
+    # the in-app form.
+    survey_form_url: str = ""
+
     # Passphrase for the operator pages (/admin): who is in which room, the
     # survey results, exports, switching models, re-training. Empty means no
     # lock, which is what local development and the test suite use; set it on

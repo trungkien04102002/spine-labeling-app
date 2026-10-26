@@ -8,6 +8,7 @@ import {
   type SurveyForm,
   type SurveyQuestion,
 } from "../lib/api";
+import { useRoom } from "../lib/room";
 
 /**
  * The clinician questionnaire.
@@ -175,6 +176,7 @@ function Shell({ children }: { children: ReactNode }) {
 }
 
 export default function Survey() {
+  const { room } = useRoom();
   const [form, setForm] = useState<SurveyForm | null>(null);
   const [answers, setAnswers] = useState<Record<number, number>>({});
   const [respondent, setRespondent] = useState("");
@@ -243,6 +245,36 @@ export default function Survey() {
     } finally {
       setSending(false);
     }
+  }
+
+  // The questionnaire lives in a Google Form: send the clinician there with
+  // their room filled in, so the answer can be matched to their corrections.
+  if (form?.form_url) {
+    const url = form.form_url.replace("ROOM_NAME", encodeURIComponent(room?.name ?? ""));
+    return (
+      <Shell>
+      <div className="mx-auto max-w-2xl px-4 py-12">
+        <h1 className="text-xl font-bold text-slate-800">Phiếu đánh giá phần mềm</h1>
+        <p className="mt-3 text-sm text-slate-700">
+          Khoảng 5 phút. Phiếu này trả lời <b>một lần</b>, sau khi xem xong các ca mẫu, không phải cho từng ca.
+          Phiếu mở trong một thẻ mới (Google Form); ô “Phòng” đã điền sẵn.
+        </p>
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-6 inline-block rounded-lg bg-teal-600 px-5 py-2.5 text-sm font-semibold text-white shadow hover:bg-teal-700"
+        >
+          ★ Mở phiếu đánh giá
+        </a>
+        <p className="mt-6">
+          <Link to="/" className="text-sm text-teal-700 underline">
+            Quay lại danh sách ca
+          </Link>
+        </p>
+      </div>
+      </Shell>
+    );
   }
 
   if (done) {
