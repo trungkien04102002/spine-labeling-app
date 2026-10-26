@@ -1,3 +1,5 @@
+# First, before numpy/torch load: size thread pools to the container quota.
+import app.cpu_threads  # noqa: F401,I001
 from contextlib import asynccontextmanager
 from pathlib import Path
 
