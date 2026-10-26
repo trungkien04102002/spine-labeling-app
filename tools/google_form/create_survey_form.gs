@@ -23,10 +23,10 @@ function addItems(form) {
     .setColumns(["Rất kém", "Kém", "Trung bình", "Tốt", "Rất tốt"])
     .setRequired(true);
   form.addGridItem().setTitle("AI chấm đúng tới mức nào, với từng loại bất thường?")
-    .setHelpText("Mỗi hàng là một loại bất thường AI chấm trong bảng điểm. Bác sĩ chọn một ô cho mỗi hàng, từ Rất kém (AI chấm sai nhiều) đến Rất tốt (AI chấm đúng gần hết).")
+    .setHelpText("Không bắt buộc. Bác sĩ chỉ chấm những loại bất thường mình chắc chắn, hàng nào không chắc thì để trống.")
     .setRows(["Hẹp ống sống trung tâm (canal stenosis)", "Hẹp lỗ liên hợp trái / phải (foraminal stenosis)", "Thoái hoá đĩa đệm (Pfirrmann)", "Hẹp khe đĩa đệm (disc narrowing)", "Thoát vị đĩa đệm (disc herniation)", "Trượt đốt sống (spondylolisthesis)", "Tổn thương mâm sụn trên / dưới (endplate defect)", "Thay đổi Modic thân đốt trên / dưới (marrow)"])
     .setColumns(["Rất kém", "Kém", "Trung bình", "Tốt", "Rất tốt"])
-    .setRequired(true);
+    .setRequired(false);
   scale("Mức an toàn khi AI sai: chỉ lệch ít và tôi dễ nhận ra", true);
   form.addPageBreakItem().setTitle("PHẦN 2. ĐÁNH GIÁ LÂM SÀNG CHUNG");
   form.addGridItem().setTitle("Độ chính xác và độ tin cậy của kết quả AI")

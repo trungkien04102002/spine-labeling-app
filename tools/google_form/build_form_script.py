@@ -40,10 +40,11 @@ INTRO = (
 
 
 GRID_TITLE = "AI chấm đúng tới mức nào, với từng loại bất thường?"
+# Not required: a clinician may not read every one of these findings, and a
+# blank is worth more than a guess.
 GRID_HELP = (
-    "Mỗi hàng là một loại bất thường AI chấm trong bảng điểm. Bác sĩ chọn "
-    "một ô cho mỗi hàng, từ Rất kém (AI chấm sai nhiều) đến Rất tốt (AI chấm "
-    "đúng gần hết)."
+    "Không bắt buộc. Bác sĩ chỉ chấm những loại bất thường mình chắc chắn, "
+    "hàng nào không chắc thì để trống."
 )
 
 ROW_HELP = "Chọn một ô cho mỗi hàng."
@@ -110,7 +111,7 @@ for sec in form["sections"]:
         emit(f"    .setHelpText({js(help_text)})")
         emit(f"    .setRows({js([q['text'] for q in in_group])})")
         emit(f"    .setColumns({js(labels)})")
-        emit("    .setRequired(true);")
+        emit(f"    .setRequired({'false' if is_labels else 'true'});")
         for q in in_group:
             mapping.append(f"| {title} [{q['text']}] | {q['id']} |")
 
