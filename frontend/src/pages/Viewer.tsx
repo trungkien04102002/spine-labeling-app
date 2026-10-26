@@ -131,6 +131,18 @@ const PREDICTION_GUIDE: { name: string; scale: string; meaning: string }[] = [
 // looks exactly like a normal result unless it is called out.
 const CBAM_CONDITIONS = ["canal_stenosis", "left_foraminal", "right_foraminal"];
 
+// The tool is for low back pain: clinicians asked to see the five lumbar disc
+// levels only. SpineNet also grades thoracic levels it happens to detect
+// (T10-T11 to T12-L1); those stay in the saved result and the export, but
+// shown beside the lumbar ones they were noise.
+const LUMBAR_LEVELS = new Set(["L1-L2", "L2-L3", "L3-L4", "L4-L5", "L5-S1"]);
+
+function lumbarOnly<T extends { level: string }>(grading: T[]): T[];
+function lumbarOnly<T extends { level: string }>(grading: T[] | null | undefined): T[] | undefined;
+function lumbarOnly<T extends { level: string }>(grading: T[] | null | undefined) {
+  return grading?.filter((g) => LUMBAR_LEVELS.has(g.level));
+}
+
 function missingCbamColumns(grading: { condition: string }[]): boolean {
   if (grading.length === 0) return false;
   const present = new Set(grading.map((g) => g.condition));
@@ -705,7 +717,7 @@ export default function Viewer() {
             </summary>
             <div className="mt-3 space-y-3 text-xs text-slate-600">
               <p>
-                {t("This tool automatically reads a lumbar spine MRI and produces radiological grades for each intervertebral disc level (T12–L1 down to L5–S1). Click a level in the table to jump to its slice; you can correct any grade and save it.")}
+                {t("This tool automatically reads a lumbar spine MRI and produces radiological grades for each intervertebral disc level (L1–L2 down to L5–S1). Click a level in the table to jump to its slice; you can correct any grade and save it.")}
               </p>
               <div>
                 <p className="mb-1 font-semibold text-slate-700">
@@ -797,8 +809,8 @@ export default function Viewer() {
           {/* What is wrong, beside the picture -- the full table is below. */}
           {result && detail?.has_mask && (
             <FindingsSummary
-              grading={result.grading}
-              original={fullResult?.grading}
+              grading={lumbarOnly(result.grading)}
+              original={lumbarOnly(fullResult?.grading)}
               onJump={setTargetSlice}
               onShowInTable={(level, condition) =>
                 setTableHighlight({ level, condition, nonce: Date.now() })
@@ -940,8 +952,8 @@ export default function Viewer() {
             ) : result ? (
               <>
                 <GradeTable
-                  grading={result.grading}
-                  original={fullResult?.grading}
+                  grading={lumbarOnly(result.grading)}
+                  original={lumbarOnly(fullResult?.grading)}
                   highlight={tableHighlight}
                   onJump={setTargetSlice}
                   onEditSeverity={ro ? undefined : handleEditSeverity}

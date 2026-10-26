@@ -146,8 +146,8 @@ registerVi({
     "Không có chuột (dùng touchpad)? Bấm các nút ◀ ▶, ＋ －, Độ sáng, Độ tương phản ngay dưới ảnh.",
   "About this tool":
     "Giới thiệu công cụ",
-  "This tool automatically reads a lumbar spine MRI and produces radiological grades for each intervertebral disc level (T12–L1 down to L5–S1). Click a level in the table to jump to its slice; you can correct any grade and save it.":
-    "Công cụ tự động đọc phim MRI cột sống thắt lưng và chấm điểm từng tầng đĩa đệm (từ T12–L1 đến L5–S1). Bấm vào một tầng trong bảng để nhảy tới lát cắt tương ứng; bác sĩ có thể sửa bất kỳ điểm nào rồi lưu lại.",
+  "This tool automatically reads a lumbar spine MRI and produces radiological grades for each intervertebral disc level (L1–L2 down to L5–S1). Click a level in the table to jump to its slice; you can correct any grade and save it.":
+    "Công cụ tự động đọc phim MRI cột sống thắt lưng và chấm điểm từng tầng đĩa đệm (từ L1–L2 đến L5–S1). Bấm vào một tầng trong bảng để nhảy tới lát cắt tương ứng; bác sĩ có thể sửa bất kỳ điểm nào rồi lưu lại.",
   "What it predicts":
     "AI chấm những gì",
   "⚠ Research use only — this is not a diagnostic tool or a medical device.":
@@ -582,8 +582,8 @@ registerVi({
     "Bác sĩ đã sửa (AI chấm: {v})",
   "What is this website?":
     "Trang web này dùng để làm gì?",
-  "It reads a lumbar spine MRI for you: the AI colours the vertebrae and discs on the image and grades what is abnormal at each disc level (T12–L1 down to L5–S1). You check the result and correct anything it got wrong.":
-    "Trang web đọc phim MRI cột sống thắt lưng: AI tô màu các đốt sống, đĩa đệm trên ảnh và chấm mức độ bất thường ở từng tầng đĩa đệm (từ T12–L1 đến L5–S1). AI đọc trước; bác sĩ xem lại và sửa chỗ AI chấm sai.",
+  "It reads a lumbar spine MRI for you: the AI colours the vertebrae and discs on the image and grades what is abnormal at each disc level (L1–L2 down to L5–S1). You check the result and correct anything it got wrong.":
+    "Trang web đọc phim MRI cột sống thắt lưng: AI tô màu các đốt sống, đĩa đệm trên ảnh và chấm mức độ bất thường ở từng tầng đĩa đệm (từ L1–L2 đến L5–S1). AI đọc trước; bác sĩ xem lại và sửa chỗ AI chấm sai.",
   "Press “+ New study”, type a study code and the patient's name, then press “Create”.":
     "Bấm “+ Ca mới”, nhập mã ca và tên bệnh nhân, rồi bấm “Tạo”.",
   "On the new study's row, press “Upload” and choose the scan, compressed into one .zip file.":
@@ -640,8 +640,8 @@ registerVi({
     "Đối chiếu vùng tô màu và bảng điểm của AI với phim. Trang này chỉ để xem, không sửa được gì, bác sĩ cứ bấm thoải mái.",
   "After looking through the sample studies, please press “★ Rate this software” at the top right and answer the survey once (about 5 minutes).":
     "Xem xong các ca mẫu, nhờ bác sĩ bấm “★ Đánh giá phần mềm” ở góc trên bên phải và trả lời phiếu một lần (khoảng 5 phút).",
-  "It reads a lumbar spine MRI for you: the AI colours the vertebrae and discs on the image and grades what is abnormal at each disc level (T12–L1 down to L5–S1). Here you look at studies it has already read.":
-    "Trang web đọc phim MRI cột sống thắt lưng: AI tô màu các đốt sống, đĩa đệm trên ảnh và chấm mức độ bất thường ở từng tầng đĩa đệm (từ T12–L1 đến L5–S1). Ở đây bác sĩ xem các ca AI đã đọc sẵn.",
+  "It reads a lumbar spine MRI for you: the AI colours the vertebrae and discs on the image and grades what is abnormal at each disc level (L1–L2 down to L5–S1). Here you look at studies it has already read.":
+    "Trang web đọc phim MRI cột sống thắt lưng: AI tô màu các đốt sống, đĩa đệm trên ảnh và chấm mức độ bất thường ở từng tầng đĩa đệm (từ L1–L2 đến L5–S1). Ở đây bác sĩ xem các ca AI đã đọc sẵn.",
   "Browse any plane freely. The AI graded the sagittal series.":
     "Có thể xem mọi mặt cắt. AI chấm trên chuỗi sagittal.",
   "A research tool — not a diagnosis.":

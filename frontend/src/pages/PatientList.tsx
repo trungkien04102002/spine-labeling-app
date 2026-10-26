@@ -293,8 +293,8 @@ export default function PatientList() {
           <div className="mt-3 space-y-3 text-sm text-slate-700">
             <p>
               {ro
-                ? t("It reads a lumbar spine MRI for you: the AI colours the vertebrae and discs on the image and grades what is abnormal at each disc level (T12–L1 down to L5–S1). Here you look at studies it has already read.")
-                : t("It reads a lumbar spine MRI for you: the AI colours the vertebrae and discs on the image and grades what is abnormal at each disc level (T12–L1 down to L5–S1). You check the result and correct anything it got wrong.")}
+                ? t("It reads a lumbar spine MRI for you: the AI colours the vertebrae and discs on the image and grades what is abnormal at each disc level (L1–L2 down to L5–S1). Here you look at studies it has already read.")
+                : t("It reads a lumbar spine MRI for you: the AI colours the vertebrae and discs on the image and grades what is abnormal at each disc level (L1–L2 down to L5–S1). You check the result and correct anything it got wrong.")}
             </p>
             {ro ? (
             <ol className="list-decimal space-y-1 pl-5">
