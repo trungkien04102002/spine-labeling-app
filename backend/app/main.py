@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import hmac
+import re
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -41,6 +42,10 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="spine-labeling-app", lifespan=lifespan)
 
 _SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
+# Writes a viewer still needs: switching series is browsing, not editing, but
+# it is a PUT (it records which series is shown). Blocking it left clinicians
+# stuck on the sagittal series (2026-10-27).
+_VIEW_ONLY_ALLOWED = re.compile(r"^/studies/[^/]+/active_series$")
 
 
 @app.middleware("http")
@@ -51,7 +56,11 @@ async def refuse_writes_when_view_only(request: Request, call_next):
     the refusal instead of seeing an opaque network error.
     """
     settings = Settings()
-    if settings.view_only and request.method not in _SAFE_METHODS:
+    if (
+        settings.view_only
+        and request.method not in _SAFE_METHODS
+        and not _VIEW_ONLY_ALLOWED.match(request.url.path)
+    ):
         key = request.headers.get("x-admin-key") or ""
         if not (
             settings.admin_password
