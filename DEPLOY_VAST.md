@@ -509,7 +509,7 @@ print `admin lock : {"locked":true}`**, or clinicians can open everything.
 
 **Getting it out -- before destroying the box:**
 
-1. `/admin` → **Export / Xuất dữ liệu** → **Download everything (.zip)**. One file to the
+1. `/admin` → **Export** → **Download everything (.zip)**. One file to the
    laptop through the browser, no SSH: `readers.csv`, `survey_responses.csv`,
    `questions.csv`, `corrections.csv`, `reference_b.csv` and a consistent
    `spine.db` snapshot. The
@@ -532,7 +532,7 @@ condition)`.
 `app/inference/reference_b.py`) runs by itself after every AI grading, on the
 mid-sagittal slice, and saves `reference_b.json` + `reference_b_input.png` in
 the study dir; the export carries it as `reference_b.csv`. Clinicians do **not**
-see it unless `/admin` → **Model versions / Phiên bản mô hình** → **Show to clinicians / Hiện cho bác sĩ** is pressed
+see it unless `/admin` → **Model versions** → **Show to clinicians** is pressed
 (the switch is `backend/data/reference_b_visible.json`, off by default). It
 never touches our grades: if it is missing or fails, only the log says so
 (`grep reference_b /var/log/spine_backend.log`). Its files come from

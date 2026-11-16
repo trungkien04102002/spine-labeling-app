@@ -60,8 +60,9 @@ the viewer.
    a new file cannot replace the volume a running job reads.
 7. **Every user-facing string goes through `t("English text")`** with the
    Vietnamese in `strings.vi.ts`. Clinician wording is plain and uses the
-   Vietnamese radiology terms already in that file (e.g. "mâm sụn" for
-   endplate, "thay đổi Modic" for marrow change); reuse them.
+   Vietnamese radiology terms already in that file (endplate, Modic change,
+   foraminal stenosis and so on each have one agreed translation); reuse them
+   rather than translating again.
 8. **Do not commit** weights, `backend/data/`, `*.db`, `backend/.env`, or any
    patient data. RSNA data may not be redistributed (Kaggle rules).
 
