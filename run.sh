@@ -118,7 +118,20 @@ start_frontend() {
 if [ "$MODE" = "both" ] || [ "$MODE" = "backend" ]; then start_backend; fi
 if [ "$MODE" = "both" ] || [ "$MODE" = "frontend" ]; then start_frontend; fi
 
-sleep 4
+# The first start of a fresh venv takes ~30-60 s (torch imports, .pyc
+# compilation). Wait for /health instead of announcing a server that is not
+# answering yet.
+if [ "$MODE" != "frontend" ]; then
+  echo -n ">> Waiting for the backend"
+  for _ in $(seq 1 120); do
+    curl -sf -o /dev/null "http://$HOST:$PORT/health" && break
+    kill -0 "$(cat "$BE_PID")" 2>/dev/null || { echo; echo "ERROR: backend exited, see $BE_LOG"; tail -20 "$BE_LOG"; exit 1; }
+    echo -n "."; sleep 1
+  done
+  echo
+else
+  sleep 4
+fi
 echo ""
 echo "=== Running ($MODE) ==="
 if [ "$MODE" != "frontend" ]; then echo "  Backend  : http://$HOST:$PORT   (health: /health)"; fi
