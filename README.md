@@ -6,8 +6,8 @@ degenerative findings, and shows both on the image. The clinician can correct
 the grades and the segmentation, and those corrections are kept as feedback
 for re-training.
 
-This is the software part of the master's thesis *"Ứng dụng AI trong gán nhãn
-y tế cho bệnh đau thắt lưng"* (HCMUT, 2026). The grading model was trained in
+This is the software part of the master's thesis *"AI-Assisted Medical Image
+Annotation for Low Back Pain"* (HCMUT, 2026). The grading model was trained in
 a separate repository, see [Related repositories](#related-repositories).
 
 AI agents: read [AGENTS.md](AGENTS.md) first.
@@ -55,7 +55,8 @@ Model A (this thesis, 3D ResNet34 + CBAM) ──► grades canal stenosis
 
 The interface is Vietnamese by default (it was built for Vietnamese
 radiologists) and has an English toggle (VI/EN, top right). Code, comments and
-these docs are in English. Button names below are given as "English / Tiếng Việt".
+these docs are in English. Switch the UI to English with the **VI/EN** toggle
+before following the steps below; button names here are the English ones.
 
 ## Quick start, no GPU
 
@@ -96,11 +97,11 @@ export SSL_CERT_FILE=~/ca.pem PIP_CERT=~/ca.pem NODE_EXTRA_CA_CERTS=~/ca.pem
 
 Open http://localhost:5173:
 
-1. Under **Create my room / Tạo phòng mới**, type a name and a 4-digit PIN
+1. Under **Create my room**, type a name and a 4-digit PIN
    twice. A room keeps one clinician's cases and edits apart from everyone
    else's; the PIN only stops people walking into the wrong room by mistake.
-2. Under **Sample cases to try / Ca mẫu để thử**, add `SAMPLE-SPIDER-100`,
-   then press **Open → / Mở →**.
+2. Under **Sample cases to try**, add `SAMPLE-SPIDER-100`,
+   then press **Open →**.
 3. You see the sagittal MRI with the coloured segmentation, a summary of
    findings on the right, and the 11-finding table below. Change a grade or
    paint on the mask to see how corrections are recorded.
@@ -131,8 +132,8 @@ python3.11 -m venv ~/totalspineseg-venv
 ./run.sh
 ```
 
-Then in the app: **+ New study / + Ca mới**, upload a scan, open it and press
-**Run AI grading / Chạy chẩn đoán AI**. The segmentation appears first,
+Then in the app: **+ New study**, upload a scan, open it and press
+**Run AI grading**. The segmentation appears first,
 the grades a few seconds later.
 Use a `.zip` of a DICOM series or a single `.nii.gz` / `.mha`. The AI reads the
 **sagittal** series (T2 preferred); axial series are shown but not graded.
