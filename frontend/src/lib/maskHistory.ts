@@ -3,36 +3,28 @@ import { utilities } from "@cornerstonejs/core";
 const { DefaultHistoryMemo } = utilities.HistoryMemo;
 
 /**
- * Undo/redo for mask painting.
+ * Undo/redo for mask painting, backed by Cornerstone's global
+ * `DefaultHistoryMemo` ring buffer.
  *
- * Cornerstone's brush already records every stroke: while a stroke is drawn the
- * writes go through an RLE "memo" that keeps only the *previous* value of each
- * voxel it overwrites, and on mouse-up the tool commits that memo onto a global
- * ring buffer (`DefaultHistoryMemo`). So one stroke is exactly one undo step,
- * and a step costs a sparse run-length diff of the painted area -- kilobytes --
- * rather than a copy of the labelmap (a 320x320x20 mask is ~2 MB per copy).
+ * The brush and the circle/rectangle scissors commit one RLE memo per stroke
+ * (via `LabelmapBaseTool.createMemo` / `doneEditMemo`), so one stroke is one
+ * undo step and costs a sparse diff rather than a labelmap copy.
  *
- * This module is the only place the app touches that global, so the rules for
- * using it safely stay in one file. The brush and the circle/rectangle scissors
- * push memos here (all three go through `LabelmapBaseTool.createMemo` /
- * `doneEditMemo`); the annotation tools that would also use it are not enabled
- * in this viewer. `PaintFillTool` deliberately is not enabled either -- it
- * writes voxels straight through the voxel manager and records nothing, so an
- * edit made with it could not be undone.
+ * This module is the only place the app touches that global. `PaintFillTool`
+ * is deliberately not enabled: it writes voxels directly and records no memo,
+ * so its edits could not be undone.
  */
 
 /** Strokes kept undoable. 50 is Cornerstone's own default ring size. */
 export const MASK_HISTORY_DEPTH = 50;
 
 /**
- * Drop every recorded stroke. Required whenever a new labelmap is loaded (new
- * study, or a series switch that rebuilds the derived images): a stored memo
- * writes back into the voxel manager it was recorded against, and replaying one
- * onto a labelmap that no longer exists would either throw or, worse, paint
- * into the wrong volume.
+ * Drop every recorded stroke. Required whenever a new labelmap is loaded: a
+ * memo writes back into the voxel manager it was recorded against, so replaying
+ * it after a reload would throw or paint into the wrong volume.
  *
- * Assigning `size` is what clears it -- the setter re-allocates the ring buffer
- * and resets the cursor. There is no `clear()`.
+ * Assigning `size` is what clears it (the setter re-allocates the ring buffer);
+ * there is no `clear()`.
  */
 export function resetMaskHistory(): void {
   DefaultHistoryMemo.size = MASK_HISTORY_DEPTH;
@@ -41,15 +33,11 @@ export function resetMaskHistory(): void {
 /**
  * How many steps are currently undoable.
  *
- * This is the app's proof that an edit is reversible: a gesture only earns a
- * step on the page's Undo timeline if it actually deepened this history. Asking
- * the tool "did you paint?" cannot tell the difference between a tool that
- * recorded a memo and one that wrote voxels behind the history's back -- this
- * can.
+ * A gesture earns a step on the page's Undo timeline only if it deepened this
+ * history, which distinguishes a recorded edit from voxels written outside it.
  *
  * `undoAvailable` is private in Cornerstone's typings but a plain field at
- * runtime; the boolean `canUndo` is the public fallback if that ever changes,
- * which degrades to "at least one step" rather than to nothing.
+ * runtime; `canUndo` is the public fallback, degrading to "at least one step".
  */
 export function maskHistoryDepth(): number {
   const depth = (DefaultHistoryMemo as unknown as { undoAvailable?: unknown })

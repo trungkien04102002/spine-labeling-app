@@ -10,17 +10,14 @@ import {
 /**
  * Two-language UI, English strings as keys.
  *
- * The screens a clinician uses read in Vietnamese; the operator pages
- * (/admin, /models) stay in English for whoever runs the trial. Keys are the
- * English text itself, the gettext convention: a string that was never
- * translated falls back to readable English instead of an empty slot or a
- * dotted key, which matters when a hundred call sites are converted by hand
- * and one will inevitably be missed.
+ * The clinician screens read in Vietnamese; the operator pages (/admin,
+ * /models) stay in English. Keys are the English text itself (the gettext
+ * convention), so a string that was never translated falls back to readable
+ * English instead of an empty slot or a dotted key.
  *
- * Medical vocabulary is deliberately NOT translated -- condition names,
- * severity grades, Pfirrmann. Vietnamese radiologists read and report those in
- * English, and a Vietnamese rendering is both longer and a chance to shift the
- * meaning of a clinical term.
+ * Medical vocabulary is deliberately NOT translated (condition names, severity
+ * grades, Pfirrmann): Vietnamese radiologists read and report those in
+ * English, and a translation risks shifting the meaning of a clinical term.
  */
 
 export type Lang = "vi" | "en";

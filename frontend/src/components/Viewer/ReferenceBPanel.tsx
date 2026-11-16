@@ -49,12 +49,11 @@ function modelAAnswer(label: string, grading: GradingItem[]): { yes: boolean; le
 /**
  * A second model's answer, shown under the app's own grades for comparison.
  *
- * Hidden unless the operator switches it on in /admin (Model versions), so
- * clinicians see the app as it was unless asked to compare. Read-only and
- * self-contained: it never touches the grade table, and if model B is missing
- * or fails the panel just is not there -- the doctor's own flow must not
- * depend on it. Studies graded before model B
- * existed get it filled in the first time they are opened.
+ * Hidden unless the operator switches it on in /admin (Model versions).
+ * Read-only and self-contained: it never touches the grade table, and if
+ * model B is missing or fails the panel is simply not rendered, so the
+ * clinician's workflow never depends on it. Studies without a model B result
+ * get one the first time they are opened.
  */
 export default function ReferenceBPanel({
   studyId,
@@ -63,7 +62,7 @@ export default function ReferenceBPanel({
   alwaysShow = false,
 }: {
   studyId: string;
-  /** Changes whenever our grading re-runs, so the panel reloads with it. */
+  /** Changes whenever model A grading re-runs, so the panel reloads with it. */
   gradedAt: unknown;
   /** Model A's current grades (with the doctor's edits), for the A column. */
   modelA?: GradingItem[] | null;

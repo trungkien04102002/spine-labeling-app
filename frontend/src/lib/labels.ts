@@ -4,9 +4,8 @@ import { useT } from "./i18n";
 /**
  * Prettify a TotalSpineSeg label name, e.g. "vertebrae_L1" -> "Vertebra L1".
  *
- * Lives here rather than next to the legend because the legend and the brush's
- * label picker must name the same structure identically -- two spellings of
- * "spinal_cord" / "Spinal cord" is what made the picker hard to use.
+ * Shared by the legend and the brush's label picker, which must name the same
+ * structure identically.
  */
 export function prettyName(name: string): string {
   if (name.startsWith("vertebrae_")) return `Vertebra ${name.slice(10)}`;
@@ -21,8 +20,7 @@ export function swatchColor(color: [number, number, number]): string {
 
 /**
  * The structure's name in the reader's language. Every place that names a
- * structure goes through this, for the reason prettyName exists at all: the
- * legend and the brush picker must call a structure the same thing.
+ * structure goes through this so the legend and the brush picker agree.
  */
 export function useStructureName(): (raw: string) => string {
   const { lang } = useT();

@@ -35,12 +35,10 @@ function levelRank(level: string): number {
 }
 
 /**
- * The abnormal findings, level by level, right beside the image.
- *
- * The full table sits below the viewer and is eleven rows by up to eight
- * columns; a reader had to scroll down to find what was wrong and back up to
- * look at it. This lists only what is not normal, worst first within a level,
- * and a click moves the image to that disc.
+ * The abnormal findings, level by level, right beside the image, so the
+ * reader does not have to scan the full grade table below the viewer. Lists
+ * only what is not normal, worst first within a level; a click moves the image
+ * to that disc.
  */
 export default function FindingsSummary({
   grading,
@@ -138,7 +136,6 @@ export default function FindingsSummary({
                           title={edited ? t("Changed by you") : undefined}
                         >
                           {conditionHeader(g.condition, lang, CONDITIONS[g.condition]?.en ?? g.condition)}: {severityLabel(g.condition, g.severity, lang)}
-                          {edited && " ✎"}
                         </span>
                       );
                     })}
@@ -155,8 +152,7 @@ export default function FindingsSummary({
 
 /**
  * What this doctor changed on this study: every cell that now differs from the
- * AI's own grade, saved or not. The feedback panel only counted corrections,
- * so a doctor could not see which ones they had made.
+ * AI's own grade, saved or not.
  */
 export function MyEdits({
   grading,

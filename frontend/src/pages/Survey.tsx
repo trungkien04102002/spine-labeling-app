@@ -13,11 +13,10 @@ import { useRoom } from "../lib/room";
 /**
  * The clinician questionnaire.
  *
- * Vietnamese throughout, unlike the rest of the UI: the people answering read
- * Vietnamese, and a usability score collected through a language barrier
- * measures the barrier. The ten usability items are the System Usability
- * Scale, whose wording is fixed -- rephrasing them would leave a number that
- * no longer compares to anything published.
+ * Vietnamese only, without the language toggle: a usability score collected
+ * through a language barrier measures the barrier. The ten usability items are
+ * the System Usability Scale, whose wording is fixed; rephrasing them makes
+ * the score incomparable with published SUS results.
  */
 
 const SCALE_HINT = "1 = rất kém · 5 = rất tốt";
@@ -79,8 +78,7 @@ function QuestionRow({
 
 /**
  * Several items on the same scale as one grid: a row per label, a column per
- * score. Eight labels as eight separate button rows would triple the length of
- * the page for no extra information, and a column is quicker to scan.
+ * score. Shorter and quicker to scan than one button row per item.
  */
 function QuestionMatrix({
   questions,
@@ -199,9 +197,9 @@ export default function Survey() {
   const required = (form?.questions ?? []).filter((q) => q.required);
   const answeredRequired = required.filter((q) => answers[q.id] != null).length;
   const canSubmit = form != null && answeredRequired === required.length && !sending;
-  // Shown numbers run 1, 2, 3... in page order. Ids have gaps (retired 15)
-  // and the per-label grid takes 5-12, so numbering by id read 4, 13, 16.
-  // Groups in part order (model A, the software, model B) when the server
+  // Shown numbers run 1, 2, 3... in page order, not by question id: ids have
+  // gaps and the per-label grid spans a block of them.
+  // Groups follow part order (model A, the software, model B) when the server
   // sends parts, so a part's groups are never split by another part's.
   const orderedGroups: string[] = form?.sections?.length
     ? form.sections.flatMap((sec) => sec.groups)
@@ -315,8 +313,8 @@ export default function Survey() {
           Không cần gửi lại sau mỗi ca. Nếu gửi nữa, phiếu mới sẽ được lưu thành một phiếu riêng.
         </div>
       )}
-      {/* Clinicians asked which questions they must answer: a red star, and
-          one line saying what it means (they used to learn only at the end). */}
+      {/* Required questions get a red star, explained up front rather than
+          only when sending fails. */}
       <p className="mt-1 text-sm text-slate-500">
         Câu có dấu <span className="font-bold text-rose-600">*</span> là bắt buộc. Các câu khác bác sĩ trả lời nếu muốn.
       </p>
@@ -341,8 +339,8 @@ export default function Survey() {
         <section
           className="mt-5 rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
         >
-          {/* Grouped so sixteen questions read as four short topics rather
-              than one long column: a clinician can see where they are. */}
+          {/* Grouped into short topics rather than one long column, so a
+              clinician can see where they are. */}
           <h2 className="mb-1 flex items-center gap-2 text-sm font-bold text-slate-800">
             <span className="h-4 w-1 rounded bg-gradient-to-b from-teal-500 to-cyan-500" />
             {group}
@@ -399,9 +397,8 @@ export default function Survey() {
         </div>
       ))}
 
-      {/* The open question gets a section of its own, headed like the
-          scored groups: as a small box under the last scale it read as a
-          footnote and was easy to skip. */}
+      {/* The open question gets its own section, headed like the scored
+          groups, so it does not read as a skippable footnote. */}
       <section className="mt-5 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
         <h2 className="mb-1 flex items-center gap-2 text-sm font-bold text-slate-800">
           <span className="h-4 w-1 rounded bg-gradient-to-b from-teal-500 to-cyan-500" />

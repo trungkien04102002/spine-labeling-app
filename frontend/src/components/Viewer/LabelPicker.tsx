@@ -38,12 +38,10 @@ interface Props {
 /**
  * Structure picker for the brush: colour and name in one control.
  *
- * A native <select> cannot carry a colour swatch on every platform, and the
- * colour is the only thing that connects a name to the shape on screen -- so
- * this is a small custom listbox instead. The swatches are the labelmap's own
- * rendered colours, passed in from the viewport's LUT, never a palette of our
- * own: a picker that showed a different green from the canvas would be worse
- * than no colour at all.
+ * A native <select> cannot show a colour swatch on every platform, and the
+ * colour is what links a name to the shape on screen, hence a custom listbox.
+ * Swatches must come from the viewport's LUT, never a separate palette: a
+ * picker showing a different green from the canvas is worse than no colour.
  */
 export default function LabelPicker({
   entries,

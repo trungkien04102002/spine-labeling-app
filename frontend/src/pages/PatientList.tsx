@@ -62,7 +62,7 @@ export default function PatientList() {
   const [backend, setBackend] = useState<BackendStatus>({ state: "loading" });
   const [patients, setPatients] = useState<PatientOut[]>([]);
   const [error, setError] = useState<string | null>(null);
-  // View-only box: the room's studies are all there is; nothing to add or change.
+  // View-only deployment: the room's studies are all there is; nothing to add or change.
   const ro = useViewOnly() ?? true;
   // A picture (PNG/JPG) is read only by model B: offer it only while B is on.
   const [modelBShown, setModelBShown] = useState(false);
@@ -75,18 +75,15 @@ export default function PatientList() {
   const [uploading, setUploading] = useState<string | null>(null);
   const fileInputs = useRef<Record<string, HTMLInputElement | null>>({});
 
-  // Toolbar: search. (No modality filter: this tool reads lumbar MRI only.)
+  // No modality filter: this tool reads lumbar MRI only.
   const [search, setSearch] = useState("");
 
-  // Collapsed patient groups (default: all expanded).
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
 
-  // Create-study form.
   const [showNew, setShowNew] = useState(false);
   const [newId, setNewId] = useState("");
   const [newPatient, setNewPatient] = useState("");
 
-  // Patient rename (group header).
   const [renamingId, setRenamingId] = useState<number | null>(null);
   const [renameValue, setRenameValue] = useState("");
 
@@ -99,8 +96,8 @@ export default function PatientList() {
     getSamples().then(setSamples).catch(() => setSamples([]));
   }, []);
 
-  // Rooms from before PINs, rooms reset in /admin, and anyone who came in
-  // by personal link without ever setting one: ask here, not only at the door.
+  // A room can lack a PIN (reset in /admin, or entered by personal link
+  // without setting one): ask here, not only at the door.
   useEffect(() => {
     getMyRoom().then((r) => setNoPin(!r.has_pin)).catch(() => {});
   }, []);
@@ -204,7 +201,6 @@ export default function PatientList() {
     });
   }
 
-  // Apply the search, keeping only patients with matches.
   const q = search.trim().toLowerCase();
   const groups = patients
     .map((patient) => ({
@@ -223,13 +219,9 @@ export default function PatientList() {
 
   return (
     <div className="min-h-screen">
-      {/* Brand header */}
       <header className="bg-gradient-to-r from-teal-600 to-cyan-500 shadow-md">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-3 px-4 py-4 sm:px-6">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/20 text-lg backdrop-blur">
-              🩻
-            </div>
             <div>
               <h1 className="text-lg font-bold leading-tight text-white">
                 {t("Spine Labeling")}
@@ -240,10 +232,9 @@ export default function PatientList() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-            {/* The room, and the way out of it. The operator's buttons that
-                used to sit here (the correction queue, model versions) moved
-                behind /admin: a clinician has no business switching the model
-                that grades everyone else. */}
+            {/* The room, and the way out of it. Operator actions (correction
+                queue, model versions) belong behind /admin, not here: a
+                clinician must not switch the model that grades everyone. */}
             <span className="flex items-center gap-2 whitespace-nowrap rounded-lg bg-white/15 px-3 py-1.5 text-xs text-white">
               <span className="text-teal-50/80">{t("Room")}</span>
               <span className="font-semibold">{room?.name}</span>
@@ -308,8 +299,8 @@ export default function PatientList() {
             </ol>
             ) : (
             <ol className="list-decimal space-y-1 pl-5">
-              {/* Every step names the button to press, as it reads on screen:
-                  "open the study" alone left clinicians looking for how. */}
+              {/* Every step names the button to press exactly as it reads on
+                  screen. */}
               <li>{t("Press “+ New study”, type a study code and the patient's name, then press “Create”.")}</li>
               <li>
                 {t("On the new study's row, press “Upload” and choose the scan, compressed into one .zip file.")}{" "}
@@ -318,10 +309,10 @@ export default function PatientList() {
                 </mark>{" "}
                 {t("— their names usually contain “sag”, e.g. t2_tse_sag, SAG T2, T2 SAG FSE.")}
               </li>
-              <li>{t("When the study shows “Ready”, press “Open →”. On the study page press “✨ Run AI grading” at the top right: about 1–2 minutes, press it and leave it to run.")}</li>
+              <li>{t("When the study shows “Ready”, press “Open →”. On the study page press “Run AI grading” at the top right: about 1–2 minutes, press it and leave it to run.")}</li>
               <li>{t("Look at the result, change any cell that is wrong, and press “Save corrections”.")}</li>
-              {/* Highlighted like the sagittal note: the survey is what the
-                  trial is for, and a clinician asked for it to stand out. */}
+              {/* Highlighted like the sagittal note: the survey is the point
+                  of the trial. */}
               <li>
                 <mark className="rounded bg-amber-200 px-1 font-semibold text-slate-900">
                   {t("After a few studies (about 3–5), please press “★ Rate this software” at the top right and answer the survey once (about 5 minutes).")}
@@ -341,7 +332,7 @@ export default function PatientList() {
               rel="noreferrer"
               className="inline-flex items-center gap-1.5 rounded-lg border border-teal-300 bg-white px-3 py-1.5 text-sm font-semibold text-teal-700 hover:bg-teal-50"
             >
-              📄 {t("User guide (PDF)")}
+              {t("User guide (PDF)")}
             </a>
             <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
               {ro
@@ -351,7 +342,6 @@ export default function PatientList() {
           </div>
         </details>
 
-        {/* Toolbar: title + search + new */}
         <div className="mb-4 flex flex-wrap items-center gap-3">
           <div className="mr-auto">
             <h2 className="text-xl font-bold text-slate-800">{t("Worklist")}</h2>
@@ -417,8 +407,8 @@ export default function PatientList() {
             >
               {t("Create")}
             </button>
-            {/* Plain words for what the two fields are for; the old hint
-                ("existing name groups…") read as jargon to clinicians. */}
+            {/* Keep this hint in plain words; technical phrasing reads as
+                jargon to clinicians. */}
             <p className="w-full text-xs text-slate-500">
               {t("Study code: any short name to recognise the study. Several studies of the same patient: type the same patient name and they are listed together. Initials or a code are fine; no real name is needed.")}
             </p>
@@ -463,7 +453,6 @@ export default function PatientList() {
           </div>
         )}
 
-        {/* Patient groups (accordion) */}
         <div className="space-y-3">
           {groups.map(({ patient, studies }) => {
             const open = !collapsed.has(patient.id);
@@ -473,7 +462,6 @@ export default function PatientList() {
                 key={patient.id}
                 className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
               >
-                {/* Patient header */}
                 <div className="flex items-center gap-3 px-4 py-3">
                   <button
                     onClick={() => toggle(patient.id)}
@@ -526,12 +514,11 @@ export default function PatientList() {
                     title={t("Rename patient")}
                     className="rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-500 hover:bg-slate-50"
                   >
-                    ✎
+                    {t("Rename")}
                   </button>
                   )}
                 </div>
 
-                {/* Studies */}
                 {open && (
                   <div className="border-t border-slate-100">
                     {studies.map((study: StudyOut) => (
@@ -548,9 +535,8 @@ export default function PatientList() {
                         <span className="text-xs text-slate-400">
                           {fmtDate(study.created_at)}
                         </span>
-                        {/* The status and the buttons go together, and drop to
-                            their own line when the row is too narrow: on a
-                            phone they were cut off past the card's edge. */}
+                        {/* Status and buttons wrap to their own line on narrow
+                            rows; otherwise they overflow the card on phones. */}
                         <div className="ml-auto flex items-center gap-2">
                         {study.has_volume ? (
                           <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
@@ -610,7 +596,7 @@ export default function PatientList() {
                           title={t("Delete study")}
                           className="rounded-lg border border-rose-200 px-2 py-1.5 text-xs text-rose-500 hover:bg-rose-50"
                         >
-                          🗑
+                          {t("Delete")}
                         </button>
                         )}
                         </div>

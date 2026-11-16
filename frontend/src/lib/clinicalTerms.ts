@@ -6,9 +6,9 @@
  *
  * Nothing here changes a stored value. A cell still holds "Moderate" or
  * "Grade II", because that exact string is what correction_log records and
- * what backend/app/feedback/build_dataset.py maps back to a class index --
+ * what backend/app/feedback/build_dataset.py maps back to a class index;
  * translating the value would make every Vietnamese correction an unknown
- * severity that re-training silently drops. Only what is *shown* changes.
+ * severity that re-training silently drops.
  *
  * ## Where each definition comes from
  *
@@ -42,7 +42,7 @@ export type ConditionInfo = {
   short: string;
   /** Full Vietnamese name for the reference card. */
   full: string;
-  /** English as the table showed it before, kept as the secondary line. */
+  /** English name, shown as the secondary line. */
   en: string;
   definition: string;
   levels: Level[];
@@ -183,7 +183,7 @@ export function severityLabel(condition: string, value: string, lang: Lang): str
   return level ? (level.short ?? level.vi) : value;
 }
 
-/** Guards the claim above: every value a head can emit has a Vietnamese label. */
+/** Lists severity values a head can emit that have no Vietnamese label. */
 export function untranslatedSeverities(): string[] {
   const missing: string[] = [];
   for (const [condition, values] of Object.entries(CONDITION_SEVERITIES)) {

@@ -135,8 +135,7 @@ const VIEW_BTN =
  * axis that barely matters; for a sagittal one the slices end up 0.44 mm apart
  * instead of 5.6 mm, and the camera's thin clipping slab then misses the image:
  * the viewport shows black, or (a slightly oblique series) only the band where
- * the tilted image crosses the slab. Hit on a clinician's Siemens export
- * (2026-10-02): sagittal T2, STIR and T1 all broken, axial and coronal fine.
+ * the tilted image crosses the slab.
  */
 function fixNiftiSlicePositions(imageIds: string[]): void {
   if (imageIds.length === 0) return;
@@ -177,11 +176,9 @@ function fixNiftiSlicePositions(imageIds: string[]): void {
  * One rendering engine for the whole app, reused by every viewer mount.
  *
  * Each RenderingEngine holds a WebGL context, and destroying one does not hand
- * its context back promptly. Opening a few studies and switching series made a
- * new engine every time; past Chrome's limit (~16) the browser drops the
- * oldest context -- sometimes the one on screen -- and the image goes black,
- * with "Too many active WebGL contexts" in the console. Seen on the GPU box
- * 2026-10-02 on about half of all loads.
+ * its context back promptly. Creating an engine per mount leaks contexts; past
+ * the browser's limit (~16 in Chrome) the oldest context is dropped --
+ * sometimes the one on screen -- and the image goes black.
  */
 const ENGINE_ID = "spine-viewer-engine";
 function sharedEngine(): RenderingEngine {
@@ -367,9 +364,8 @@ export default function CornerstoneViewport({
     editMode &&
     segAvailable &&
     (picking || (editAction === "paint" && activeLabel == null));
-  // Painting with no structure chosen is what put the wrong colour on the image
-  // in the first place, so a fill tool is only armed once one is picked.
-  // Erasing needs no target, so it arms immediately.
+  // A fill tool arms only once a structure is picked, so a stroke cannot paint
+  // an unintended label. Erasing needs no target, so it arms immediately.
   const editArmed =
     editMode &&
     segAvailable &&
@@ -381,10 +377,9 @@ export default function CornerstoneViewport({
       ? null
       : (legendEntries.find((e) => e.id === hoverLabel) ?? null);
 
-  // Load the study's mask onto the stack already on screen. Split out of the
-  // load effect so a new mask (a grading run finishing) can be put on the
-  // picture alone: reloading everything blanked the image for seconds and
-  // threw away the doctor's slice, zoom and window.
+  // Load the study's mask onto the stack already on screen. Kept separate from
+  // the load effect so a new mask (e.g. a finished grading run) can replace the
+  // overlay alone: a full reload blanks the image and loses slice, zoom and window.
   const attachMaskRef = useRef<
     (imageIds: string[], isCancelled: () => boolean) => Promise<void>
   >(async () => {});
@@ -411,7 +406,7 @@ export default function CornerstoneViewport({
       const derivedImages =
         imageLoader.createAndCacheDerivedLabelmapImages(imageIds);
       // The mask belongs to whichever series the AI ran on. Browsing a
-      // different acquisition (axial vs sagittal) hands us a labelmap of a
+      // different acquisition (axial vs sagittal) yields a labelmap of a
       // different shape; copying it in would throw "offset is out of bounds"
       // and, worse, a same-sized-but-different series would silently paint
       // one acquisition's anatomy onto another's.
@@ -543,7 +538,7 @@ export default function CornerstoneViewport({
       const viewport = engine.getViewport(viewportId) as Types.IStackViewport;
       viewportRef.current = viewport;
       imageIdsRef.current = imageIds;
-      // Read-only handle for diagnosing a viewer on a remote box (DevTools).
+      // Read-only handle for debugging the viewer from DevTools.
       (window as unknown as { __spineViewer?: unknown }).__spineViewer = { viewport, imageIds };
       // Start on the middle slice (most informative for a sagittal stack).
       await viewport.setStack(imageIds, Math.floor(imageIds.length / 2));
@@ -671,10 +666,8 @@ export default function CornerstoneViewport({
   }, [editApiRef, segAvailable]);
 
   // Keep Cornerstone's active segment in step with the page's choice at all
-  // times -- not only while a tool is armed -- because the labelmap draws the
-  // *active* segment with a thicker outline. That outline is how the doctor
-  // sees what is selected, and it has to appear whichever of the three ways
-  // made the choice: clicking the image, the toolbar picker, or the legend.
+  // times, not only while a tool is armed: the thicker outline of the active
+  // segment is how the selection is shown, whichever control made it.
   useEffect(() => {
     if (!segAvailable) return;
     segmentation.activeSegmentation.setActiveSegmentation(
@@ -714,11 +707,10 @@ export default function CornerstoneViewport({
     } else {
       EVERY_EDIT_TOOL.forEach((name) => toolGroup.setToolPassive(name));
       if (editMode) {
-        // Editing, but pointing at a structure or waiting for one to be chosen:
-        // leave the primary button bound to nothing. Handing it back to
-        // window/level would mean a doctor who drags expecting to paint instead
-        // silently re-windows the image. The pick listener below reads the
-        // click straight off the element.
+        // Editing, but pointing or waiting for a structure: leave the primary
+        // button unbound. Rebinding window/level would make a drag meant to
+        // paint silently re-window the image. The pick listener reads clicks
+        // straight off the element.
         toolGroup.setToolPassive(WindowLevelTool.toolName);
       } else {
         toolGroup.setToolActive(WindowLevelTool.toolName, {
@@ -749,13 +741,9 @@ export default function CornerstoneViewport({
     );
   }, [segAvailable, viewportId, segmentationId]);
 
-  // Click the image to choose the structure to work on.
-  //
-  // This is deliberately not Cornerstone's `SegmentSelectTool`: that tool acts
-  // on *hover*, so merely moving the mouse across the image would re-target the
-  // brush without the doctor asking. It picks with the same utility underneath;
-  // here the hover only reports what is under the cursor, and the click is what
-  // commits.
+  // Click the image to choose the structure to work on. Deliberately not
+  // Cornerstone's `SegmentSelectTool`, which selects on hover and would
+  // re-target the brush as the mouse moves; here hover only reports, click commits.
   useEffect(() => {
     if (!pickArmed) return;
     const el = elementRef.current;
@@ -810,10 +798,9 @@ export default function CornerstoneViewport({
   // by Cornerstone's LUT keyed on the label id = segment index).
   useEffect(() => {
     if (!segAvailable || !segLabels) return;
-    // Colours come from the fixed palette, not from the live segmentation:
-    // when a grading run finishes, the labels change in the same render that
-    // swaps the labelmap, and asking the half-removed segmentation for a
-    // colour returned null and took the whole page down (2026-10-04).
+    // Colours come from the fixed palette, not the live segmentation: the
+    // labels can change in the same render that swaps the labelmap, and a
+    // half-removed segmentation returns null colours.
     const entries: LegendEntry[] = Object.entries(segLabels).map(
       ([id, name]) => {
         const [r, g, b] = structureColor(Number(id));
@@ -824,16 +811,10 @@ export default function CornerstoneViewport({
     onLegend?.(entries);
   }, [segAvailable, segLabels, onLegend, viewportId, segmentationId]);
 
-  // Report one completed gesture (mouse-down to mouse-up), so the page's undo
-  // stack gets one entry per gesture -- the same granularity Cornerstone commits
-  // to its own history on mouse-up.
-  //
-  // The test is Cornerstone's own undo depth, not "did any voxel change". A
-  // gesture earns a step on the page's timeline only if it actually left
-  // something to undo, which is exactly the guarantee the Undo button makes.
-  // Asking the tool instead would happily add a step for an edit that recorded
-  // no memo (`PaintFillTool` writes voxels that way, which is why it is not
-  // offered here) and Ctrl+Z would then skip over it.
+  // Report one entry per completed gesture (mouse-down to mouse-up), matching
+  // what Cornerstone commits to its own history. The test is Cornerstone's undo
+  // depth, not "did any voxel change": an edit that records no memo (e.g.
+  // `PaintFillTool`, hence not offered) must not add a step Ctrl+Z would skip.
   useEffect(() => {
     if (!onMaskStroke || !editMode || !segAvailable) return;
     const el = elementRef.current;
@@ -955,7 +936,6 @@ export default function CornerstoneViewport({
     viewport.render();
   }, [targetSlice]);
 
-  // Apply visibility toggle whenever it changes (once the seg is present).
   useEffect(() => {
     if (!segAvailable) return;
     segmentation.config.visibility.setSegmentationRepresentationVisibility(
@@ -963,8 +943,7 @@ export default function CornerstoneViewport({
       { segmentationId, type: SegmentationRepresentations.Labelmap },
       segVisible,
     );
-    // Visibility alone only drops the fill -- the per-segment outline is a
-    // separate style flag, so unchecking the box left every disc still traced.
+    // Visibility alone only drops the fill; the outline is a separate style flag.
     segmentation.config.style.setStyle(
       {
         type: SegmentationRepresentations.Labelmap,
@@ -975,7 +954,6 @@ export default function CornerstoneViewport({
     );
   }, [segAvailable, segVisible, viewportId, segmentationId]);
 
-  // Apply opacity whenever the slider changes.
   useEffect(() => {
     if (!segAvailable) return;
     segmentation.config.style.setStyle(
@@ -1187,14 +1165,12 @@ export default function CornerstoneViewport({
           style={{
             position: "relative",
             width: "100%",
-            // Responsive: scale with the viewport but stay in a sane range.
-            // Tall enough to read on a 27" monitor, still inside one laptop screen.
+            // Tall enough to read on a large monitor, still inside one laptop screen.
             height: "min(72vh, 900px)",
             minHeight: "360px",
             background: "black",
             overflow: "hidden",
-            // Pointing has no Cornerstone tool behind it, so it has no cursor
-            // of its own either; say so explicitly.
+            // Pointing has no Cornerstone tool behind it, so no cursor of its own.
             cursor: pickArmed ? "crosshair" : undefined,
             // The app root sets text-align:center; that shifts Cornerstone's
             // absolutely-positioned canvas. Reset it so the canvas fills the box.
@@ -1203,8 +1179,8 @@ export default function CornerstoneViewport({
         />
         {overlay}
       </div>
-      {/* Below the picture, next to the mouse help: clinicians looked for the
-          slice and zoom buttons where the instructions are (2026-10-06). */}
+      {/* Button equivalents of the mouse bindings, kept beside the mouse help
+          where readers look for them. */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-slate-200 bg-white px-3 py-2 text-xs text-slate-700">
         <span className="flex items-center gap-1">
           <button type="button" onClick={() => stepSlice(-1)} disabled={sliceIndex <= 0} className={VIEW_BTN} title={t("Previous slice")}>
@@ -1226,11 +1202,11 @@ export default function CornerstoneViewport({
           </button>
         </span>
         <label className="flex items-center gap-1.5">
-          ☀ {t("Brightness")}
+          {t("Brightness")}
           <input type="range" min={-100} max={100} step={5} value={brightness} onChange={(e) => setBrightness(Number(e.target.value))} className="w-24" />
         </label>
         <label className="flex items-center gap-1.5">
-          ◐ {t("Contrast")}
+          {t("Contrast")}
           <input type="range" min={-100} max={100} step={5} value={contrast} onChange={(e) => setContrast(Number(e.target.value))} className="w-24" />
         </label>
         <button type="button" onClick={resetView} className={VIEW_BTN + " px-2.5"} title={t("Back to the original picture")}>

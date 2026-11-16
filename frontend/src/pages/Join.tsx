@@ -13,11 +13,10 @@ function nameKey(name: string): string {
 /**
  * The door: pick your name, type your PIN.
  *
- * Typing a name on every visit split clinicians in two ("Minh" today,
- * "BS Minh" tomorrow) and left them unable to find their own studies. A list
- * to pick from removes the typing; the PIN stops a tap on the wrong name from
- * opening a colleague's room. New clinicians make a room once, with the PIN
- * typed twice so a slip of the finger does not lock them out.
+ * Names are picked from a list rather than typed, because free typing splits
+ * one clinician into several rooms ("Minh" vs "BS Minh"). The PIN stops a tap
+ * on the wrong name from opening a colleague's room. New clinicians make a
+ * room once, typing the PIN twice so a slip does not lock them out.
  */
 export default function Join({ linkError = null }: { linkError?: string | null }) {
   const { t } = useT();

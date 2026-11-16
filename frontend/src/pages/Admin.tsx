@@ -20,29 +20,17 @@ import {
 } from "../lib/api";
 
 /**
- * The operator's window on the first half of the feedback loop.
+ * Operator view of the first half of the feedback loop: queued corrections,
+ * sealed batches, and re-training runs started from here.
  *
- * A doctor corrects grades in the viewer; the corrections queue; sending them
- * seals a batch; **someone runs re-training on that batch from here**; the
- * candidate checkpoint it produces appears on `/models` for a person to
- * approve.
+ * Starting a run never changes the model in service. A run only produces a
+ * candidate checkpoint and a run-log row; a person must approve it on
+ * `/models` (`ModelVersions.tsx`) before it grades anyone. That approval gate
+ * is the design guarantee, so this page restates it wherever it offers a run.
  *
- * The button on this page starts a run. It does not break the claim the thesis
- * makes about this app, because the claim was never "there is no trigger" — it
- * is that a correction made on one patient cannot change what the next patient
- * is graded by until a person deliberately approves a new checkpoint. A run
- * produces a candidate file and a row in the run log; the model in service is
- * the one it was before. The gate is the approval step on `/models`, and this
- * page says so wherever it offers to start something.
- *
- * Two things this screen is careful to show rather than hide: the replay set
- * of original discs is 8.2 GB that lives in the research repo and is simply
- * absent on some machines (so a run is blocked, not silently weakened), and
- * head-only fine-tuning on CPU takes tens of minutes (so a run in progress is
- * loud, keeps its stage on screen, and survives leaving the page).
- *
- * It is a sibling of `ModelVersions.tsx`, which owns the second half (review
- * and activation). The two link to each other instead of repeating each other.
+ * A missing replay set blocks a run rather than silently weakening it, and a
+ * run in progress stays visible and survives leaving the page, because CPU
+ * fine-tuning takes tens of minutes.
  */
 
 /** How many rows `GET /corrections` will return at most (server-side cap). */
@@ -51,17 +39,12 @@ const ROW_CAP = 200;
 /** Where an operator would put the dataset a batch rebuilds into. */
 const DATASET_DIR = "data/finetune";
 
-/**
- * The frozen held-out set, inside this repo. 200 rows, checksum-locked at
- * `backend/data/holdout_frozen/MANIFEST.json`.
- */
+/** Frozen held-out set, checksum-locked by `backend/data/holdout_frozen/MANIFEST.json`. */
 const HOLDOUT_DIR = "data/holdout_frozen";
 
 /**
- * The replay set of original discs is NOT in this app: it is `rsna_preprocessed`
- * from the research repo, ~8.2 GB, and its absolute path differs per machine.
- * Shown only when the server has no path configured — otherwise the commands
- * carry the real one.
+ * The replay set (`rsna_preprocessed`, ~8.2 GB) lives outside this app and its
+ * path differs per machine. Shown only when the server has no path configured.
  */
 const REPLAY_DIR_PLACEHOLDER = "<PATH-TO>/rsna_preprocessed";
 
@@ -69,11 +52,8 @@ const REPLAY_DIR_PLACEHOLDER = "<PATH-TO>/rsna_preprocessed";
 const POLL_MS = 3000;
 
 /**
- * The three conditions the fine-tuned grading model has heads for.
- *
- * `app/feedback/build_dataset.py` maps a corrected condition back to one of
- * these columns; a correction on any of the other eight conditions is logged
- * and batched but skipped when the dataset is built, because those grades come
+ * The conditions the fine-tuned grading model has heads for. Corrections on the
+ * other eight are batched but skipped by `build_dataset.py`: those grades come
  * from the vendored upstream SpineNet, which this loop does not re-train.
  */
 const TRAINABLE_CONDITIONS = new Set([
@@ -144,9 +124,8 @@ function CopyButton({
 
   async function copy() {
     try {
-      // `navigator.clipboard` is undefined on a page served over plain http
-      // from anything but localhost, which is exactly how this app is reached
-      // through an SSH tunnel — so the failure has to be visible, not silent.
+      // `navigator.clipboard` is undefined on plain http from anything but
+      // localhost (e.g. through an SSH tunnel), so failure must be visible.
       if (!navigator.clipboard) throw new Error("no clipboard API");
       await navigator.clipboard.writeText(value);
       setState("done");
@@ -262,14 +241,9 @@ function CorrectionTable({ rows }: { rows: CorrectionOut[] }) {
 
 interface RetrainParams {
   /**
-   * What the run trains on.
-   *
-   * "all" is the default on purpose. A loop that only ever trains on the
-   * newest batch lets earlier corrections decay — round two never sees round
-   * one's edits in its training data, only inside the weights it starts from.
-   * The replay discs do not cover that: they are original RSNA scans, so they
-   * anchor the model to the original distribution, not to what the doctors
-   * have said since.
+   * What the run trains on. "all" is the default because training only on the
+   * newest batch lets earlier corrections decay; the replay discs anchor the
+   * model to the original data, not to earlier corrections.
    */
   scope: "all" | "batch";
   epochs: number;
@@ -312,13 +286,11 @@ function RunningPanel({ job }: { job: JobOut }) {
 }
 
 /**
- * The trigger for one batch, in whichever of its states applies.
+ * The re-training trigger for one batch.
  *
- * The replay-free variant is deliberately awkward: a separate, plainly
- * labelled button behind its own confirmation, never the thing that happens
- * when you press the ordinary one. Without ~200 original discs mixed in, a
- * few dozen corrections drag the heads wherever they point, which is a
- * different experiment rather than a slightly worse version of this one.
+ * The replay-free variant is deliberately a separate button with its own
+ * confirmation: without original discs mixed in, a few dozen corrections drag
+ * the heads wherever they point, which is a different experiment.
  */
 function RetrainControl({
   batchId,
@@ -651,12 +623,8 @@ function RetrainControl({
 }
 
 /**
- * Where this batch stands in the loop.
- *
- * All three steps are solid now: the middle one is a button on this page, and
- * the one after it is a person on `/models`. The step that is drawn as a
- * decision rather than an action is step 3, because that is the one the whole
- * design rests on — a run produces a candidate and nothing else changes.
+ * Where this batch stands in the loop: sealed, re-trained here, then approved
+ * by a person on `/models`.
  */
 function LoopSteps({
   batchId,
@@ -699,9 +667,7 @@ function LoopSteps({
 
       <div
         className={`rounded-lg border border-slate-200 bg-white px-3 py-2 ${
-          // A confirmation carries a choice with consequences and several
-          // sentences explaining it; squeezed into a third of the row it
-          // becomes a column of two-word lines nobody reads.
+          // The confirmation text is long; give it the full row width.
           confirming !== null ? "basis-full" : "min-w-[16rem] flex-1"
         }`}
       >
@@ -760,11 +726,8 @@ function Commands({ title, code }: { title: string; code: string }) {
 }
 
 /**
- * The same two steps the button runs, as commands.
- *
- * Kept because the button is not the only way in: a run on a machine with a
- * GPU, or with different parameters, is still a terminal job, and the batch id
- * is what makes any past run reproducible.
+ * The same two steps the button runs, as shell commands, for runs on another
+ * machine or with other parameters. The batch id makes a run reproducible.
  */
 function retrainCommands(
   batchId: string,
@@ -934,9 +897,8 @@ function RunBadge({ run }: { run: RetrainRunOut }) {
 /** Before/after on the frozen held-out set, as the run measured it. */
 function RunMetrics({ run }: { run: RetrainRunOut }) {
   if (!run.before || !run.after) return null;
-  // A metric the run could not measure comes back as null (a class with no
-  // support in the held-out set); showing "—" for it would suggest a number
-  // was expected, so the row is simply left out.
+  // A metric the run could not measure (no support in the held-out set) is
+  // null; the row is omitted rather than shown as "—".
   const rows = RUN_METRICS.map((m) => ({
     ...m,
     before: run.before?.[m.key],
@@ -991,13 +953,9 @@ function RunMetrics({ run }: { run: RetrainRunOut }) {
 }
 
 /**
- * True when nothing moved at all between before and after.
- *
- * Three identical rows and three ±0.000 changes read like a broken
- * measurement. They are not: `retrain_head` restores the best-scoring state it
- * saw, so a run where no epoch beat the starting point ends on exactly the
- * weights it began with. Worth one sentence, because the alternative reading
- * is that the numbers are fake.
+ * True when no metric changed. `retrain_head` restores the best-scoring state,
+ * so a run where no epoch beat the start ends on its starting weights; the UI
+ * explains this so identical numbers do not look like a broken measurement.
  */
 function unchangedMetrics(run: RetrainRunOut): boolean {
   const before = run.before ?? {};
@@ -1012,9 +970,8 @@ function unchangedMetrics(run: RetrainRunOut): boolean {
 function paramSummary(run: RetrainRunOut): string {
   const p = run.params ?? {};
   const bits = [
-    // Scope first: two runs launched from one batch with different scopes saw
-    // different data, and nothing else in the row would tell them apart. A row
-    // with no scope recorded is from before the choice existed — per-batch.
+    // Scope first: it is the only field that distinguishes two runs from one
+    // batch. A run with no recorded scope was per-batch.
     p.scope === "all" ? "all corrections so far" : "this batch only",
     `${p.epochs ?? "?"} epoch${p.epochs === 1 ? "" : "s"} max`,
     `lr ${p.lr ?? "?"}`,
@@ -1148,9 +1105,8 @@ export default function Admin({ embedded = false }: { embedded?: boolean } = {})
   const adopted = useRef<string | null>(null);
 
   const load = useCallback(() => {
-    // The counts are global; `status` only narrows which rows come back. Asking
-    // for the newest 200 rows overall could return 200 sent ones and hide a
-    // waiting correction, which is the one thing this screen must not do.
+    // Pending and submitted rows are fetched separately: the newest rows overall
+    // could all be sent ones and hide a waiting correction.
     Promise.all([
       getCorrections(ROW_CAP, "pending"),
       getCorrections(ROW_CAP, "submitted").catch(() => null),
@@ -1173,8 +1129,8 @@ export default function Admin({ embedded = false }: { embedded?: boolean } = {})
           setBatches(batchList);
           setBatchesDerived(false);
         } else {
-          // Older backend without /corrections/batches: rebuild what we can
-          // from the rows we do have, and say that it may be incomplete.
+          // Older backend without /corrections/batches: rebuild from the rows,
+          // flagged as possibly incomplete.
           setBatches(groupIntoBatches(sentRows));
           setBatchesDerived(true);
         }
@@ -1195,9 +1151,8 @@ export default function Admin({ embedded = false }: { embedded?: boolean } = {})
 
   /** Readiness + the run log. Cheap, and re-read on every poll tick. */
   const loadRetraining = useCallback(() => {
-    // A backend without these endpoints simply has no trigger; the rest of the
-    // page still works, so the failure is recorded as "no readiness" and the
-    // button stays disabled with its reason.
+    // A backend without these endpoints has no trigger; the rest of the page
+    // still works and the button stays disabled.
     getRetrainReadiness()
       .then(setReadiness)
       .catch(() => setReadiness(null));
@@ -1294,8 +1249,7 @@ export default function Admin({ embedded = false }: { embedded?: boolean } = {})
 
   return (
     <div className="min-h-screen">
-      {/* Brand header, same as the worklist, the viewer and /models */}
-      {/* Inside /admin the hub draws the bar; standalone, this does. */}
+      {/* Inside /admin the hub draws the header; standalone, this does. */}
       {!embedded && (
       <header className="bg-gradient-to-r from-teal-600 to-cyan-500 shadow-md">
         <div className="mx-auto flex max-w-4xl items-center gap-3 px-6 py-3.5">
@@ -1336,7 +1290,6 @@ export default function Admin({ embedded = false }: { embedded?: boolean } = {})
           </div>
         )}
 
-        {/* The three numbers this whole screen is about ------------------- */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <StatTile
             tone="queue"
@@ -1358,7 +1311,6 @@ export default function Admin({ embedded = false }: { embedded?: boolean } = {})
           />
         </div>
 
-        {/* The queue ------------------------------------------------------ */}
         <section className="mt-6">
           <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-slate-800">
             <span className="h-4 w-1 rounded bg-gradient-to-b from-indigo-500 to-violet-500" />
@@ -1412,7 +1364,6 @@ export default function Admin({ embedded = false }: { embedded?: boolean } = {})
           )}
         </section>
 
-        {/* Batches -------------------------------------------------------- */}
         <section className="mt-6">
           <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-slate-800">
             <span className="h-4 w-1 rounded bg-gradient-to-b from-teal-500 to-cyan-500" />
@@ -1460,7 +1411,6 @@ export default function Admin({ embedded = false }: { embedded?: boolean } = {})
           )}
         </section>
 
-        {/* Run history ---------------------------------------------------- */}
         <section className="mt-6">
           <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-slate-800">
             <span className="h-4 w-1 rounded bg-gradient-to-b from-indigo-500 to-violet-500" />
@@ -1497,16 +1447,12 @@ export default function Admin({ embedded = false }: { embedded?: boolean } = {})
           )}
         </section>
 
-        {/* Preconditions ---------------------------------------------------- */}
         <section className="mt-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-slate-800">
             <span className="h-4 w-1 rounded bg-gradient-to-b from-slate-400 to-slate-500" />
             What a run needs
           </h2>
 
-          {/* Two facts a run depends on, as status rows rather than prose. The
-              long-form reasoning lives in DEPLOY_VAST.md and the thesis report;
-              this page only has to say whether the machine is ready. */}
           <dl className="space-y-2 text-xs">
             <div className="flex items-baseline gap-2">
               <dt className="w-32 shrink-0 font-semibold text-slate-700">
@@ -1604,13 +1550,8 @@ export default function Admin({ embedded = false }: { embedded?: boolean } = {})
 }
 
 /**
- * What the clinicians said, in the form the report needs.
- *
- * Shows the SUS score against its published mean, because 74 means nothing on
- * its own and "above the 68 average" is the sentence that ends up in the
- * write-up. Every row carries its own n and a 1-5 distribution: at five
- * respondents a mean hides whether people agreed or split, and two clinicians
- * at 1 and 5 average to the same 3 as two at 3.
+ * Survey results. Every question shows its n and 1-5 distribution: with few
+ * respondents a mean hides whether answers agreed or split.
  */
 export function SurveyPanel() {
   const { t } = useT();
@@ -1689,8 +1630,7 @@ export function SurveyPanel() {
           ))}
       </div>
 
-      {/* Our model against model B on the same questions: which one the
-          clinicians rated lower. Shown once anyone has answered a B item. */}
+      {/* Shown once anyone has answered a model B item. */}
       {data.model_b_comparison?.some((r) => r.model_b_n > 0) && (
         <div className="mb-4 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
           <div className="border-b border-slate-100 px-3 py-2 text-sm font-bold text-slate-800">

@@ -10,26 +10,21 @@ import {
 } from "../lib/api";
 
 /**
- * The human gate on the feedback loop.
+ * The human gate on the feedback loop: a re-trained checkpoint does nothing
+ * until a person reviews its held-out numbers here and puts it into service.
+ * Activation takes two steps with an explicit confirmation, and reverting to
+ * the shipped baseline is always one click away.
  *
- * Corrections are queued, re-training runs offline, and the checkpoint it
- * produces does nothing until a person reads its held-out numbers here and
- * deliberately puts it into service. This screen is that step, so it is
- * written to read as a decision with consequences: activation is confirmed in
- * two moves, the confirmation spells out what changes, and reverting to the
- * shipped baseline is always one click away.
- *
- * It lives on its own route rather than inside the Viewer because the choice
- * is app-wide: it governs every study graded from now on, not the study a
- * doctor happens to have open.
+ * It is a separate route, not part of the Viewer, because the choice is
+ * app-wide and affects every study graded afterwards.
  */
 
-/** "243 MB" — a checkpoint is always megabytes; a byte count reads as noise. */
+/** Formats a size as e.g. "243 MB". */
 function formatSize(bytes: number): string {
   const mb = bytes / (1024 * 1024);
   if (mb >= 1024) return `${(mb / 1024).toFixed(1)} GB`;
-  // A sub-megabyte ".pth" is not a real checkpoint; rounding it to "0 MB"
-  // would hide that, so keep the small units honest.
+  // Keep small units: a sub-megabyte ".pth" is not a real checkpoint, and
+  // "0 MB" would hide that.
   if (mb >= 1) return `${mb.toFixed(0)} MB`;
   return `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
@@ -41,21 +36,17 @@ function formatDate(iso: string): string {
 }
 
 /**
- * For timestamps the database stamped, which are naive UTC.
- *
- * A bare `2026-09-20T17:42:32` is read by the browser as local time, so the
- * activation log would claim a decision was made seven hours before or after
- * it was — exactly the kind of quiet inaccuracy an audit trail cannot afford.
- * Marking it as UTC before parsing is the same thing the operator page does.
+ * For timestamps the database stamped, which are naive UTC. The browser would
+ * read a bare timestamp as local time and shift the activation log, so it is
+ * marked as UTC before parsing.
  */
 function formatUtcDate(iso: string): string {
   const date = new Date(/[Z+]|-\d\d:\d\d$/.test(iso) ? iso : `${iso}Z`);
   return Number.isNaN(date.getTime()) ? iso : date.toLocaleString();
 }
 
-// Metric keys the retraining script writes into the sidecar JSON
-// (`app/feedback/retrain_head.py`). The headline three come first; per-head
-// numbers are folded away because nobody reads 7 rows to make one decision.
+// Metric keys `app/feedback/retrain_head.py` writes into the sidecar JSON.
+// The headline three come first; per-head numbers are collapsed.
 const HEADLINE_METRICS = ["macro_f1", "severe_f1", "mean_acc"];
 
 const METRIC_LABELS: Record<string, string> = {
@@ -101,10 +92,8 @@ function numberMap(value: unknown): Record<string, number> {
 }
 
 /**
- * Pair up the sidecar's `before`/`after` blocks into comparable rows.
- *
- * Only keys present in both are shown: a number with nothing to compare it
- * against cannot support the decision this screen exists for.
+ * Pair up the sidecar's `before`/`after` blocks into comparable rows. Only keys
+ * present in both are shown.
  */
 function compareMetrics(metrics: Record<string, unknown> | null): {
   headline: MetricComparison[];
@@ -151,8 +140,8 @@ function MetricTable({ rows }: { rows: MetricComparison[] }) {
       <thead>
         <tr className="text-slate-500">
           <th className="py-1 text-left font-medium">Measure</th>
-          {/* "Before" is the checkpoint this one was fine-tuned from, which is
-              not necessarily the one in service — the caption below names it. */}
+          {/* "Before" is the checkpoint this one was fine-tuned from, not
+              necessarily the one in service; the caption below names it. */}
           <th className="py-1 text-right font-medium">Before</th>
           <th className="py-1 text-right font-medium">This candidate</th>
           <th className="py-1 text-right font-medium">Change</th>
@@ -269,15 +258,8 @@ function Badge({
 }
 
 /**
- * Every recorded decision to change what grades patients, newest first.
- *
- * This sits next to "In service now" because it answers the question that
- * card raises and used to leave hanging: the page could say which checkpoint
- * is running, but nothing said who put it there or what it replaced. For a
- * tool whose whole claim is that the model changes only when a person decides,
- * an unrecorded decision is the same as no decision at all.
- *
- * Reverts appear here too, as decisions in their own right.
+ * Every recorded activation or revert, newest first: who put the model in
+ * service and what it replaced.
  */
 function ActivationHistory({ entries }: { entries: ActivationOut[] | null }) {
   if (entries === null) {
@@ -328,8 +310,7 @@ function ActivationHistory({ entries }: { entries: ActivationOut[] | null }) {
                 )}
               <div className="text-[11px] text-slate-500">
                 {formatUtcDate(entry.at)} ·{" "}
-                {/* No sign-in exists in this build, so the record is honest
-                    about it rather than naming an invented user. */}
+                {/* There is no sign-in, so no user is invented. */}
                 {entry.actor ?? "unattributed (this build has no sign-in)"}
               </div>
             </div>
@@ -359,8 +340,8 @@ export default function ModelVersions({ embedded = false }: { embedded?: boolean
         setCheckpoints(null);
         setError(err instanceof Error ? err.message : String(err));
       });
-    // The history is supporting evidence, not the page: a server too old to
-    // have it still shows which checkpoint is in service.
+    // History is optional: an older server without it still shows which
+    // checkpoint is in service.
     getModelActivations()
       .then(setActivations)
       .catch(() => setActivations([]));
@@ -402,15 +383,14 @@ export default function ModelVersions({ embedded = false }: { embedded?: boolean
 
   const active = checkpoints?.find((c) => c.is_active) ?? null;
   const baseline = checkpoints?.find((c) => c.is_baseline) ?? null;
-  // The baseline is never a "candidate": it is the validated fallback, and the
-  // way back to it is the revert button, not an approval decision.
+  // The baseline is never a candidate: it is the validated fallback, reached
+  // through the revert button rather than an approval.
   const candidates =
     checkpoints?.filter((c) => !c.is_active && !c.is_baseline) ?? [];
 
   return (
     <div className="min-h-screen">
-      {/* Brand header, same as the worklist and the viewer */}
-      {/* Inside /admin the hub draws the bar; standalone, this does. */}
+      {/* Inside /admin the hub draws the header; standalone, this does. */}
       {!embedded && (
       <header className="bg-gradient-to-r from-teal-600 to-cyan-500 shadow-md">
         <div className="mx-auto flex max-w-4xl items-center gap-3 px-6 py-3.5">
@@ -442,7 +422,6 @@ export default function ModelVersions({ embedded = false }: { embedded?: boolean
           </div>
         )}
 
-        {/* In service now ------------------------------------------------ */}
         <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-slate-800">
             <span className="h-4 w-1 rounded bg-gradient-to-b from-teal-500 to-cyan-500" />
@@ -533,7 +512,6 @@ export default function ModelVersions({ embedded = false }: { embedded?: boolean
           <ActivationHistory entries={activations} />
         </section>
 
-        {/* Candidates ---------------------------------------------------- */}
         <section className="mt-6">
           <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-slate-800">
             <span className="h-4 w-1 rounded bg-gradient-to-b from-indigo-500 to-violet-500" />
@@ -635,9 +613,8 @@ export default function ModelVersions({ embedded = false }: { embedded?: boolean
                     setNote(null);
                     setConfirming(checkpoint.name);
                   }}
-                  // A checkpoint with no held-out numbers gets a quiet button:
-                  // there is nothing here to approve it on, so the screen must
-                  // not invite the click.
+                  // No held-out numbers means nothing to approve it on, so the
+                  // button is deliberately muted.
                   className={
                     hasMetrics(checkpoint)
                       ? "mt-3 rounded-lg bg-gradient-to-r from-indigo-600 to-violet-500 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:brightness-110"
@@ -653,7 +630,6 @@ export default function ModelVersions({ embedded = false }: { embedded?: boolean
           ))}
         </section>
 
-        {/* How a version gets here --------------------------------------- */}
         <details
           className="mt-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
           open={checkpoints !== null && candidates.length === 0}

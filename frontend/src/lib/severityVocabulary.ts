@@ -2,17 +2,14 @@
  * Which severity values each of the 11 grading conditions can actually take,
  * and which of them a doctor's correction can still reach the model through.
  *
- * ## Why this table exists
+ * ## Why per-condition scales
  *
- * The grade table used to offer one flat option list — the union of every
- * severity value seen anywhere in the study — in every cell. That let
- * "Upper endplate defect" (only ever Absent/Present) be set to "Moderate",
- * which is not a value its head can produce. Such a correction is saved and
- * exported, but `backend/app/feedback/build_dataset.py` drops it as an unknown
- * severity, silently and long after the doctor has moved on. One such value is
- * already in the live database (`right_foraminal: Moderate -> Absent`).
+ * A single option list shared by every cell would let a binary condition such
+ * as "Upper endplate defect" be set to "Moderate". Such a correction is saved
+ * and exported, but `backend/app/feedback/build_dataset.py` silently drops it
+ * as an unknown severity.
  *
- * ## Where the truth lives, and how this stays honest
+ * ## Source of truth
  *
  * The backend is the source of truth, in two places:
  *   - `backend/app/inference/grading.py::_SEVERITY_BY_CLASS` — the app's own
@@ -23,8 +20,8 @@
  *     head width in `backend/spinenet/models/grading.py` (pfirrmann 5,
  *     disc_narrowing 4, spondylolisthesis 3, the rest binary).
  *
- * Nothing serves those vocabularies to the frontend today, so this file
- * mirrors them — which means the two *can* drift. Two things bound the damage:
+ * No endpoint serves those vocabularies, so this file mirrors them and the two
+ * can drift. Two things bound the damage:
  *
  *   1. A condition this table does not know gets no invented scale: its
  *      options fall back to the values the study itself holds for it, so a
@@ -35,10 +32,9 @@
  *      and stays selected in the cell that has it, without being offered in
  *      the cells that do not.
  *
- * The drift-proof fix is for the backend to serve this table (one small
- * read-only endpoint derived from `_SPINENET_COLUMNS` + `_SEVERITY_BY_CLASS`,
- * fetched here and used in place of `CONDITION_SEVERITIES`). That is a backend
- * change and is deliberately not made here.
+ * The drift-proof fix is a read-only backend endpoint derived from
+ * `_SPINENET_COLUMNS` + `_SEVERITY_BY_CLASS`, used in place of
+ * `CONDITION_SEVERITIES`.
  */
 
 /** The app's fine-tuned CBAM model's 3-class scale. */
@@ -106,11 +102,10 @@ export function isTrainableCondition(condition: string): boolean {
  * The severity options to offer for one condition, in scale order.
  *
  * For a condition in {@link CONDITION_SEVERITIES} this is exactly its declared
- * scale — deliberately *not* unioned with what the study shows, so one stale
+ * scale, deliberately *not* unioned with what the study shows, so one stale
  * out-of-scale value on one disc does not become offerable on every other
- * disc of the same column (that union is what let "Moderate" be set on an
- * Absent/Present condition in the first place). The caller is responsible for
- * keeping a cell's own current value visible; see `GradeTable`.
+ * disc of the same column. The caller is responsible for keeping a cell's own
+ * current value visible; see `GradeTable`.
  *
  * @param condition   the grading condition key, e.g. "upper_endplate_defect".
  * @param observed    every severity this study's grading holds for that

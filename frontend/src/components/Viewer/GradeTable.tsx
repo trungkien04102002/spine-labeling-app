@@ -4,11 +4,9 @@ import { useT } from "../../lib/i18n";
 import { CONDITIONS, conditionHeader, severityLabel } from "../../lib/clinicalTerms";
 import { severityOptions } from "../../lib/severityVocabulary";
 
-// Ordering *hints* only — anything the model returns that isn't listed still
-// shows, appended after the known ones. This keeps the table correct when the
-// model gains new levels or conditions (e.g. pfirrmann, disc_herniation).
-// Cranial to caudal. T11-T12 and T12-L1 were missing, so a study that had
-// them showed T12-L1 BELOW L5-S1, upside down against the spine.
+// Ordering hints only: anything the model returns that is not listed still
+// shows, appended after the known ones. Levels run cranial to caudal; a level
+// missing from this list sorts after L5-S1, upside down against the spine.
 const LEVEL_ORDER = [
   "T10-T11",
   "T11-T12",
@@ -96,23 +94,22 @@ interface Props {
 }
 
 /**
- * Per-disc abnormality grades: one row per condition, one column per level,
- * derived dynamically from whatever the model returns. Cells are color-coded by
- * severity; low-confidence predictions get a ⚠ marker (full score on hover).
- * Clicking a level, or any cell under it, scrolls the viewer to that disc.
- */
-/**
- * True for a stored value its condition's head cannot produce -- a legacy
- * correction or a merge that let the wrong model's value through. Such a cell
- * used to look exactly like a valid one ("Absent" under right foraminal, whose
- * scale is Normal/Mild · Moderate · Severe), so nobody fixed it; re-training
- * then drops it silently. It is flagged where it is read instead.
+ * True for a stored value its condition's head cannot produce (a legacy
+ * correction, or a merge that let another model's value through). Re-training
+ * silently drops such values, so they are flagged in the dropdown instead of
+ * looking like a valid grade.
  */
 function outOfScale(condition: string, value: string): boolean {
   const scale = CONDITIONS[condition]?.levels;
   return scale != null && !scale.some((l) => l.value === value);
 }
 
+/**
+ * Per-disc abnormality grades: one row per condition, one column per level,
+ * derived from whatever the model returns. Cells are color-coded by severity;
+ * low-confidence predictions get a ⚠ marker (full score on hover). Clicking a
+ * level, or any cell under it, scrolls the viewer to that disc.
+ */
 export default function GradeTable({ grading, onJump, onEditSeverity, original, highlight }: Props) {
   const { t, lang } = useT();
   const aiValue = new Map(
@@ -151,7 +148,6 @@ export default function GradeTable({ grading, onJump, onEditSeverity, original, 
       left: direction * scroller.current.clientWidth * 0.6,
       behavior: "smooth",
     });
-  // Index by level+condition, and collect the distinct levels/conditions.
   const byLevel = new Map<string, Map<string, GradingItem>>();
   const conditionSet = new Set<string>();
   for (const item of grading) {
@@ -162,11 +158,10 @@ export default function GradeTable({ grading, onJump, onEditSeverity, original, 
 
   const levels = ordered([...byLevel.keys()], LEVEL_ORDER);
   const conditions = ordered([...conditionSet], CONDITION_ORDER);
-  // Each condition gets its own scale: "Upper endplate defect" is only ever
-  // Absent/Present, and offering it Moderate produced corrections the training
-  // set silently drops. See lib/severityVocabulary.ts. A condition that file
-  // does not know falls back to the values this study holds for it, so a
-  // condition the backend adds stays editable.
+  // Each condition offers only its own scale (lib/severityVocabulary.ts): a
+  // value outside it becomes a correction the training set silently drops. A
+  // condition that file does not know falls back to the values this study
+  // holds, so a condition the backend adds stays editable.
   const seenByCondition = new Map<string, Set<string>>();
   for (const item of grading) {
     if (!seenByCondition.has(item.condition)) {
@@ -183,9 +178,9 @@ export default function GradeTable({ grading, onJump, onEditSeverity, original, 
 
   const bboxOf = (level: string) =>
     [...(byLevel.get(level)?.values() ?? [])].find((i) => i.bbox)?.bbox ?? null;
-  // Transposed: one row per condition, one column per level. Eleven
-  // conditions as columns overflowed every laptop screen; six or seven levels
-  // as columns fit, and a row reads as one finding followed down the spine.
+  // Transposed (one row per condition, one column per level): eleven
+  // condition columns do not fit a laptop screen, and a row reads as one
+  // finding followed down the spine.
 
   const sticky = {
     position: "sticky" as const,
@@ -255,11 +250,6 @@ export default function GradeTable({ grading, onJump, onEditSeverity, original, 
               </select>
             ) : (
               <span style={{ flex: 1 }}>{severityLabel(c, item.severity, lang)}</span>
-            )}
-            {edited && (
-              <span style={{ color: "#4f46e5", fontWeight: 700 }} aria-label={t("Changed by you")}>
-                ✎
-              </span>
             )}
             {low && !edited && (
               <span

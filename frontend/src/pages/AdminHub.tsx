@@ -29,9 +29,8 @@ import { readAdminKey, writeAdminKey } from "../lib/room";
  * The operator's side of the app, in one place behind one passphrase.
  *
  * Clinicians never see a link to any of this: which rooms exist, what each
- * clinician answered, the export, switching the model, re-training. Before,
- * those were separate top-level pages a clinician reached from the worklist
- * header; now the worklist has no such buttons, and /models redirects here.
+ * clinician answered, the export, switching the model, re-training. /models
+ * redirects here.
  */
 
 type Gate = "checking" | "open" | "locked";

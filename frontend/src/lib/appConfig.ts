@@ -15,7 +15,7 @@ function load(): Promise<AppConfig> {
 }
 
 /**
- * Whether this box is view-only: clinicians look at studies already graded,
+ * Whether this deployment is view-only: clinicians look at studies already graded,
  * with no editing, uploading or grading. `null` until known, so a page can
  * avoid flashing controls it is about to hide.
  */

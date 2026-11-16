@@ -109,12 +109,10 @@ function InfoOverlay({ detail }: { detail: StudyDetail }) {
   );
 }
 
-// What each predicted grade means, shown in the "About this tool" panel so a
-// reader knows what the model outputs (wording follows the Oxford SpineNet demo
-// + standard lumbar-MRI radiology). Which model grades which column is
-// operator information and is deliberately not shown to the doctor.
-// `scale` spells out the exact values, and must stay in step with
-// `lib/severityVocabulary.ts` — that is what the grade table's dropdowns offer.
+// What each predicted grade means, shown in the "About this tool" panel.
+// Which model grades which column is operator information and is deliberately
+// not shown to the doctor. `scale` must stay in step with
+// `lib/severityVocabulary.ts`, which is what the grade table's dropdowns offer.
 const PREDICTION_GUIDE: { name: string; scale: string; meaning: string }[] = [
   { name: "Pfirrmann", scale: "Grade 1–5", meaning: "Disc degeneration, from healthy (1) to severely degenerated (5)." },
   { name: "Disc narrowing", scale: "Grade 1–4", meaning: "Loss of intervertebral disc height." },
@@ -131,10 +129,9 @@ const PREDICTION_GUIDE: { name: string; scale: string; meaning: string }[] = [
 // looks exactly like a normal result unless it is called out.
 const CBAM_CONDITIONS = ["canal_stenosis", "left_foraminal", "right_foraminal"];
 
-// The tool is for low back pain: clinicians asked to see the five lumbar disc
-// levels only. SpineNet also grades thoracic levels it happens to detect
-// (T10-T11 to T12-L1); those stay in the saved result and the export, but
-// shown beside the lumbar ones they were noise.
+// The tool targets low back pain, so only the five lumbar disc levels are
+// shown. SpineNet also grades thoracic levels it happens to detect (T10-T11 to
+// T12-L1); those stay in the saved result and the export.
 const LUMBAR_LEVELS = new Set(["L1-L2", "L2-L3", "L3-L4", "L4-L5", "L5-S1"]);
 
 function lumbarOnly<T extends { level: string }>(grading: T[]): T[];
@@ -171,10 +168,9 @@ const PLANE_LABEL: Record<string, string> = {
  * T2, axial T2 ...), so a doctor can read across every plane the way they do
  * on a PACS.
  *
- * The models read ONE acquisition, so the tab the AI actually ran on is marked
- * and the rest are labelled view-only. Stating that plainly is deliberate: a
- * multi-plane picker would otherwise imply the model fuses all views, which it
- * does not (yet).
+ * The models read ONE acquisition, so the tab the AI actually ran on is named
+ * and the rest are view-only. Stating that plainly is deliberate: a multi-plane
+ * picker would otherwise imply the model fuses all views, which it does not.
  */
 function SeriesPicker({
   series,
@@ -228,9 +224,8 @@ function SeriesPicker({
       <p className="mt-1.5 text-[11px] leading-snug text-slate-500">
         {analyzed ? (
           <>
-            {/* The badge that used to mark this series was removed, so name the
-                series here instead: which sequence produced the grades is not
-                something the doctor should have to infer. */}
+            {/* Name the series that produced the grades: the doctor should not
+                have to infer which sequence the AI read. */}
             {t("The grades come from the")}{" "}
             <strong>
               {t(PLANE_LABEL[analyzed.orientation] ?? "Sagittal")}
@@ -265,8 +260,8 @@ export default function Viewer() {
   const result = gradeHistory.state;
   const [targetSlice, setTargetSlice] = useState<number | null>(null);
   const [running, setRunning] = useState(false);
-  // A view-only box: look, do not touch. Treated as view-only until known,
-  // so editing controls never flash up and vanish.
+  // View-only deployment: look, do not touch. Treated as view-only until
+  // known, so editing controls never flash up and vanish.
   const ro = useViewOnly() ?? true;
   // The segmentation's labels while a run is still grading (null otherwise).
   const [previewLabels, setPreviewLabels] = useState<Record<string, string> | null>(null);
@@ -280,9 +275,9 @@ export default function Viewer() {
   // Mask editing is owned here, not inside the viewport, so the Structures
   // panel can act as the brush's picker.
   const [editMode, setEditMode] = useState(false);
-  // No default structure: whatever sorts first (spinal_cord, a 2-pixel-wide
-  // cord) is nobody's intended first brush. The doctor chooses, and until they
-  // do the brush stays off -- see CornerstoneViewport.
+  // No default structure: whatever sorts first (spinal_cord, a thin cord) is
+  // nobody's intended first brush. Until the doctor picks one the brush stays
+  // off (see CornerstoneViewport).
   const [activeLabel, setActiveLabel] = useState<number | null>(null);
   // Grades and brush strokes have separate undo machinery (an immutable value
   // stack; Cornerstone's per-stroke voxel diffs), but a doctor should not have
@@ -291,17 +286,15 @@ export default function Viewer() {
   const [undoKinds, setUndoKinds] = useState<EditKind[]>([]);
   const [redoKinds, setRedoKinds] = useState<EditKind[]>([]);
 
-  // "Run AI grading" produces the full 11-label grading (SpineNet + CBAM) AND persists a
-  // v0 annotation, so the editable `result` above IS the 11-label table. We keep
-  // `fullResult` only for the extras the annotation doesn't carry: the labelled
-  // slice image and the CSV/JSON download URLs.
+  // "Run AI grading" produces the full 11-label grading (SpineNet + CBAM) and
+  // persists a v0 annotation, so the editable `result` above is the 11-label
+  // table. `fullResult` only carries what the annotation does not: the
+  // labelled slice image and the CSV/JSON download URLs.
   const [fullResult, setFullResult] = useState<FullGradingResult | null>(null);
   const [corrections, setCorrections] = useState<CorrectionQueue | null>(null);
   const [submittingCorrections, setSubmittingCorrections] = useState(false);
   const [submitMessage, setSubmitMessage] = useState<string | null>(null);
   const [job, setJob] = useState<JobOut | null>(null);
-  // Bumped when a grading run finishes, so the viewport reloads and shows the
-  // new segmentation without the doctor pressing F5.
   // Bumped when a grading run writes a new mask: the viewer swaps the overlay
   // in place instead of reloading the picture.
   const [maskRun, setMaskRun] = useState(0);
@@ -368,15 +361,13 @@ export default function Viewer() {
     }
   }
 
-  // Single entry point: run the full 11-label pipeline (segments once, grades
-  // with SpineNet + CBAM, persists the mask + a v0 annotation + the labelled
-  // slice), then reload the editable annotation, the slice/export extras, and
-  // the study detail (so the viewer picks up the fresh mask).
+  // Run the full 11-label pipeline (segment once, grade with SpineNet + CBAM,
+  // persist the mask, a v0 annotation and the labelled slice), then reload the
+  // annotation, the export extras and the study detail.
   //
-  // Grading takes 8-15 minutes on CPU, so this starts a background job and
-  // polls it rather than holding one request open the whole time: a proxy in
-  // front of the app would cut a request that long, and a bare spinner gives
-  // the doctor no way to tell work from a hang.
+  // Grading can take many minutes on CPU, so this starts a background job and
+  // polls it: a proxy in front of the app would cut a request held open that
+  // long, and progress lets the doctor tell work from a hang.
   async function handleRunAI() {
     if (!studyId) return;
     setRunning(true);
@@ -470,7 +461,7 @@ export default function Viewer() {
 
   /**
    * A new labelmap was loaded (study opened, series switched). Cornerstone's
-   * stroke history was dropped with it, so drop our mask steps too rather than
+   * stroke history was dropped with it, so drop the mask steps here too rather than
    * leave Undo promising to revert strokes that can no longer be replayed.
    */
   function handleMaskHistoryReset() {
@@ -619,7 +610,6 @@ export default function Viewer() {
 
   return (
     <div className="min-h-screen">
-      {/* Colorful brand header */}
       <header className="bg-gradient-to-r from-teal-600 to-cyan-500 shadow-md">
         <div className="mx-auto flex max-w-7xl 2xl:max-w-[1680px] flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 sm:px-6">
           <div className="flex items-center gap-3 text-white">
@@ -637,8 +627,8 @@ export default function Viewer() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-          {/* The room and the survey are on this page too: most of a visit is
-              spent here, and the survey link was easy to miss on the list. */}
+          {/* The room and the survey are on this page too, since most of a
+              visit is spent here. */}
           <span className="hidden items-center gap-2 rounded-lg bg-white/15 px-3 py-1.5 text-xs text-white md:flex">
             <span className="text-teal-50/80">{t("Room")}</span>
             <span className="font-semibold">{room?.name}</span>
@@ -665,15 +655,15 @@ export default function Viewer() {
             title={detail?.is_picture ? t("A picture can only be read by model B. Model A needs an MRI series.") : undefined}
             className="whitespace-nowrap rounded-lg bg-white px-4 py-1.5 text-sm font-semibold text-teal-700 shadow-sm transition hover:bg-teal-50 disabled:opacity-60"
           >
-            {running ? t("Grading…") : t("✨ Run AI grading")}
+            {running ? t("Grading…") : t("Run AI grading")}
           </button>
           )}
           </div>
         </div>
 
-        {/* Grading runs for 8-15 minutes on CPU. Showing the current stage and
-            elapsed time — rather than a bare spinner or a fake smooth bar —
-            is what lets a doctor tell steady progress from a stall. */}
+        {/* Grading can take minutes. Showing the current stage and elapsed
+            time, rather than a bare spinner or a fake smooth bar, lets a
+            doctor tell steady progress from a stall. */}
         {running && (
           <div className="border-t border-white/20 bg-teal-700/40 px-4 py-2 sm:px-6">
             <div className="mx-auto flex max-w-7xl 2xl:max-w-[1680px] items-center gap-3">
@@ -743,9 +733,9 @@ export default function Viewer() {
 
         {/* Top row: the picture, and beside it what is wrong with it. The
             side column is held to the picture's height and scrolls inside
-            itself, so it can never leave an empty gap under the image -- a
-            clinician took that gap for the end of the page. Everything read
-            against the image (grades, feedback, model B) follows full width. */}
+            itself, so it never leaves an empty gap under the image that reads
+            as the end of the page. Everything read against the image (grades,
+            feedback, model B) follows full width. */}
         <div
           className={
             "grid gap-5 " +
@@ -791,8 +781,8 @@ export default function Viewer() {
               />
             )}
           </div>
-          {/* Plain words, one gesture per item: "window/level" meant nothing
-              to the clinicians reading it. */}
+          {/* Plain words, one gesture per item: jargon such as
+              "window/level" is not meaningful to clinicians. */}
           <div className="mt-2 text-xs text-slate-500">
             <span className="font-semibold text-slate-600">{t("Mouse on the picture:")}</span>
             <ul className="mt-1 grid gap-x-6 gap-y-0.5 sm:grid-cols-2">
@@ -883,8 +873,8 @@ export default function Viewer() {
                   </a>
                 )}
               </div>
-              {/* The order of work as four numbered steps, not a grey footnote:
-                  a clinician shown the page skipped the one-line version. */}
+              {/* The order of work as numbered steps rather than a one-line
+                  footnote, which is easy to skip. */}
               {!detail?.is_picture && (
                 <div className="mt-3">
                   <p className="text-sm font-bold text-slate-800">{t("What to do, in order:")}</p>
@@ -941,13 +931,11 @@ export default function Viewer() {
             )}
             {result && detail && !detail.has_mask ? (
               /* Grades are cut from the segmentation: each disc crop comes
-                 from a label in the mask. A table sitting next to a viewport
-                 with no segmentation drawn on it invites the reader to treat
-                 the numbers as belonging to the image in front of them, which
-                 they do not -- they are left over from an image that is gone.
-                 Say so instead of showing them. */
+                 from a label in the mask. Without a mask the stored grades
+                 belong to an image that is gone, so they are not shown next
+                 to the current one. */
               <p className="text-sm text-slate-500">
-                {t("No segmentation for this study, so there is nothing these grades were measured from. Click “✨ Run AI grading” to segment and grade the current image.")}
+                {t("No segmentation for this study, so there is nothing these grades were measured from. Click “Run AI grading” to segment and grade the current image.")}
               </p>
             ) : result ? (
               <>
@@ -1038,7 +1026,7 @@ export default function Viewer() {
                 <p className="text-sm text-slate-500">
                   {detail?.is_picture
                     ? t("This study is one picture (PNG/JPG), so model A cannot grade it — it needs an MRI series (DICOM .zip, NIfTI or MHA). Model B's result is below.")
-                    : t("No AI results yet — click “✨ Run AI grading” (top right).")}
+                    : t("No AI results yet — click “Run AI grading” (top right).")}
                 </p>
               )
             )}
@@ -1105,7 +1093,7 @@ export default function Viewer() {
 
           )}
 
-          {/* Model B, for comparison only: renders nothing until our own
+          {/* Model B, for comparison only: renders nothing until model A
               grading exists, and nothing at all if model B is absent. */}
           {studyId && ((fullResult && result) || detail?.is_picture) && (
             <ReferenceBPanel
@@ -1119,8 +1107,8 @@ export default function Viewer() {
           )}
 
           {/* The clinician's own conclusion, last: the final word on the scan
-              after the AI A table and the AI B comparison. Kept away from the
-              corrections panel, which a clinician took for the place to type. */}
+              after the model A table and the model B comparison. Kept apart
+              from the corrections panel so it is not mistaken for it. */}
           {studyId && detail && !ro && (
             <DoctorConclusion
               studyId={studyId}
@@ -1131,8 +1119,8 @@ export default function Viewer() {
 
         <div className="flex flex-col gap-5">
 
-          {/* Open by default: clinicians asked to see the meaning of each
-              grade without hunting for it. */}
+          {/* Open by default, so the meaning of each grade is visible without
+              hunting for it. */}
           <details open className="w-full basis-full rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
             <summary className="flex cursor-pointer items-center gap-2 text-base font-bold text-slate-800">
               <span className="h-4 w-1 rounded bg-gradient-to-b from-teal-500 to-cyan-500" />

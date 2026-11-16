@@ -66,6 +66,8 @@ registerVi({
     "{n} sẵn sàng",
   "Rename patient":
     "Đổi tên bệnh nhân",
+  "Rename":
+    "Đổi tên",
   "Ready":
     "Sẵn sàng",
   "No volume":
@@ -120,8 +122,8 @@ registerVi({
     "Ca {id}",
   "Grading…":
     "Đang chấm…",
-  "✨ Run AI grading":
-    "✨ Chạy chẩn đoán AI",
+  "Run AI grading":
+    "Chạy chẩn đoán AI",
   "Grading progress":
     "Tiến độ chấm",
   "Usually 1–2 minutes. Press it and leave it: you can even leave this page — the run continues on the server and the result is saved.":
@@ -182,8 +184,8 @@ registerVi({
     "Thiếu nhãn hẹp ống sống và hẹp lỗ liên hợp.",
   "They are graded around the lumbar discs found by the segmentation, and the segmentation of this study has no lumbar discs — only the other 8 labels are shown. Re-upload the study and run again; if it persists, check the segmentation.":
     "Ba nhãn này được chấm quanh các đĩa đệm thắt lưng mà AI tô trên phim, nhưng ở ca này AI không tô được đĩa đệm thắt lưng nào, nên chỉ hiện 8 nhãn còn lại. Hãy tải ảnh lên lại và chạy lại; nếu vẫn vậy, hãy xem lại vùng tô.",
-  "No segmentation for this study, so there is nothing these grades were measured from. Click “✨ Run AI grading” to segment and grade the current image.":
-    "Ca này chưa có vùng tô, nên các điểm này không khớp với ảnh đang xem. Bấm “✨ Chạy chẩn đoán AI” để AI tô và chấm lại ảnh này.",
+  "No segmentation for this study, so there is nothing these grades were measured from. Click “Run AI grading” to segment and grade the current image.":
+    "Ca này chưa có vùng tô, nên các điểm này không khớp với ảnh đang xem. Bấm “Chạy chẩn đoán AI” để AI tô và chấm lại ảnh này.",
   "Undo mask edit (Ctrl+Z)":
     "Hoàn tác sửa vùng tô (Ctrl+Z)",
   "Undo (Ctrl+Z)":
@@ -204,8 +206,8 @@ registerVi({
     "Bấm vào một tầng để nhảy tới lát cắt; sửa mức độ rồi bấm Lưu.",
   "SpineNet-labelled mid-sagittal slice":
     "Lát cắt sagittal giữa có nhãn của SpineNet",
-  "No AI results yet — click “✨ Run AI grading” (top right).":
-    "Chưa có kết quả AI. Bấm “✨ Chạy chẩn đoán AI” (góc trên bên phải).",
+  "No AI results yet — click “Run AI grading” (top right).":
+    "Chưa có kết quả AI. Bấm “Chạy chẩn đoán AI” (góc trên bên phải).",
   "Level":
     "Tầng",
   "Graded by the vendored upstream SpineNet. Corrections here are saved and exported, but re-training does not use them.":
@@ -428,7 +430,7 @@ registerVi({
     "Nhãn",
   "Thesis model (CBAM)":
     "Mô hình đề tài (CBAM)",
-  // Room PINs (2026-10-01)
+  // Room PINs
   "Wrong PIN. Forgot it? Ask the organiser to send you your personal link again.":
     "Sai mã PIN. Nếu quên PIN, bác sĩ nhờ người quản lý gửi lại đường link riêng của mình.",
   "Hello, {name}":
@@ -588,14 +590,14 @@ registerVi({
     "Bấm “+ Ca mới”, nhập mã ca và tên bệnh nhân, rồi bấm “Tạo”.",
   "On the new study's row, press “Upload” and choose the scan, compressed into one .zip file.":
     "Ở dòng ca vừa tạo, bấm “Tải lên” và chọn file phim đã nén thành một file .zip.",
-  "When the study shows “Ready”, press “Open →”. On the study page press “✨ Run AI grading” at the top right: about 1–2 minutes, press it and leave it to run.":
-    "Khi ca hiện “Sẵn sàng”, bấm “Mở →”. Trong trang ca, bấm “✨ Chạy chẩn đoán AI” ở góc trên bên phải: mất khoảng 1–2 phút, cứ bấm rồi để đó chờ.",
+  "When the study shows “Ready”, press “Open →”. On the study page press “Run AI grading” at the top right: about 1–2 minutes, press it and leave it to run.":
+    "Khi ca hiện “Sẵn sàng”, bấm “Mở →”. Trong trang ca, bấm “Chạy chẩn đoán AI” ở góc trên bên phải: mất khoảng 1–2 phút, cứ bấm rồi để đó chờ.",
   "Look at the result, change any cell that is wrong, and press “Save corrections”.":
     "Xem kết quả, sửa ô nào chưa đúng rồi bấm “Lưu hiệu chỉnh”. Muốn thì ghi kết luận của mình ở ô “Kết luận của bác sĩ” cuối trang ca.",
   "When you are done, press “★ Rate this software” at the top right and answer the short survey (about 5 minutes).":
     "Dùng xong, bấm “★ Đánh giá phần mềm” ở góc trên bên phải và trả lời phiếu đánh giá ngắn (khoảng 5 phút).",
-  "Open the study and press “✨ Run AI grading” — about 1–2 minutes. Press it and leave it to run.":
-    "Mở ca và bấm “✨ Chạy chẩn đoán AI”. Mất khoảng 1–2 phút, cứ bấm rồi để đó chờ.",
+  "Open the study and press “Run AI grading” — about 1–2 minutes. Press it and leave it to run.":
+    "Mở ca và bấm “Chạy chẩn đoán AI”. Mất khoảng 1–2 phút, cứ bấm rồi để đó chờ.",
   "Look at the result, correct what is wrong, and press Save.":
     "Xem kết quả, sửa chỗ chưa đúng rồi bấm Lưu.",
   "When you are done, answer the short survey “★ Rate this software”.":

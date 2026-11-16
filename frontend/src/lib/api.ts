@@ -1,9 +1,9 @@
 import { readAdminKey, readRoom, writeRoom } from "./room";
 
-// Unset: the dev backend. Empty: whatever host served this page, so one build
-// works behind an IP, a tunnel or a domain alike -- resolved to an absolute
-// origin rather than left relative, because the image loader builds its
-// requests with `new URL()`, which rejects a bare path (black viewport).
+// Unset: the dev backend. Empty: the host that served this page, so one build
+// works behind an IP, a tunnel or a domain. Resolved to an absolute origin
+// because the image loader builds requests with `new URL()`, which rejects a
+// bare path and leaves the viewport black.
 const CONFIGURED_API_URL = import.meta.env.VITE_API_URL as string | undefined;
 export const API_BASE_URL: string =
   CONFIGURED_API_URL === undefined
@@ -83,10 +83,8 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   }
   const response = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
   if (!response.ok) {
-    // FastAPI puts the reason in `detail`, and some of this app's refusals are
-    // the whole message — "no replay set is configured, set RETRAIN_REPLAY_DIR
-    // to …" is useless as "400 Bad Request". Fall back to the status line when
-    // the body is not the shape we expect.
+    // FastAPI puts the reason in `detail`, which is often the only useful part
+    // of a refusal. Fall back to the status line when the body has no detail.
     let detail = "";
     try {
       const body = (await response.json()) as { detail?: unknown };
@@ -94,9 +92,9 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     } catch {
       /* not JSON — the status line is all there is */
     }
-    // The server no longer knows this browser's room (its database was
-    // reset, or the box replaced). Staying would show an empty room that
-    // cannot be written to; going back to the door lets them re-enter.
+    // The server no longer knows this browser's room (e.g. its database was
+    // reset). Staying would show an empty room that cannot be written to;
+    // returning to the join page lets the user re-enter.
     if (response.status === 401 && readRoom() && /room no longer exists/i.test(detail)) {
       writeRoom(null);
       window.location.reload();
@@ -412,11 +410,9 @@ export function revertModel(): Promise<CheckpointOut> {
 /**
  * One recorded decision to change the checkpoint that grades patients.
  *
- * The app's claim is that the model only ever changes because a person
- * decided it should; this is the record of those decisions, so the claim is
- * something the system can show rather than something the UI asserts. A
- * revert is one of them too — going back changes what the next patient is
- * graded by just as much as approving a candidate does.
+ * The model only changes because a person decided it should; this is the
+ * audit record of those decisions. A revert counts as one too, since it
+ * changes what the next patient is graded by.
  */
 export interface ActivationOut {
   id: number;
@@ -451,8 +447,8 @@ export interface JobOut {
 /**
  * Start full grading in the background.
  *
- * The synchronous `runFullGrading` holds a request open for the 8-15 minutes
- * the pipeline takes, which any reverse proxy in front of the app will cut
+ * The synchronous `runFullGrading` holds a request open for the whole
+ * pipeline run (minutes), which a reverse proxy in front of the app will cut
  * off. This returns as soon as the job is queued; poll `getJob` for progress.
  */
 export function startFullGrading(studyId: string): Promise<JobOut> {
@@ -487,10 +483,9 @@ export function getJob(jobId: string): Promise<JobOut> {
 /**
  * What a re-training run needs, and which of those things the server has.
  *
- * The replay set is the interesting one: ~8.2 GB of original discs that live
- * in the research repo, not in this app, so on some machines it simply is not
- * there. That is a state the page shows rather than a silent fallback — a run
- * without it is a different, weaker experiment.
+ * The replay set (original training discs, several GB, stored outside this
+ * app) may be absent. The page shows that state rather than falling back
+ * silently, because a run without it is a different, weaker experiment.
  */
 export interface RetrainReadiness {
   replay_setting: string;
@@ -794,9 +789,8 @@ export function roomLink(code: string): string {
 
 /**
  * Copy text, including on plain HTTP. navigator.clipboard only exists in a
- * secure context, and a rented box is usually served as http://IP:PORT -- there
- * the modern call is simply absent and a copy button would silently do
- * nothing. The legacy execCommand path still works on HTTP.
+ * secure context, so on an http://IP:PORT deployment a copy button would
+ * silently do nothing; the legacy execCommand path still works there.
  */
 export async function copyText(text: string): Promise<boolean> {
   try {

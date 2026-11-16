@@ -5,10 +5,9 @@ import { useT } from "../../lib/i18n";
 /**
  * The clinician's own conclusion for the scan, in their words.
  *
- * Asked for by a clinician trying the app (2026-10-06): the grade buttons
- * cannot say everything a report says ("L4-L5 herniation to the left,
- * touching the L5 root"), and a reader wants to write the final word on the
- * study themselves. One free-text box per study, saved with its own button.
+ * The grade table cannot say everything a report says ("L4-L5 herniation to
+ * the left, touching the L5 root"). One free-text box per study, saved with
+ * its own button.
  */
 export default function DoctorConclusion({
   studyId,
