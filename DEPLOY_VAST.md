@@ -6,6 +6,13 @@
 > reports something unexpected. Serving the app to other people is the one
 > part the script does not do — that is §8.
 
+> **Since the handover (Nov 2026):** a box can also download every weight
+> file itself with `python3 tools/fetch_assets.py` (GitHub Release,
+> md5-checked), which `vast_setup.sh` now runs. §0-§2 below describe copying
+> them from your own machine instead, which is faster when you already have
+> them. "The laptop" in this file means the operator's machine. For a generic
+> (non-Vast) GPU server, see [docs/DEPLOY_GPU.md](docs/DEPLOY_GPU.md).
+
 Backend + models on the GPU VM. The frontend can either run on the laptop
 behind an SSH tunnel (one user, §5) or be served by the backend itself on a
 public port (anyone with the URL, §8).
