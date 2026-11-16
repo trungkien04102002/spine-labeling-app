@@ -96,8 +96,9 @@ export SSL_CERT_FILE=~/ca.pem PIP_CERT=~/ca.pem NODE_EXTRA_CA_CERTS=~/ca.pem
 
 Open http://localhost:5173:
 
-1. Type any name. This creates your "room" (each clinician has one, so their
-   cases and edits stay separate).
+1. Under **Create my room / Tạo phòng mới**, type a name and a 4-digit PIN
+   twice. A room keeps one clinician's cases and edits apart from everyone
+   else's; the PIN only stops people walking into the wrong room by mistake.
 2. Under **Sample cases to try / Ca mẫu để thử**, add `SAMPLE-SPIDER-100`,
    then press **Open → / Mở →**.
 3. You see the sagittal MRI with the coloured segmentation, a summary of
@@ -131,7 +132,7 @@ python3.11 -m venv ~/totalspineseg-venv
 ```
 
 Then in the app: **+ New study / + Ca mới**, upload a scan, open it and press
-**✨ Run AI grading / ✨ Chạy chẩn đoán AI**. The segmentation appears first,
+**Run AI grading / Chạy chẩn đoán AI**. The segmentation appears first,
 the grades a few seconds later.
 Use a `.zip` of a DICOM series or a single `.nii.gz` / `.mha`. The AI reads the
 **sagittal** series (T2 preferred); axial series are shown but not graded.
@@ -140,6 +141,24 @@ Use a `.zip` of a DICOM series or a single `.nii.gz` / `.mha`. The AI reads the
 On a fresh Ubuntu GPU server, `./vast_setup.sh` does all of the above in one
 go, see [docs/DEPLOY_GPU.md](docs/DEPLOY_GPU.md).
 
+## Model weights and sample files
+
+Large files are not in git. They are attached to the GitHub Release
+[`assets-v1`](https://github.com/trungkien04102002/spine-labeling-app/releases/tag/assets-v1)
+and `tools/fetch_assets.py` downloads them to the right place and checks
+their md5 (`demo` = the sample files only, `models` = the weights only, no
+argument = everything).
+
+| File | What it is | Size | Goes to |
+|---|---|---|---|
+| `phase2_cbam.pth` | Model A: 3D ResNet34 + CBAM, trained in spinet-v2 (see its `TRAINING.md`) | 255 MB | `backend/models/weights/` |
+| `spinenet_weights.tar` | Upstream SpineNet (Oxford VGG): disc detection, labelling, 8 findings | 822 MB | `backend/spinenet/weights/` |
+| `sample_volumes.zip` | Three SPIDER sagittal T2 scans (CC BY 4.0) to upload | 16 MB | `sample_volumes/` |
+| `demo_case.zip` | SPIDER case 100, already graded (for the no-GPU quick start) | 14 MB | `sample_volumes/` |
+
+Not on the Release: TotalSpineSeg's weights (its own `totalspineseg_init`
+downloads them) and the optional model B (see below).
+
 ## Checking that everything works
 
 ```bash
@@ -147,6 +166,8 @@ tools/check.sh          # backend tests + frontend lint and build (~2 min, no GP
 tools/check.sh --gpu    # + uploads sample_volumes/100_t2.mha and grades it via the API
 ```
 
+`check.sh` builds the frontend into a temporary folder, so running it on a
+server does not replace the `frontend/dist` that server is serving.
 The backend tests use an in-memory SQLite database; tests that need data not
 in the repo (RSNA, TotalSpineSeg runs) skip themselves. `--gpu` starts the
 backend if it is not already running and prints `SMOKE OK` with the graded
@@ -156,9 +177,11 @@ levels; the result is then visible in the UI in the room `__smoke`.
 
 See [docs/DEPLOY_GPU.md](docs/DEPLOY_GPU.md): one GPU server serving the API
 and the built frontend on a single port. [DEPLOY_VAST.md](DEPLOY_VAST.md) is
-the detailed runbook used for the clinician trial on rented Vast.ai machines
-(with `tools/deploy_box.sh`, which sets a box up from your machine in one
-command).
+the detailed runbook used for the clinician trial on rented Vast.ai machines.
+`tools/deploy_box.sh <port> <host>` sets such a box up from your own machine
+in one command; note that it copies your working tree (`rsync --delete`), your
+local `backend/spine.db` and every room's studies (`backend/data/p*-*`) to
+the box, which is what the trial wanted but not always what you want.
 
 ## Configuration
 
@@ -179,17 +202,20 @@ All settings are environment variables or lines in `backend/.env`; see
 | `SAMPLE_STUDIES` | `VAL-*,SAMPLE-*` | Which unowned studies rooms may copy in |
 | `RETRAIN_REPLAY_DIR` | empty | Original training discs for re-training |
 | `INFERENCE_MODE` | `local` | `vast` sends inference to `serve_models.py` on another machine |
+| `VAST_URL` | empty | Address of that `serve_models.py` server (with `INFERENCE_MODE=vast`) |
+| `CORS_ORIGINS` | empty | Extra browser origins allowed to call the API (comma-separated); the Vite dev server is always allowed |
 
 Frontend: `VITE_API_URL` (default `http://localhost:8000`; empty means "same
 origin as the page", used when the backend serves the frontend).
 
 ## Optional parts
 
-**Trial mode.** Used for the clinician evaluation (Oct 2026): rooms with a
-4-digit PIN and personal links (`/?phong=<code>`), a survey (★ button),
-`VIEW_ONLY=true` for a server where clinicians only look at graded cases, and
-`SURVEY_FORM_URL` for a Google Form instead of the in-app survey
-(`tools/google_form/` builds it). All off by default.
+**Trial mode.** Used for the clinician evaluation (Oct 2026). Rooms, PINs, the
+personal room links `/admin` can send (`/?phong=<code>`) and the survey
+(★ button) are always there. Two settings are for a trial server and off by
+default: `VIEW_ONLY=true` for a server where clinicians only look at graded
+cases, and `SURVEY_FORM_URL` for a Google Form instead of the in-app survey
+(`tools/google_form/` builds it).
 
 **Feedback loop and re-training.** Corrections are queued, not applied: in
 `/admin` they are sealed into a batch, a re-training run fine-tunes model A's
@@ -197,8 +223,11 @@ heads on them and produces a *candidate*, and a person activates it in
 `/admin/models`. So a correction never changes another patient's result on
 its own. Re-training mixes in ~200 original discs so the model does not
 drift; those come from the RSNA data prepared in `spinet-v2` (`rsna_preprocessed`, ~8.2 GB,
-set `RETRAIN_REPLAY_DIR`). Evaluating a run also needs
-`backend/data/holdout_frozen/` (RSNA-derived, not published). Without them
+set `RETRAIN_REPLAY_DIR`). Evaluating a run also needs a frozen hold-out set in
+`backend/data/holdout_frozen/` (RSNA-derived, so not published; only its
+`MANIFEST.json` is in git). Rebuild it from the same data with
+`cd backend && .venv/bin/python -m app.feedback.freeze_holdout --source-dir <spinet-v2>/rsna_preprocessed --out-dir data/holdout_frozen --split-seed 42`
+(`--split-seed 42` keeps it to patients model A did not train on). Without them
 `/admin` shows re-training as blocked and says why. A GPU is strongly
 recommended (CPU: ~14 min per epoch).
 

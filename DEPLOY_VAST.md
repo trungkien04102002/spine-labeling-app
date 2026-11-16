@@ -174,9 +174,8 @@ It installs the backend deps, writes `backend/.env` (SQLite + CUDA
 segmentation), and builds `tss-venv` with the versions already pinned:
 `totalspineseg==20250416 nnunetv2==2.4.2 torch==2.4.1`. It is re-runnable, one
 failing step does not abort the rest, and it prints a summary of what is OK or
-missing. `--skip-download` because §2 already placed the checkpoint by hand;
-without it the script pulls from Drive, whose quota is per **account**, so a
-re-upload does not lift it.
+missing. `--skip-download` because §2 already placed the weights by hand; without it
+the script downloads them from the GitHub Release (`tools/fetch_assets.py`).
 
 **Use the script.** The 2026-09-20 deploy installed everything by hand instead
 and rediscovered, the slow way, two things the script had already solved --
@@ -184,11 +183,11 @@ and rediscovered, the slow way, two things the script had already solved --
 (`ModuleNotFoundError: No module named 'nnunetv2'`), and torch >=2.6 flipped
 `torch.load(weights_only=True)`, which stops nnunetv2 2.4.2 loading its own
 checkpoints (`UnpicklingError: Weights only load failed`). Both are pinned
-away at `vast_setup.sh:111`, comment included.
+in the TotalSpineSeg step of `vast_setup.sh`, comment included.
 
-What the script does **not** do: the SpineNet weight stores in §0. It handles
-`phase2_cbam.pth` only, so grading still dies at the SpineNet stage until
-`backend/spinenet/weights/` is populated.
+Without `--skip-download` the script fetches both `phase2_cbam.pth` and the
+SpineNet weights; with it, they must already be in place (§2), or grading dies
+at the SpineNet stage.
 
 ### If you install by hand anyway
 
@@ -491,14 +490,14 @@ scp -P <PORT> root@<HOST>:/workspace/spine-labeling-app/backend/data/p<room id>-
 ```
 
 The uploaded file stays on the box even when it is refused, so the failure can
-be reproduced locally with `sample_volumes/import_tests/import_test.py`. A
+be reproduced locally by uploading the same file to a local instance. A
 re-upload to the same case replaces it, so pull it before asking them to retry.
 
 **The operator page** is `/admin`, behind `ADMIN_PASSWORD`. It holds the room
 list, survey results with every response readable on its own, feedback and
 re-training, model versions, and the export. No clinician page links to it.
-`vast_setup.sh` rewrites `backend/.env`, so the passphrase is carried over by
-`deploy_box.sh` from the laptop's `backend/.env` -- **its verification must
+`vast_setup.sh` keeps an existing `backend/.env`; on a fresh box the
+passphrase is carried over by `deploy_box.sh` from the laptop's `backend/.env` -- **its verification must
 print `admin lock : {"locked":true}`**, or clinicians can open everything.
 
 **Where the data is on the box**, and both go when the instance is destroyed:
@@ -510,7 +509,7 @@ print `admin lock : {"locked":true}`**, or clinicians can open everything.
 
 **Getting it out -- before destroying the box:**
 
-1. `/admin` → *Xuất dữ liệu* → **Download everything (.zip)**. One file to the
+1. `/admin` → **Export / Xuất dữ liệu** → **Download everything (.zip)**. One file to the
    laptop through the browser, no SSH: `readers.csv`, `survey_responses.csv`,
    `questions.csv`, `corrections.csv`, `reference_b.csv` and a consistent
    `spine.db` snapshot. The
@@ -533,7 +532,7 @@ condition)`.
 `app/inference/reference_b.py`) runs by itself after every AI grading, on the
 mid-sagittal slice, and saves `reference_b.json` + `reference_b_input.png` in
 the study dir; the export carries it as `reference_b.csv`. Clinicians do **not**
-see it unless `/admin` → *Phiên bản mô hình* → **Hiện cho bác sĩ** is pressed
+see it unless `/admin` → **Model versions / Phiên bản mô hình** → **Show to clinicians / Hiện cho bác sĩ** is pressed
 (the switch is `backend/data/reference_b_visible.json`, off by default). It
 never touches our grades: if it is missing or fails, only the log says so
 (`grep reference_b /var/log/spine_backend.log`). Its files come from
@@ -560,7 +559,7 @@ ids -- if it fails, the fix is a new id, not an edited test.
 | `NameError: save path .../detect-vfr could not be found` | store 3 missing (§0). |
 | `ValueError: max() iterable argument is empty` | the `detect-vfr/` dir exists but holds no `.pt`. Same fix. |
 | `FileNotFoundError: .../Dataset101_.../fold_0/checkpoint_best.pth` | store 5 missing or partially deleted. |
-| Grading job stuck at 70%, GPU idle | normal. SpineNet runs on CPU (`device="cpu"` in `spinenet_grading.py`); only TotalSpineSeg uses CUDA. |
+| Grading job slow at "Detecting and grading discs", GPU idle | SpineNet and model A follow `GRADING_DEVICE` (`auto` = GPU when torch sees one). If torch sees no GPU, see the CUDA-mismatch row; if the box reports far more CPUs than its cgroup quota, `app/cpu_threads.py` caps the threads. |
 | MRI canvas black in headless Chrome | needs software WebGL: `--use-gl=angle --use-angle=swiftshader --enable-unsafe-swiftshader`. |
 | `supervisorctl status` says `FATAL can't find command .../uvicorn`, no log file | the supervisor command names the wrong venv for the §3 path you took (§4). |
 | A fresh clone is missing screens that exist on the laptop | `main` is not pushed; rsync instead (§1). |

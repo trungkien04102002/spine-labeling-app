@@ -16,8 +16,9 @@ The backend does **not** hot-reload under `run.sh` (use `RELOAD=1 ./run.sh`
 for that). After a backend change, restart before testing in the browser.
 
 Before saying a UI change works, look at it: open the page (Playwright is a
-frontend dev dependency; `tools/diagnose_viewer.mjs` is a working example) and
-check the image is actually drawn. A 200 from the API proves nothing about
+frontend dev dependency; run `cd frontend && npx playwright install chromium`
+once; `tools/diagnose_viewer.mjs` is a working example) and check the image is
+actually drawn. A 200 from the API proves nothing about
 the viewer.
 
 ## Map
@@ -28,7 +29,7 @@ the viewer.
 | `backend/app/inference/volume_io.py` | every upload format -> one NIfTI per series; picks the sagittal T2 |
 | `backend/app/routers/full_grading.py` | grading as a background job: `POST …/grade_full/start`, poll `GET /jobs/{id}` |
 | `backend/app/inference/full_grading.py` | runs TotalSpineSeg -> SpineNet -> model A and merges (`merge_gradings`) |
-| `backend/app/inference/grading.py` | model A; loads the checkpoint named in `backend/models/weights/ACTIVE` |
+| `backend/app/inference/grading.py` | model A; loads the checkpoint named in `backend/models/weights/ACTIVE` (always built with CBAM, so a `--no-cbam` checkpoint will not load) |
 | `backend/app/feedback/` | correction batches, frozen hold-out, re-training, model registry |
 | `backend/app/survey_questions.py` | survey items; ids are frozen (a test enforces it) |
 | `frontend/src/pages/Viewer.tsx` | the main screen; owns nearly all its state |

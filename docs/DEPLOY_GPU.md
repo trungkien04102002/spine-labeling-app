@@ -36,10 +36,12 @@ cd spine-labeling-app
 ```
 
 `vast_setup.sh` works on any Ubuntu GPU machine, not only Vast. It writes
-`backend/.env` (SQLite, `SEG_DEVICE=cuda`), downloads the weights with
-`tools/fetch_assets.py`, installs TotalSpineSeg into `tss-venv/`, makes sure
-torch can see the GPU, and ends with a summary of anything that failed. It is
-safe to re-run.
+`backend/.env` if there is none yet (SQLite, `SEG_DEVICE=cuda`), downloads the
+weights with `tools/fetch_assets.py`, installs TotalSpineSeg into `tss-venv/`,
+makes sure torch can see the GPU, and ends with a summary of anything that
+failed. It is safe to re-run: an existing `backend/.env`, including
+`ADMIN_PASSWORD`, is kept. It uses the system `python3` (3.10 or newer;
+the trial machines ran Python 3.12).
 
 ```bash
 # 3. check it grades (uploads sample_volumes/100_t2.mha through the API)
