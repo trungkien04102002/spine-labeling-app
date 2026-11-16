@@ -4,8 +4,8 @@ import { CONDITIONS, CONDITION_ORDER } from "../../lib/clinicalTerms";
  * What each of the eleven labels means and what each of its levels means.
  *
  * Built so a reader can check a grade against its definition without leaving
- * the study: the table above says "Độ 3", this says what Pfirrmann 3 looks
- * like. Clinical meaning only: which model or dataset produced a label is
+ * the study: the table above shows "grade 3", this says what Pfirrmann 3
+ * looks like. Clinical meaning only: which model or dataset produced a label is
  * operator information and stays out of the doctor's page (sources are in
  * the header comment of clinicalTerms.ts).
  */

@@ -69,8 +69,8 @@ class Reader(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
-    # Normalised name: case- and whitespace-insensitive, but diacritics are kept
-    # because "Nguyễn" and "Nguyen" can be different people.
+    # Normalised name: case- and whitespace-insensitive, but diacritics are kept,
+    # because two names that differ only in accents can be different people.
     key: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
     # Code carried by the room's personal link (/?phong=<code>). Unique, not secret.
     code: Mapped[str | None] = mapped_column(String(16), nullable=True, unique=True)

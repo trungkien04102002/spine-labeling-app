@@ -173,9 +173,9 @@ export function conditionHeader(key: string, lang: Lang, fallback: string): stri
 /**
  * The label a stored severity is SHOWN as. The stored value is untouched.
  *
- * Looked up per condition, not globally: "Grade II" is "độ II trở lên" for
- * spondylolisthesis, and the same string could mean something else under a
- * condition that adds it later.
+ * Looked up per condition, not globally: "Grade II" means "grade II or worse"
+ * for spondylolisthesis, and the same string could mean something else under
+ * a condition that adds it later.
  */
 export function severityLabel(condition: string, value: string, lang: Lang): string {
   if (lang !== "vi") return value;

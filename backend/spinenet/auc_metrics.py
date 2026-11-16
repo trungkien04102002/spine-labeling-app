@@ -108,7 +108,7 @@ def aggregate_overall_auprc(
 ) -> dict:
     """Pop / Rare / Severe AUPRC + AUC averaged across conditions.
 
-    Mirrors the popular-vs-rare framing used in the report's Bảng 1C.
+    Mirrors the popular-vs-rare framing used in the thesis report.
     """
     names = class_names or CLASS_NAMES_DEFAULT
     popular = [names[0]]

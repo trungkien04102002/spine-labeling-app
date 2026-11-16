@@ -55,9 +55,8 @@ def js(value: object) -> str:
 
 
 def part_title(title: str) -> str:
-    # "Phần 1. Kết quả AI: ..." -> "PHẦN 1. KẾT QUẢ AI: ...": Forms has no
-    # bold or colour for titles, so capitals are what sets a part apart
-    # from the groups inside it.
+    # Part titles are upper-cased: Forms has no bold or colour for titles, so
+    # capitals are what sets a part apart from the groups inside it.
     return title.upper()
 
 
@@ -102,7 +101,7 @@ for sec in form["sections"]:
             continue
         # A group of questions on the same 1-5 scale becomes one grid, a row
         # per question, so the Form does not look longer than it is. Column
-        # headings are the words alone; "1 · Rất kém" reads as two things.
+        # headings are the words alone; "1 · Very poor" would read as two things.
         is_labels = all(q["matrix"] for q in in_group)
         title = GRID_TITLE if is_labels else group
         help_text = GRID_HELP if is_labels else ROW_HELP
