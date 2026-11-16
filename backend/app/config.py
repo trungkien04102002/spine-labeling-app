@@ -8,7 +8,7 @@ class Settings(BaseSettings):
 
     inference_mode: str = "local"  # "local" | "vast"
     vast_url: str = ""
-    mysql_dsn: str = "mysql+pymysql://root@localhost:3306/spine_labeling"
+    mysql_dsn: str = "sqlite:///./spine.db"
     data_dir: str = "./data"
 
     # Built frontend (Vite `dist/`) to serve from this same app. Serving both
@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     # Studies a clinician may copy into their room to try the tool, as a glob
     # on the study id. The RSNA validation cases: already graded, with ground
     # truth, from patients the model never trained on.
-    sample_studies: str = "VAL-*"
+    sample_studies: str = "VAL-*,SAMPLE-*"
 
     # The questionnaire as a Google Form instead of the in-app one: its link
     # (tools/google_form/ makes the Form and prints it; a literal ROOM_NAME in

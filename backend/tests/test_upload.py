@@ -254,8 +254,8 @@ def test_rejection_names_what_the_archive_held(client):
     assert "scan.jpg" in detail
 
 
-_SAMPLE_DICOM_ZIP = Path(
-    "/Users/kienha/spine-labeling-app/sample_volumes/sample_dicom.zip"
+_SAMPLE_DICOM_ZIP = (
+    Path(__file__).resolve().parents[2] / "sample_volumes" / "sample_dicom.zip"
 )
 
 

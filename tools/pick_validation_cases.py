@@ -27,11 +27,13 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import os
 from collections import defaultdict
 from pathlib import Path
 
 RSNA_DIR = Path(
-    "/Users/kienha/spinet-v2/"
+    os.environ.get("SPINET_V2_DIR", Path(__file__).resolve().parents[2] / "spinet-v2")
+) / (
     "rsna-2024-lumbar-spine-degenerative-classification"
 )
 HOLDOUT_META = Path(__file__).resolve().parents[1] / (

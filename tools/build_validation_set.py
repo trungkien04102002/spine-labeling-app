@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import time
 import zipfile
 from pathlib import Path
@@ -22,7 +23,8 @@ from pathlib import Path
 import requests
 
 RSNA_IMAGES = Path(
-    "/Users/kienha/spinet-v2/"
+    os.environ.get("SPINET_V2_DIR", Path(__file__).resolve().parents[2] / "spinet-v2")
+) / (
     "rsna-2024-lumbar-spine-degenerative-classification/train_images"
 )
 REPO = Path(__file__).resolve().parents[1]

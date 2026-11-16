@@ -69,7 +69,8 @@ def test_labels_present_ignores_unknown_ids(tmp_path):
     assert labels == {2: "spinal_canal"}
 
 
-_SAMPLE_VOLUME = Path("/Users/kienha/totalspineseg/sample/Img_01.nii")
+# Any lumbar volume; the TotalSpineSeg repo ships sample/Img_01.nii.
+_SAMPLE_VOLUME = Path(os.environ.get("SEG_TEST_VOLUME", "sample/Img_01.nii"))
 
 
 @pytest.mark.skipif(

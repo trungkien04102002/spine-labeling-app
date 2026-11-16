@@ -18,7 +18,7 @@
 #
 # Backend settings come from backend/.env if present (see vast_setup.sh), or
 # exported env vars, e.g. locally on macOS:
-#   export TOTALSPINESEG_BIN=/Users/kienha/totalspineseg/venv/bin/totalspineseg
+#   export TOTALSPINESEG_BIN=$HOME/totalspineseg/venv/bin/totalspineseg
 #   export SEG_DEVICE=cpu
 set -e
 

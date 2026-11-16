@@ -1,6 +1,6 @@
 {
   "frozen_at": "2026-07-26T22:46:19",
-  "source_dir": "/Users/kienha/spinet-v2/rsna_preprocessed",
+  "source_dir": "<spinet-v2>/rsna_preprocessed",
   "n_rows": 200,
   "seed": 42,
   "sha256": "62ab6df1422054c6910649640d5a3e0ff48dcc5f8f4266f55810a07b3b33cef1",

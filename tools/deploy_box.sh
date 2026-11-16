@@ -2,7 +2,7 @@
 # Put this app on a fresh Vast.ai GPU box, from the laptop, in one command.
 #
 #   tools/deploy_box.sh <SSH_PORT> <SSH_HOST> [--with-replay]
-#   tools/deploy_box.sh 54339 115.75.223.236
+#   tools/deploy_box.sh 41234 203.0.113.10
 #
 # Why a script and not a checklist: DEPLOY_VAST.md was followed by hand on
 # 2026-09-21 and four of its steps were wrong (a stale clone, two wrong paths,

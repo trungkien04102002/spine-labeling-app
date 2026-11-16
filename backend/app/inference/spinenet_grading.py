@@ -1,7 +1,7 @@
 """Upstream SpineNet grading wrapper.
 
 Runs the vendored upstream SpineNet pipeline (``backend/spinenet/``, weights
-in ``backend/spinenet/weights/`` -- gitignored, ~784MB, see CLAUDE.md) end to
+in ``backend/spinenet/weights/`` -- gitignored, ~784MB, see tools/fetch_assets.py) end to
 end: vertebra detection -> IVD extraction -> 11-task radiological grading.
 CPU-friendly (no GPU required); see ``spinenet.main.SpineNet``.
 

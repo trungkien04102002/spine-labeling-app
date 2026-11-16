@@ -5,6 +5,7 @@ RSNA DICOM series and SPIDER .mha are skipped when that data is absent (it lives
 outside this repo).
 """
 
+import os
 from pathlib import Path
 
 import numpy as np
@@ -14,11 +15,18 @@ import SimpleITK as sitk
 from app.inference.volume_io import load_volume, to_web_form
 
 # Real datasets living in the sibling spinet-v2 checkout (gitignored, big).
-_RSNA_DICOM_DIR = Path(
-    "/Users/kienha/spinet-v2/rsna-2024-lumbar-spine-degenerative-classification"
-    "/train_images/1132297038/2256490430"
+# SPINET_V2_DIR points at it; tests that need it skip when it is absent.
+_SPINET_V2 = Path(
+    os.environ.get(
+        "SPINET_V2_DIR", Path(__file__).resolve().parents[3] / "spinet-v2"
+    )
 )
-_SPIDER_MHA = Path("/Users/kienha/spinet-v2/spider/images/24_t2.mha")
+_RSNA_DICOM_DIR = (
+    _SPINET_V2
+    / "rsna-2024-lumbar-spine-degenerative-classification"
+    / "train_images/1132297038/2256490430"
+)
+_SPIDER_MHA = _SPINET_V2 / "spider/images/24_t2.mha"
 
 
 def _write_volume(path: Path, array: np.ndarray, spacing) -> None:

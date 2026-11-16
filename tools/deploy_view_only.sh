@@ -5,7 +5,7 @@
 #   tools/deploy_view_only.sh <SSH_PORT> <SSH_HOST> <BACKUP_TGZ> [ENV_FILE]
 #
 # BACKUP_TGZ holds data/<study dirs> and spine.final.db, taken on the box that
-# graded them (see memory: box4090-20261026/final_view.tgz). Paths in the DB
+# graded them. Paths in the DB
 # are absolute under /workspace/spine-labeling-app, so the app goes to the
 # same place here and nothing needs rewriting. ENV_FILE is that box's
 # backend/.env; VIEW_ONLY is forced on whatever it says.
