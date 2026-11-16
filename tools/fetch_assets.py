@@ -22,6 +22,7 @@ import shutil
 import sys
 import tarfile
 import tempfile
+import urllib.error
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -58,7 +59,7 @@ ASSETS = {
     # SPIDER case 100, already graded; tools/demo_case.py imports it.
     "demo_case.zip": (
         "demo",
-        "DEMO_CASE_MD5",
+        "085b48736335344f7380ab19ea178936",
         ("copy", "sample_volumes/demo_case.zip", None),
     ),
 }
@@ -75,7 +76,17 @@ def md5(path: Path) -> str:
 def download(name: str, dest: Path) -> None:
     url = f"{BASE_URL}/{name}"
     print(f"  downloading {url}")
-    with urllib.request.urlopen(url) as resp, dest.open("wb") as out:
+    try:
+        resp = urllib.request.urlopen(url)
+    except urllib.error.URLError as e:
+        hint = ""
+        if "CERTIFICATE_VERIFY_FAILED" in str(e):
+            hint = (
+                "\n  Behind a TLS-inspecting proxy? Point SSL_CERT_FILE at a CA"
+                " bundle that includes the proxy's root certificate."
+            )
+        sys.exit(f"FAIL {name}: {e}{hint}")
+    with resp, dest.open("wb") as out:
         total = int(resp.headers.get("Content-Length", 0))
         done = 0
         while chunk := resp.read(1 << 20):

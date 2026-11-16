@@ -83,6 +83,17 @@ backend/.venv/bin/python tools/demo_case.py import sample_volumes/demo_case.zip
 ./run.sh            # backend :8000 + frontend :5173   (./run.sh stop to stop)
 ```
 
+If `pip`, `npm` or `fetch_assets.py` fail with `CERTIFICATE_VERIFY_FAILED`,
+the network inspects TLS (common on company networks). Export a CA bundle that
+includes the proxy's root certificate and point the tools at it, e.g. on
+macOS:
+
+```bash
+security find-certificate -a -p /Library/Keychains/System.keychain \
+  /System/Library/Keychains/SystemRootCertificates.keychain > ~/ca.pem
+export SSL_CERT_FILE=~/ca.pem PIP_CERT=~/ca.pem NODE_EXTRA_CA_CERTS=~/ca.pem
+```
+
 Open http://localhost:5173:
 
 1. Type any name. This creates your "room" (each clinician has one, so their

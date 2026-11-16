@@ -60,19 +60,19 @@ def main() -> None:
         fail(f"start grading HTTP {r.status_code}: {r.text[:300]}")
     job = r.json()["id"]
     t0 = time.time()
+    stage = None
     while True:
         j = s.get(f"{a.api}/jobs/{job}").json()
-        print(f"\r  {j['status']:7} {j.get('stage') or '':40} {time.time() - t0:5.0f} s", end="")
+        if j.get("stage") != stage:  # one line per stage, readable in logs
+            stage = j.get("stage")
+            print(f"  {time.time() - t0:5.0f} s  {stage}", flush=True)
         if j["status"] == "done":
             break
         if j["status"] == "error":
-            print()
             fail(f"grading error: {j.get('error')}")
         if time.time() - t0 > a.timeout:
-            print()
             fail(f"grading still running after {a.timeout} s")
         time.sleep(3)
-    print()
 
     res = s.get(f"{a.api}/studies/{sid}/grade_full").json()
     items = res["grading"]

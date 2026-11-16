@@ -55,7 +55,7 @@ def _abs(rel: str | None, study_dir: Path) -> str | None:
     return str(study_dir / rel) if rel else rel
 
 
-def export(study_id: str, out: Path, name: str) -> None:
+def export(study_id: str, out: Path, name: str, patient: str | None) -> None:
     data_root = Path(Settings().data_dir).resolve()
     study_dir = data_root / study_id
     db = SessionLocal()
@@ -77,7 +77,7 @@ def export(study_id: str, out: Path, name: str) -> None:
 
     manifest = {
         "id": name,
-        "patient_name": db.get(Patient, study.patient_id).name,
+        "patient_name": patient or db.get(Patient, study.patient_id).name,
         "modality": study.modality,
         "volume_path": _rel(study.volume_path, study_dir),
         "display_path": _rel(study.display_path, study_dir),
@@ -178,11 +178,12 @@ def main() -> None:
     e.add_argument("study_id")
     e.add_argument("out", type=Path)
     e.add_argument("--name", default="SAMPLE-SPIDER-100", help="id on import")
+    e.add_argument("--patient", default="SPIDER 100", help="patient name shown")
     i = sub.add_parser("import")
     i.add_argument("zip", type=Path)
     a = p.parse_args()
     if a.cmd == "export":
-        export(a.study_id, CALLER_CWD / a.out, a.name)
+        export(a.study_id, CALLER_CWD / a.out, a.name, a.patient)
     else:
         import_(CALLER_CWD / a.zip)
 
