@@ -1,30 +1,26 @@
 #!/bin/bash
-# Vast.ai GPU setup for spine-labeling-app.
+# GPU box setup for spine-labeling-app (Ubuntu + NVIDIA, as root).
 #
 # Run it from INSIDE the cloned repo:
 #   git clone https://github.com/trungkien04102002/spine-labeling-app.git
 #   cd spine-labeling-app
-#   ./vast_setup.sh                       # auto-downloads the Drive bundle
-#   ./vast_setup.sh --gdrive-id <FILE_ID> # or point at a single checkpoint file
-#   ./vast_setup.sh --skip-download       # checkpoint already placed by hand
+#   ./vast_setup.sh                       # downloads weights from the GitHub Release
+#   ./vast_setup.sh --skip-download       # weights already placed (deploy_box.sh)
 #
-# Installs backend deps, writes backend/.env (SQLite + CUDA seg), frontend deps,
-# the grading checkpoint, and TotalSpineSeg (own venv). It is RESILIENT: a
+# Works on any Ubuntu box with an NVIDIA GPU where you are root (Vast.ai or
+# not). Installs backend deps, writes backend/.env (SQLite + CUDA seg),
+# frontend deps, the model weights + sample cases, and TotalSpineSeg (own venv). It is RESILIENT: a
 # failure in one step (e.g. the heavy TotalSpineSeg install) does NOT abort the
 # rest, and it is safe to re-run. A summary at the end lists what's OK/missing.
 #
 # NOTE: no `set -e` on purpose — steps are checked individually so the app can
 # still boot even if the optional segmentation engine isn't ready yet.
 
-GDRIVE_FOLDER_ID="1tBgdwA4f_1Ns4KWCf91Qi4zAB7PV0ixi"
-GDRIVE_ID=""
 SKIP_DOWNLOAD=0
 while [[ $# -gt 0 ]]; do
   case $1 in
-    --gdrive-id) GDRIVE_ID="$2"; shift 2 ;;
-    --gdrive-folder-id) GDRIVE_FOLDER_ID="$2"; shift 2 ;;
     --skip-download) SKIP_DOWNLOAD=1; shift ;;
-    *) echo "Unknown option: $1"; echo "Usage: $0 [--gdrive-id <file id>] [--gdrive-folder-id <id>] [--skip-download]"; exit 1 ;;
+    *) echo "Unknown option: $1"; echo "Usage: $0 [--skip-download]"; exit 1 ;;
   esac
 done
 
@@ -38,22 +34,28 @@ if [ ! -d "$REPO_DIR/backend" ]; then
   echo "ERROR: run this from the repo root (backend/ not found)."; exit 1
 fi
 
-echo "=== spine-labeling-app · Vast.ai setup ==="
+echo "=== spine-labeling-app · GPU box setup ==="
 echo "Repo: $REPO_DIR"
 echo ""
 
 # --- System packages -------------------------------------------------------
 echo ">> [1/6] System packages…"
-apt-get update -y && apt-get install -y git wget python3-venv nodejs npm \
-  || WARN+=("apt-get failed — install git/python3-venv/nodejs/npm manually")
+# Node only when missing: a NodeSource nodejs (bundles npm) conflicts with
+# Ubuntu's npm package, and Ubuntu's own nodejs is too old for Vite anyway.
+PKGS="git wget python3-venv"
+command -v node >/dev/null 2>&1 || PKGS="$PKGS nodejs npm"
+apt-get update -y && apt-get install -y $PKGS \
+  || WARN+=("apt-get failed — install $PKGS manually")
+NODE_MAJOR=$(node -v 2>/dev/null | sed 's/^v\([0-9]*\).*/\1/')
+[ "${NODE_MAJOR:-0}" -ge 20 ] \
+  || WARN+=("Node ${NODE_MAJOR:-missing} is too old for the frontend build -- install Node 22 (docs/DEPLOY_GPU.md)")
 
 # --- Backend venv ----------------------------------------------------------
 echo ">> [2/6] Backend virtualenv + deps…"
 cd "$REPO_DIR/backend"
 [ -d .venv ] || python3 -m venv .venv
 if ./.venv/bin/pip install --upgrade pip \
-   && ./.venv/bin/pip install -r requirements.txt \
-   && ./.venv/bin/pip install gdown; then
+   && ./.venv/bin/pip install -r requirements.txt; then
   echo "   backend deps OK"
 else
   WARN+=("backend deps failed — the API will not start; check pip output above")
@@ -124,27 +126,14 @@ else
   WARN+=("npm install failed — the frontend will not start")
 fi
 
-# --- Grading checkpoint ----------------------------------------------------
-echo ">> [5/6] Grading checkpoint…"
-mkdir -p "$REPO_DIR/backend/models/weights"
-if [ ! -f "$CKPT" ] && [ "$SKIP_DOWNLOAD" -eq 0 ]; then
-  GD="$REPO_DIR/backend/.venv/bin/gdown"
-  [ -x "$GD" ] || GD="gdown"
-  if [ -n "$GDRIVE_ID" ]; then
-    echo "   downloading checkpoint (single file)…"
-    "$GD" "$GDRIVE_ID" -O "$CKPT" || true
-  elif [ -n "$GDRIVE_FOLDER_ID" ]; then
-    echo "   downloading Drive bundle folder…"
-    rm -rf /tmp/spine_bundle && mkdir -p /tmp/spine_bundle
-    "$GD" --folder "https://drive.google.com/drive/folders/$GDRIVE_FOLDER_ID" -O /tmp/spine_bundle || true
-    FOUND=$(find /tmp/spine_bundle -name phase2_cbam.pth | head -1)
-    [ -n "$FOUND" ] && cp "$FOUND" "$CKPT"
-    mkdir -p "$REPO_DIR/sample_volumes"
-    find /tmp/spine_bundle -name '*.mha' -exec cp {} "$REPO_DIR/sample_volumes/" \; 2>/dev/null || true
-  fi
+# --- Model weights (GitHub Release, md5-checked) ---------------------------
+echo ">> [5/6] Model weights (tools/fetch_assets.py)…"
+if [ "$SKIP_DOWNLOAD" -eq 0 ]; then
+  python3 "$REPO_DIR/tools/fetch_assets.py" all \
+    || WARN+=("weight download failed -- re-run: python3 tools/fetch_assets.py")
 fi
 if [ ! -f "$CKPT" ]; then
-  WARN+=("checkpoint missing ($CKPT) — grading disabled until placed; the 243MB file often needs Drive virus-scan confirmation, so re-run: ./vast_setup.sh --gdrive-id <FILE_ID>")
+  WARN+=("checkpoint missing ($CKPT) -- run: python3 tools/fetch_assets.py models")
 else
   GOT=$(md5sum "$CKPT" | awk '{print $1}')
   if [ "$GOT" = "$CKPT_MD5" ]; then echo "   checkpoint OK (md5 verified)"; \
@@ -179,25 +168,19 @@ print("torch", torch.__version__, "| CUDA available:", torch.cuda.is_available()
 print("GPU:", torch.cuda.get_device_name(0) if torch.cuda.is_available() else "none — set SEG_DEVICE=cpu in backend/.env")
 EOF
 
-# --- Data this script cannot fetch ----------------------------------------
-# Neither of these travels with the code: backend/spinenet/weights/ and
-# backend/data/ are both gitignored. The script cannot download them either --
-# the SpineNet weights are 685MB from robots.ox.ac.uk (slow, and it has failed
-# mid-transfer), and the frozen held-out set only exists on the laptop that
-# froze it. Copy both from there. Without the first, grading dies three stages
-# in with "save path .../detect-vfr could not be found"; without the second,
-# /admin cannot evaluate anything.
-echo ">> checking data that must be copied from the laptop…"
+# --- What grading needs, and what only re-training needs -------------------
+# SpineNet weights come with tools/fetch_assets.py above; without them grading
+# dies three stages in with "save path .../detect-vfr could not be found".
+# The frozen held-out set (backend/data/holdout_frozen) is RSNA-derived, so it
+# is not published; only /admin's re-training evaluation needs it.
 SPINENET_PT=$(ls "$REPO_DIR"/backend/spinenet/weights/*/*.pt 2>/dev/null | wc -l)
 if [ "$SPINENET_PT" -lt 4 ]; then
-  WARN+=("SpineNet weights incomplete ($SPINENET_PT/4 .pt files in backend/spinenet/weights/) — grading will fail at the SpineNet stage. From the laptop: cd backend/spinenet && tar czf - weights | ssh <BOX> 'tar xzf - -C /workspace/spine-labeling-app/backend/spinenet'")
+  WARN+=("SpineNet weights incomplete ($SPINENET_PT/4 .pt files) -- run: python3 tools/fetch_assets.py models")
 else
   echo "   SpineNet weights OK (4 .pt files)"
 fi
 if [ ! -f "$REPO_DIR/backend/data/holdout_frozen/train_metadata.csv" ]; then
-  WARN+=("frozen held-out set missing (backend/data/holdout_frozen) — /admin cannot evaluate a re-training run. From the laptop: cd backend && tar czf - data/holdout_frozen | ssh <BOX> 'cd /workspace/spine-labeling-app/backend && tar xzf -'")
-else
-  echo "   frozen held-out set OK"
+  echo "   (no frozen held-out set: fine unless you re-train from /admin, see README)"
 fi
 
 # --- Summary ---------------------------------------------------------------
@@ -218,6 +201,6 @@ Run it:
 From your laptop, tunnel both ports and open http://localhost:5173 :
   ssh -p <PORT> -L 5173:localhost:5173 -L 8000:localhost:8000 root@<HOST>
 
-Worklist starts empty — "+ New study" then Upload an .mha/.nii.gz
-(sample volumes staged in $REPO_DIR/sample_volumes/ if the bundle downloaded).
+Check it end to end (uploads a SPIDER volume and grades it):
+  tools/check.sh --gpu
 EOF
