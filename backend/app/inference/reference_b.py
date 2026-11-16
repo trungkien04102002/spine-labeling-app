@@ -1,22 +1,20 @@
 """Comparison model ("model B"): the research group's MedCLIP, for reference only.
 
-A second opinion shown next to the app's own grading, so clinicians can compare
-the two. It is NOT part of the grading: nothing here touches the 11-label table,
-the annotation, or the correction log, and every failure is swallowed and
-logged (see `run_quietly`) -- a broken or missing model B must never cost a
-doctor their result.
+A second opinion shown next to the app's own grading. It is not part of the
+grading: nothing here touches the 11-label table, the annotation or the
+correction log, and every failure is logged and swallowed (see `run_quietly`)
+so a broken or missing model B never blocks the app's own result.
 
-What it is (https://github.com/harbinger-ux/JIT-Web): a CLIP-style model that
-reads ONE 2D image and scores it against one text embedding per label, giving a
-yes/no per label for the whole image -- not per disc level, and no severity.
-Its own web page takes an uploaded screenshot; here the image is the
-mid-sagittal slice of the series the app grades, drawn the way a screenshot of
-it would look (square pixels, 1-99th percentile window), then put through the
-exact transform of `JIT-Web/inference.py`.
+The model (https://github.com/harbinger-ux/JIT-Web) is CLIP-style: it scores
+one 2D image against one text embedding per label, giving a yes/no per label
+for the whole image (not per disc, no severity). Here the image is the
+mid-sagittal slice of the graded series, rendered like a screenshot (square
+pixels, 1-99th percentile window), then passed through the exact transform of
+`JIT-Web/inference.py`.
 
-Only the image half of the model runs here. The label text embeddings never
-depend on the image, so `tools/build_reference_b.py` computes them once and
-saves them next to the image weights.
+Only the image encoder runs here. The label text embeddings do not depend on
+the image, so `tools/build_reference_b.py` precomputes them next to the image
+weights.
 """
 
 from __future__ import annotations

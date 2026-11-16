@@ -1,16 +1,8 @@
-"""
-Baseline Grading Model for SpineNetV2 (ResNet34 architecture).
+"""Baseline grading model: 3D ResNet34 backbone with single linear heads.
 
-This is the baseline model WITHOUT attention mechanisms or deep classification heads.
-Used for ablation studies to measure the impact of improvements.
-
-Architecture:
-    - ResNet34-style backbone: layers=[3, 4, 6, 3] with BasicBlock
-    - Input: [B, 1, 9, 112, 224] (IVD volumes)
-    - Output: 11 disease classifications
-    - Simple single-layer classification heads
-
-Author: SpineNetV2 Improved Implementation
+The no-attention reference model. Input is a batch of IVD volumes
+``[B, 1, 9, 112, 224]``; ``BasicBlock``, ``conv3x3`` and ``conv1x1`` are also
+reused by the CBAM variant.
 """
 
 import os
@@ -26,7 +18,7 @@ def conv3x3(in_planes: int, out_planes: int, stride: int = 1, groups: int = 1, d
         in_planes,
         out_planes,
         kernel_size=(3, 3, 3),
-        stride=(1, stride, stride),  # Only stride in spatial dims (H, W)
+        stride=(1, stride, stride),  # never downsample the 9-slice depth axis
         padding=(1, dilation, dilation),
         groups=groups,
         bias=False,
@@ -77,16 +69,13 @@ class BasicBlock(nn.Module):
         if dilation > 1:
             raise NotImplementedError("Dilation > 1 not supported in BasicBlock")
 
-        # First convolution
         self.conv1 = conv3x3(inplanes, planes, stride)
         self.bn1 = norm_layer(planes)
         self.relu = nn.ReLU(inplace=True)
 
-        # Second convolution
         self.conv2 = conv3x3(planes, planes)
         self.bn2 = norm_layer(planes)
 
-        # Downsample for residual connection (if needed)
         self.downsample = downsample
         self.stride = stride
 
@@ -100,16 +89,13 @@ class BasicBlock(nn.Module):
         """
         identity = x
 
-        # First conv block
         out = self.conv1(x)
         out = self.bn1(out)
         out = self.relu(out)
 
-        # Second conv block
         out = self.conv2(out)
         out = self.bn2(out)
 
-        # Residual connection
         if self.downsample is not None:
             identity = self.downsample(x)
 
@@ -120,43 +106,14 @@ class BasicBlock(nn.Module):
 
 
 class GradingModelBaseline(nn.Module):
-    """
-    Baseline Grading Model (ResNet34) for multi-task IVD disease classification.
+    """Multi-task IVD grading model: ResNet34 backbone, one linear head per task.
 
-    Architecture Details:
-        - Backbone: ResNet34 (layers=[3, 4, 6, 3])
-        - NO attention mechanisms (for baseline comparison)
-        - Simple single-layer FC classification heads
+    Input: ``[B, 1, 9, 112, 224]``.
 
-    Supports two formats:
-        1. Original format: 11 tasks (Pfirrmann, Stenosis, etc.)
-        2. RSNA 2024 format: 3 tasks (Spinal Canal, Left/Right Foraminal)
-
-    Input:
-        [Batch, 1, 9, 112, 224] - Batch of IVD volumes
-
-    Output (format='original'):
-        Tuple of 11 tensors, each [Batch, num_classes_i]
-
-    Output (format='rsna'):
-        Dictionary with 3 keys:
-        - 'spinal_canal': [Batch, 3]
-        - 'left_foraminal': [Batch, 3]
-        - 'right_foraminal': [Batch, 3]
-
-    Example:
-        >>> # Original format (11 tasks)
-        >>> model = GradingModelBaseline(format='original')
-        >>> x = torch.randn(2, 1, 9, 112, 224)
-        >>> outputs = model(x)
-        >>> len(outputs)  # 11 tasks
-        11
-
-        >>> # RSNA format (3 tasks)
-        >>> model = GradingModelBaseline(format='rsna')
-        >>> outputs = model(x)
-        >>> outputs['spinal_canal'].shape
-        torch.Size([2, 3])
+    Output:
+        format='original': tuple of 11 logit tensors (SpineNet tasks).
+        format='rsna': dict with ``spinal_canal``, ``left_foraminal`` and
+        ``right_foraminal``, each ``[B, 3]``.
     """
 
     def __init__(
@@ -180,10 +137,8 @@ class GradingModelBaseline(nn.Module):
         self.dilation = 1
         self.groups = groups
         self.base_width = width_per_group
-        self.format = format  # 'original' or 'rsna'
+        self.format = format
 
-        # === BACKBONE ===
-        # Initial convolution: 1 -> 64 channels
         self.conv1 = nn.Conv3d(
             1, self.inplanes,
             kernel_size=(3, 7, 7),
@@ -199,18 +154,14 @@ class GradingModelBaseline(nn.Module):
             padding=(0, 1, 1)
         )
 
-        # ResNet layers
-        self.layer1 = self._make_layer(block, 64, layers[0])  # 64 channels
-        self.layer2 = self._make_layer(block, 128, layers[1], stride=1)  # stride=1 (detail preservation)
-        self.layer3 = self._make_layer(block, 256, layers[2], stride=2)  # 256 channels
-        self.layer4 = self._make_layer(block, 512, layers[3], stride=2)  # 512 channels
+        self.layer1 = self._make_layer(block, 64, layers[0])
+        self.layer2 = self._make_layer(block, 128, layers[1], stride=1)  # stride 1 keeps spatial detail
+        self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
+        self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
 
-        # Global average pooling
         self.avgpool = nn.AdaptiveAvgPool3d((1, 1, 1))
 
-        # === CLASSIFICATION HEADS (Simple single-layer) ===
         if format == 'original':
-            # 11 tasks with different number of classes
             self.fc_pf = nn.Linear(512 * block.expansion, 5)   # Pfirrmann
             self.fc_nar = nn.Linear(512 * block.expansion, 4)  # Narrowing
             self.fc_ccs = nn.Linear(512 * block.expansion, 4)  # Central Canal Stenosis
@@ -230,7 +181,6 @@ class GradingModelBaseline(nn.Module):
         else:
             raise ValueError(f"Unknown format: {format}. Use 'original' or 'rsna'")
 
-        # === INITIALIZATION ===
         self._initialize_weights(zero_init_residual)
 
     def _make_layer(
@@ -304,25 +254,19 @@ class GradingModelBaseline(nn.Module):
             If format='original': Tuple of 11 tensors (one per task)
             If format='rsna': Dictionary with 3 keys
         """
-        # Input: [B, 1, 9, 112, 224]
-
-        # Initial conv + pooling
         x = self.conv1(x)       # [B, 64, 9, 56, 112]
         x = self.bn1(x)
         x = self.relu(x)
         x = self.maxpool(x)     # [B, 64, 9, 28, 56]
 
-        # ResNet blocks
         x = self.layer1(x)      # [B, 64, 9, 28, 56]
         x = self.layer2(x)      # [B, 128, 9, 28, 56] (stride=1)
         x = self.layer3(x)      # [B, 256, 9, 14, 28]
         x = self.layer4(x)      # [B, 512, 9, 7, 14]
 
-        # Global pooling
         x = self.avgpool(x)     # [B, 512, 1, 1, 1]
         x = torch.flatten(x, 1) # [B, 512]
 
-        # Multi-task classification
         if self.format == 'original':
             x_pf = self.fc_pf(x)    # [B, 5]
             x_nar = self.fc_nar(x)  # [B, 4]
@@ -348,7 +292,7 @@ class GradingModelBaseline(nn.Module):
             }
 
     def load_weights(self, save_path: str, verbose: bool = True):
-        """Load pretrained weights."""
+        """Load the newest ``*.pt`` checkpoint (key ``model_weights``) in ``save_path``."""
         if os.path.isdir(save_path):
             list_of_pt = glob.glob(save_path + "/*.pt")
             latest_pt = max(list_of_pt, key=os.path.getctime)
@@ -361,12 +305,10 @@ class GradingModelBaseline(nn.Module):
             raise FileNotFoundError(f"Save path {save_path} not found")
 
     def finetune(self, reset_weights: bool = True):
-        """Freeze backbone, only train classification heads."""
-        # Freeze all parameters
+        """Freeze everything except the ``fc_*`` heads, optionally re-initialising them."""
         for param in self.parameters():
             param.requires_grad = False
 
-        # Unfreeze classification heads
         for name, module in self.named_children():
             if name.startswith('fc_'):
                 for param in module.parameters():
@@ -375,20 +317,17 @@ class GradingModelBaseline(nn.Module):
                     module.reset_parameters()
 
     def load_pretrained_backbone(self, weights_dir: str, strict: bool = False, verbose: bool = True):
-        """
-        Load pretrained backbone weights from original SpineNet model.
+        """Load backbone weights from a SpineNet checkpoint, leaving the heads untouched.
 
-        Only loads backbone (conv1, bn1, layer1-4, avgpool), NOT classification heads.
-        This allows transfer learning: use pretrained features, train new heads.
+        Tensors with an unknown name or a mismatched shape are skipped.
 
         Args:
-            weights_dir: Path to directory containing pretrained weights (.pt files)
-            strict: If True, requires exact match. If False, allows missing/extra keys
-            verbose: Print loading information
+            weights_dir: a ``.pt`` file, or a directory (newest ``*.pt`` is used).
+            strict: passed to ``load_state_dict``.
+            verbose: print what was loaded.
         """
         import glob
 
-        # Find latest checkpoint
         if os.path.isdir(weights_dir):
             list_of_pt = glob.glob(os.path.join(weights_dir, "*.pt"))
             if not list_of_pt:
@@ -400,23 +339,16 @@ class GradingModelBaseline(nn.Module):
         if verbose:
             print(f"  Loading backbone from: {checkpoint_path}")
 
-        # Load checkpoint
         checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
         pretrained_dict = checkpoint.get("model_weights", checkpoint)
 
-        # Get current model state
         model_dict = self.state_dict()
 
-        # Filter out classification heads (fc_* layers)
-        # Only load backbone weights
         backbone_dict = {}
         for k, v in pretrained_dict.items():
-            # Skip classification heads
             if k.startswith('fc_'):
                 continue
-            # Only load if key exists in current model
             if k in model_dict:
-                # Check shape compatibility
                 if v.shape == model_dict[k].shape:
                     backbone_dict[k] = v
                 elif verbose:
@@ -431,7 +363,6 @@ class GradingModelBaseline(nn.Module):
             print(f"  Loaded {loaded_params}/{total_params} parameters")
             print(f"  Classification heads will be randomly initialized")
 
-        # Update model dict and load
         model_dict.update(backbone_dict)
         self.load_state_dict(model_dict, strict=strict)
 
@@ -439,25 +370,15 @@ class GradingModelBaseline(nn.Module):
             print(f"  ✓ Backbone loaded successfully")
 
     def freeze_backbone(self, freeze: bool = True):
-        """
-        Freeze or unfreeze backbone parameters for transfer learning.
-
-        Args:
-            freeze: If True, freeze backbone (train only heads).
-                   If False, unfreeze backbone (train everything).
-        """
-        # Freeze/unfreeze all backbone layers
+        """Freeze (or unfreeze) every non-head parameter; ``fc_*`` heads stay trainable."""
         for name, param in self.named_parameters():
-            # Classification heads start with 'fc_'
             if not name.startswith('fc_'):
                 param.requires_grad = not freeze
 
 
-# Test code
 if __name__ == "__main__":
     print("Testing GradingModelBaseline...\n")
 
-    # Test 1: Original format (11 tasks)
     print("="*60)
     print("TEST 1: Original Format (11 tasks)")
     print("="*60)
@@ -481,7 +402,6 @@ if __name__ == "__main__":
             f"Output {i} shape mismatch! Expected ({batch_size}, {num_classes}), got {output.shape}"
         print(f"  Task {i+1}: {output.shape} ✓")
 
-    # Test 2: RSNA format (3 tasks)
     print("\n" + "="*60)
     print("TEST 2: RSNA 2024 Format (3 tasks)")
     print("="*60)

@@ -1,19 +1,16 @@
-"""Carve out and lock an evaluation set BEFORE any corrections are collected.
+"""Freeze a held-out evaluation set before any corrections are collected.
 
-This has a deadline that no amount of later work can recover. A before/after
-comparison only means something if the evaluation set was fixed in advance --
-choose it afterwards, once you have seen which discs the doctors corrected, and
-the numbers measure your selection rather than the model. There is no way to
-reconstruct that guarantee retroactively, so this runs once, early, and writes
-a manifest that can be shown to have predated the first correction.
+A before/after comparison is only meaningful if the evaluation set was fixed
+in advance; choosing it after seeing which discs were corrected measures the
+selection, not the model. Run this once, before the first correction.
 
-The manifest records a SHA-256 over the selected rows plus the timestamp and
-the seed, so the set can be verified as unchanged later:
+The manifest records a SHA-256 over the selected rows, the timestamp and the
+seed, so the set can be verified later:
 
     python -m app.feedback.freeze_holdout --verify data/holdout_frozen
 
-Output is shaped like `build_dataset.build_finetune_dataset()` output
-(`volumes/` + `train_metadata.csv`), so it drops straight into
+The output has the same layout as `build_dataset.build_finetune_dataset()`
+(`volumes/` + `train_metadata.csv`) and can be passed to
 `retrain_head --holdout-dir`.
 """
 
@@ -66,9 +63,8 @@ def _validation_patients(rows: list[dict], split_seed: int, val_split: float) ->
     """The patients a model trained with this seed never saw.
 
     Reproduces `train_test_split(unique_patients, test_size=val_split,
-    random_state=split_seed)` -- the identical call every training script in
-    spinet-v2 makes -- so "held out" means held out from the model actually
-    being evaluated, not merely held out from this script.
+    random_state=split_seed)`, the same call the training scripts make, so the
+    rows are held out from the model actually being evaluated.
     """
     from sklearn.model_selection import train_test_split
 
@@ -90,22 +86,19 @@ def freeze_holdout(
 ) -> dict:
     """Sample `n` rows, copy their crops, and write a tamper-evident manifest.
 
-    Sampling is stratified over the label combination: `Severe` is rare enough
-    that a uniform draw can miss it entirely, which would leave the evaluation
-    blind to the exact class the work is about.
+    Sampling is stratified over the label combination because `Severe` is
+    rare enough that a uniform draw can miss it entirely.
 
     Args:
         split_seed: restrict the draw to the validation patients of
             `train_test_split(..., random_state=split_seed)`. Pass the seed the
             deployed model was trained with (42 for the shipped checkpoint).
-            Without it, most of the source is data the model already fit, and a
-            before/after comparison on it measures memorisation rather than
-            improvement. Requires a `study_id` column.
+            Without it, most rows are training data and the comparison
+            measures memorisation. Requires a `study_id` column.
 
     Raises:
         FileExistsError: if `out_dir` already holds a manifest. Re-freezing
-            would silently invalidate every comparison already made against
-            the old set, so it has to be an explicit, manual decision.
+            invalidates earlier comparisons, so it must be done by hand.
     """
     source = Path(source_dir)
     out = Path(out_dir)

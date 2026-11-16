@@ -30,21 +30,18 @@ from app.routers import (
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Ensure the MySQL schema exists when the server boots.
     init_db()
-    # Runs left "running" by a restart are closed out lazily, by the retraining
-    # router, which can tell a dead row from a live one. Doing it here would
-    # also fire in any other process that opens this database -- the test suite
-    # does -- and stamp a run that is genuinely in flight as interrupted.
+    # Retraining runs left "running" by a restart are closed out lazily by the
+    # retraining router. Doing it here would also fire in any other process that
+    # opens this database (e.g. tests) and mark a live run as interrupted.
     yield
 
 
 app = FastAPI(title="spine-labeling-app", lifespan=lifespan)
 
 _SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
-# Writes a viewer still needs: switching series is browsing, not editing, but
-# it is a PUT (it records which series is shown). Blocking it left clinicians
-# stuck on the sagittal series (2026-10-27).
+# Writes allowed in view-only mode: switching series is browsing, not editing,
+# even though it is a PUT that records which series is shown.
 _VIEW_ONLY_ALLOWED = re.compile(r"^/studies/[^/]+/active_series$")
 
 
@@ -73,8 +70,7 @@ async def refuse_writes_when_view_only(request: Request, call_next):
     return await call_next(request)
 
 
-# The Vite dev frontend is always allowed; extra origins (e.g. a laptop UI
-# hitting a directly-exposed remote backend) come from CORS_ORIGINS.
+# The Vite dev frontend is always allowed; extra origins come from CORS_ORIGINS.
 _origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
 _extra = Settings().cors_origins
 if _extra:
@@ -112,11 +108,9 @@ def app_config() -> dict[str, bool]:
     return {"view_only": Settings().view_only}
 
 
-# Serve the built frontend from this same app, so one public port serves the
-# whole thing. Mounted AFTER the routers above, so every API path still wins;
-# only what is left over falls through to the SPA. When dist/ is absent -- local
-# development against the Vite dev server, and the test suite -- nothing is
-# mounted and the app behaves exactly as before.
+# Serve the built frontend from this app. Mounted after the API routers so API
+# paths take precedence; nothing is mounted when dist/ is absent (local dev with
+# the Vite server, and tests).
 _configured = Settings().frontend_dist
 _dist = (
     Path(_configured)
@@ -131,11 +125,10 @@ if (_dist / "index.html").is_file():
 
     @app.get("/{spa_path:path}", include_in_schema=False)
     def serve_frontend(spa_path: str) -> FileResponse:
-        """Return the requested file, or index.html so the router handles it.
+        """Return the requested file, or index.html for client-side routes.
 
-        The viewer's routes (/viewer/<id>, /models, /admin) exist only in the
-        browser, so a hard refresh on one of them asks the server for a path it
-        has no file for -- that has to come back as index.html, not a 404.
+        Routes such as /viewer/<id> exist only in the browser, so a hard refresh
+        must receive index.html rather than a 404.
         """
         if spa_path:
             candidate = (_dist / spa_path).resolve()
@@ -144,8 +137,7 @@ if (_dist / "index.html").is_file():
         index = _dist / "index.html"
         if not index.is_file():
             raise HTTPException(status_code=404, detail="frontend not built")
-        # index.html names the hashed bundles of the current build; a browser
-        # that cached it kept running last week's page after an update (seen
-        # 2026-10-02). Revalidate it every time; the bundles themselves are
-        # content-hashed and stay cacheable.
+        # index.html references the content-hashed bundles of the current build,
+        # so it must be revalidated or browsers keep running a stale build after
+        # a deploy. The bundles themselves stay cacheable.
         return FileResponse(index, headers={"Cache-Control": "no-cache"})

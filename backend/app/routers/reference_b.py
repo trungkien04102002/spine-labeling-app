@@ -1,13 +1,9 @@
 """Comparison model B: read its saved result, or run it on demand.
 
-Hidden from clinicians unless the operator turns it on in /admin: model B
-always runs and saves its answer (the comparison needs the data either way),
-but whether the viewer SHOWS it is a switch, off by default.
-
-It also runs on its own after every AI grading (see
-`full_grading.run_and_persist_full_grading`); POST exists for studies graded
-before model B was added, which the viewer fills in the first time it opens
-them. See `app/inference/reference_b.py` for what the model is.
+Whether the viewer shows model B is an admin switch, off by default. Model B
+runs automatically after each grading while visible (see
+`full_grading.run_and_persist_full_grading`); the POST endpoint fills in
+studies that have no result yet. See `app/inference/reference_b.py`.
 """
 
 from __future__ import annotations
@@ -43,8 +39,7 @@ class VisibilityIn(BaseModel):
 
 
 def _flag_path(settings: Settings) -> Path:
-    # In the data dir, so it lives with the box's data and survives a code
-    # update (which never touches backend/data).
+    # Stored in the data dir so it survives code updates.
     return Path(settings.data_dir) / "reference_b_visible.json"
 
 
@@ -57,6 +52,7 @@ def is_visible(settings: Settings) -> bool:
 
 @router.get("/reference_b/visibility", response_model=Visibility)
 def get_visibility(settings: Settings = Depends(get_settings)) -> Visibility:
+    """Return whether model B is shown to clinicians and whether it is installed."""
     return Visibility(visible=is_visible(settings), installed=reference_b.available())
 
 
@@ -66,6 +62,7 @@ def get_visibility(settings: Settings = Depends(get_settings)) -> Visibility:
 def set_visibility(
     payload: VisibilityIn, settings: Settings = Depends(get_settings)
 ) -> Visibility:
+    """Show or hide model B for clinicians (admin only)."""
     path = _flag_path(settings)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps({"visible": payload.visible}))
@@ -76,6 +73,7 @@ def set_visibility(
 def get_reference_b(
     study_id: str, settings: Settings = Depends(get_settings)
 ) -> reference_b.ReferenceResult:
+    """Return model B's saved result for a study; 404 if it has not run."""
     result = reference_b.load_result(_study_dir(settings, study_id))
     if result is None:
         raise HTTPException(status_code=404, detail="Model B has not run on this study.")
@@ -89,7 +87,11 @@ def run_reference_b(
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ) -> reference_b.ReferenceResult:
-    """Run model B now. `plane` matters only for an uploaded picture."""
+    """Run model B now and return its result.
+
+    `plane` ("sagittal" or "axial") matters only for an uploaded picture.
+    Returns 503 if model B is not installed.
+    """
     if plane not in reference_b.DATASET_BY_PLANE:
         raise HTTPException(status_code=400, detail="plane must be sagittal or axial")
     if not reference_b.available(plane):

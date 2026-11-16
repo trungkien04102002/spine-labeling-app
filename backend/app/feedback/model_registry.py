@@ -1,14 +1,9 @@
-"""Which grading checkpoint is currently being served, and how to change it.
+"""Registry of grading checkpoints and the one currently in service.
 
-A retrained checkpoint is worth very little if putting it into service means
-copying files over the one that works. This keeps every version side by side in
-``models/weights/`` and records the active one in a plain-text ``ACTIVE``
-pointer, so switching is a rename-free, reversible operation and the baseline
-is always still there to fall back to.
-
-The baseline checkpoint is protected: it can be deactivated but never
-overwritten or removed through this module. Reverting is therefore always
-available, which is the property that makes it safe to try an update at all.
+Every version is kept side by side in ``models/weights/`` and the active one is
+recorded in a plain-text ``ACTIVE`` pointer, so switching is reversible. The
+baseline checkpoint can be deactivated but is never overwritten or removed
+here, so reverting is always possible.
 """
 
 from __future__ import annotations
@@ -66,9 +61,8 @@ def active_checkpoint_path() -> Path:
 def _metrics_for(checkpoint: Path) -> dict | None:
     """Read the sidecar `<name>.json` written next to a retrained checkpoint.
 
-    Metrics live in a sidecar rather than being read out of the checkpoint
-    itself so that listing versions stays cheap -- the checkpoints are ~240MB
-    each and the UI lists them on every page load.
+    Metrics live in a sidecar so listing versions does not load the ~240MB
+    checkpoints themselves.
     """
     sidecar = checkpoint.with_suffix(checkpoint.suffix + ".json")
     if not sidecar.is_file():
@@ -107,8 +101,8 @@ def activate(name: str) -> CheckpointInfo:
 
     Raises:
         UnknownCheckpoint: if `name` is not a `.pth` file in the weights
-            directory. Path separators are rejected outright -- the name comes
-            in over HTTP and must not be able to point outside the directory.
+            directory. Path separators are rejected because the name comes
+            from an HTTP request.
     """
     if "/" in name or "\\" in name or not name.endswith(".pth"):
         raise UnknownCheckpoint(f"Not a checkpoint name: {name!r}")
@@ -130,8 +124,8 @@ def revert() -> CheckpointInfo:
 def _invalidate_serving_model() -> None:
     """Clear the grading module's cached model so the next call reloads.
 
-    Imported lazily: `app.inference.grading` pulls in torch, and this module is
-    imported by routers that must stay cheap.
+    Imported lazily: `app.inference.grading` pulls in torch, and this module
+    is imported by routers that must stay lightweight.
     """
     from app.inference.grading import _load_model
 

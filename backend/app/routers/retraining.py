@@ -1,39 +1,21 @@
-"""Running one re-training batch from the operator page, and the log of runs.
+"""Re-training runs started from the operator page, and the run log.
 
-The trigger is a button; the gate is not. A run here rebuilds one sealed batch
-of corrections, fine-tunes the heads of the checkpoint currently in service,
-scores the result on the frozen held-out set, and -- only if held-out macro-F1
-improves -- writes a **candidate** checkpoint beside the baseline. It never
-touches the ``ACTIVE`` pointer, never reloads the serving model, and never
-changes what the next patient is graded by. That decision still belongs to a
-person on ``/models``, which is where the thesis's claim about this loop
-actually lives: in the approval step, not in the absence of a button.
+A run rebuilds the submitted corrections, fine-tunes the heads of the
+checkpoint in service, scores the result on the frozen held-out set and, only
+if held-out macro-F1 improves, writes a candidate checkpoint. It never changes
+the ``ACTIVE`` pointer or the serving model; activation is a manual approval
+step on ``/models``.
 
-A run trains on **every correction sent so far** by default, not only the
-batch it was launched from. `build_dataset` supports both, and per-batch alone
-is the wrong default for a loop that runs more than once: round two would never
-see round one's corrections in its training data, so each round chases the
-newest edits and lets the earlier ones decay. The replay set does not cover
-that gap either -- those discs are original RSNA, so they anchor the model to
-the *original* distribution, not to what the doctors have said since. Per-batch
-stays available because it is what makes a past run reproducible.
-
-Three more things this module is careful about:
-
-* **It calls `app.feedback.build_dataset` and `app.feedback.retrain_head`; it
-  does not reimplement them.** Those two modules are the method the thesis
-  describes, including the guard that discards a checkpoint which does not
-  improve. A second, "convenient" copy of that logic behind an HTTP endpoint
-  would be the thing that quietly drifts from what the report claims.
-* **The replay set is required unless you say otherwise, out loud.** It is
-  ~8.2 GB of original discs from the research repo (`RETRAIN_REPLAY_DIR`).
-  Without it, training on a few dozen corrections is the textbook way to make
-  a model forget, so a replay-free run is offered only as an explicitly
-  labelled, deliberately different experiment -- never as the silent default.
-* **One run at a time, and every run is recorded.** Head-only fine-tuning on
-  CPU takes tens of minutes and saturates the box; two at once would fight for
-  the same CPU and the same output paths. Every attempt lands in
-  ``retrain_runs`` whether it succeeded, found no improvement, or failed.
+* By default a run trains on every correction submitted so far, so later
+  rounds do not forget earlier corrections. ``scope="batch"`` trains on one
+  batch only, which makes a past run reproducible.
+* The work is delegated to ``app.feedback.build_dataset`` and
+  ``app.feedback.retrain_head``; do not reimplement that logic here.
+* The replay set (``RETRAIN_REPLAY_DIR``, ~8.2 GB of original RSNA discs) is
+  required unless the request explicitly sets ``without_replay``; training on
+  corrections alone causes catastrophic forgetting.
+* One run at a time: CPU fine-tuning takes tens of minutes and uses the whole
+  machine. Every attempt is recorded in ``retrain_runs``.
 """
 
 from __future__ import annotations
@@ -65,30 +47,23 @@ router = APIRouter(tags=["retraining"])
 #: Job kind in the shared registry (same one full grading uses).
 JOB_KIND = "retrain"
 
-#: The environment variable behind `Settings.retrain_replay_dir`, named in the
-#: UI so an operator can act on "not configured" without reading the source.
+#: Environment variable behind `Settings.retrain_replay_dir`, shown in the UI.
 REPLAY_SETTING = "RETRAIN_REPLAY_DIR"
 
-#: Serialises the check-then-start section. Two requests arriving together
-#: would otherwise both find no run in flight and both start one.
+#: Serialises check-then-start so two concurrent requests cannot both start a run.
 _start_lock = threading.Lock()
 
 
-# --- Where things live -----------------------------------------------------
-
-
 def _holdout_dir(settings: Settings) -> Path:
-    """The frozen held-out set that every before/after number is measured on."""
+    """The frozen held-out set used for all before/after metrics."""
     return Path(settings.data_dir) / "holdout_frozen"
 
 
 def _dataset_dir(settings: Settings, batch_id: str, cumulative: bool) -> Path:
-    """Where a run's corrections are rebuilt into.
+    """Directory a run's training data is rebuilt into.
 
-    Keyed by the batch the run was launched from, because that pins the moment
-    in time; the `-all` suffix keeps a cumulative rebuild (everything sent up
-    to that moment) from overwriting the per-batch one, which holds different
-    data under the same name.
+    Keyed by the launching batch; the ``-all`` suffix keeps a cumulative
+    rebuild separate from the per-batch one.
     """
     name = f"{batch_id}-all" if cumulative else batch_id
     return Path(settings.data_dir) / "finetune" / name
@@ -107,18 +82,10 @@ def _dataset_rows(directory: Path) -> int | None:
 
 
 def _finite_only(metrics: dict | None) -> dict | None:
-    """Drop NaN/inf from a metrics dict before it becomes JSON.
+    """Replace NaN/inf in a metrics dict with null before JSON serialisation.
 
-    `retrain_head.evaluate` reports NaN on purpose -- a class absent from the
-    held-out set scores NaN rather than 0, so it can be left out of the macro
-    average instead of dragging it down. NaN is not valid JSON, though: it
-    survives `json.dumps` as the bare token `NaN`, which `JSON.parse` in the
-    browser refuses, taking the whole run log down with it. So a measurement
-    that does not exist is written as null, which is what it means.
-
-    The rule itself lives in `app.jsonsafe` so that every endpoint serving
-    these numbers -- the run log here, the checkpoint list on `/models` --
-    applies the same one, rather than each growing its own.
+    ``retrain_head.evaluate`` reports NaN for classes absent from the held-out
+    set, and the browser's ``JSON.parse`` rejects bare ``NaN``.
     """
     if not metrics:
         return metrics
@@ -126,13 +93,10 @@ def _finite_only(metrics: dict | None) -> dict | None:
 
 
 def _candidate_checkpoint_path(batch_id: str, cumulative: bool) -> Path:
-    """A free filename for this run's candidate, never overwriting an old one.
+    """Return an unused filename for this run's candidate checkpoint.
 
-    A second run from the same batch (other parameters, the other scope, more
-    corrections since) is a legitimate thing to do, and silently replacing the
-    checkpoint the first one produced would destroy something a person may
-    still be about to approve on `/models`. The name carries the scope so two
-    candidates from one batch are not mistaken for each other.
+    Never overwrites an earlier candidate, which may still await approval.
+    The name includes the scope so candidates from one batch stay distinct.
     """
     weights = model_registry.WEIGHTS_DIR
     stem = f"{batch_id}-all" if cumulative else batch_id
@@ -144,11 +108,8 @@ def _candidate_checkpoint_path(batch_id: str, cumulative: bool) -> Path:
     return candidate
 
 
-# --- Readiness -------------------------------------------------------------
-
-
 class ReadinessOut(BaseModel):
-    """What a run needs, and which of those things this machine actually has."""
+    """Prerequisites for a run and whether each is present."""
 
     replay_setting: str
     replay_dir: str | None
@@ -161,21 +122,19 @@ class ReadinessOut(BaseModel):
     holdout_message: str
     base_checkpoint: str
     base_checkpoint_present: bool
-    #: Distinct (study, field) corrections across every sealed batch -- what a
-    #: cumulative run would train on. Lower than the raw count when a doctor
-    #: corrected the same grade twice: only the latest edit counts.
+    #: Distinct (study, field) corrections across all sealed batches; only the
+    #: latest edit of a field counts.
     cumulative_corrections: int
     sealed_batches: int
     #: True when a full run (corrections + replay) can start right now.
     can_run: bool
-    #: True when the only thing missing is the replay set, i.e. a deliberately
-    #: weaker, replay-free run is possible if someone asks for it explicitly.
+    #: True when only the replay set is missing, so an explicit replay-free
+    #: run is possible.
     can_run_without_replay: bool
-    #: Things no flag can work around: no held-out set, no checkpoint to
-    #: fine-tune from.
+    #: Problems no flag can work around (no held-out set, no base checkpoint).
     blockers: list[str]
-    #: Why the replay set cannot be used, if it cannot. Kept apart from
-    #: `blockers` because it is the one gap a person may knowingly accept.
+    #: Why the replay set is unusable, if it is. Separate from `blockers`
+    #: because it can be overridden with `without_replay`.
     replay_blocker: str | None
     defaults: dict
     #: The batch a run is currently working on, if any.
@@ -183,11 +142,10 @@ class ReadinessOut(BaseModel):
 
 
 def _job_is_alive(job_id: str | None) -> bool:
-    """Whether this process still holds a running job for that id.
+    """Whether this process holds a running job with that id.
 
-    A run only ever starts inside the server process, so its job is in this
-    registry for as long as it is really going. After a restart the registry is
-    empty and every "running" row is, correctly, stale.
+    The job registry is in-memory, so after a restart every "running" row is
+    stale.
     """
     if not job_id:
         return False
@@ -196,11 +154,10 @@ def _job_is_alive(job_id: str | None) -> bool:
 
 
 def _live_run(db: Session) -> RetrainRun | None:
-    """The run genuinely in flight, closing out any row that only claims to be.
+    """Return the run actually in flight, marking stale "running" rows interrupted.
 
-    Called on every readiness check and before every start, so a row left over
-    by a restart heals the first time the page is opened rather than refusing
-    runs forever.
+    Called on every readiness check and start, so rows left by a restart do
+    not block new runs.
     """
     mark_interrupted_runs(db, _job_is_alive)
     return (
@@ -213,10 +170,8 @@ def _live_run(db: Session) -> RetrainRun | None:
 
 def _readiness(db: Session, settings: Settings) -> ReadinessOut:
     holdout = _holdout_dir(settings)
-    # A missing or unreadable held-out set is a state this page exists to
-    # report, not a crash. `verify` raises when the directory is not there at
-    # all -- which is exactly what a fresh deployment looks like, since
-    # `data/` is gitignored and does not travel with the code.
+    # A missing held-out set is reported, not raised: `verify` raises when the
+    # directory is absent, which is normal on a fresh deployment.
     try:
         holdout_ok, holdout_message = freeze_holdout.verify(str(holdout))
     except (FileNotFoundError, OSError, ValueError) as exc:
@@ -298,11 +253,8 @@ def get_readiness(
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ) -> ReadinessOut:
-    """Whether a run can start, and precisely what is missing when it cannot."""
+    """Report whether a re-training run can start, and what is missing if not."""
     return _readiness(db, settings)
-
-
-# --- The run log -----------------------------------------------------------
 
 
 class RetrainRunOut(BaseModel):
@@ -316,7 +268,7 @@ class RetrainRunOut(BaseModel):
     params: dict
     improved: bool | None
     checkpoint_name: str | None
-    #: The candidate is a file on disk until someone approves it on /models.
+    #: Whether the candidate file is still on disk (it awaits approval on /models).
     checkpoint_exists: bool
     checkpoint_active: bool
     before: dict | None
@@ -365,7 +317,7 @@ def list_runs(
     limit: int = 20,
     db: Session = Depends(get_db),
 ) -> list[RetrainRunOut]:
-    """Every run attempted on this machine, newest first."""
+    """List re-training runs, newest first (at most 200)."""
     active = model_registry.active_checkpoint_name()
     rows = (
         db.query(RetrainRun)
@@ -376,29 +328,20 @@ def list_runs(
     return [RetrainRunOut.from_row(row, active) for row in rows]
 
 
-# --- Starting a run --------------------------------------------------------
-
-
 class RetrainRequest(BaseModel):
-    """Everything `retrain_head` takes, with its own defaults.
+    """Parameters for `retrain_head`, bounded so a request cannot start an
+    unreasonably long CPU run."""
 
-    Bounds are here so a typo in a request cannot start a run that would take
-    days on CPU, and so the recorded parameters are always ones that were
-    actually usable.
-    """
-
-    #: "all" (default) trains on every correction submitted so far, so each
-    #: round has to satisfy everything the doctors have said to date rather
-    #: than only the newest batch. "batch" trains on the launching batch alone,
-    #: which is what makes a past run exactly reproducible.
+    #: "all" trains on every correction submitted so far; "batch" trains on
+    #: the launching batch alone (reproducible).
     scope: Literal["all", "batch"] = "all"
     epochs: int = Field(default=5, ge=1, le=20)
     lr: float = Field(default=1e-4, gt=0, le=1e-1)
     batch_size: int = Field(default=4, ge=1, le=32)
     replay_size: int = Field(default=200, ge=0, le=5000)
     seed: int = 42
-    #: Run WITHOUT the replay set. A different, weaker experiment: the guard
-    #: against catastrophic forgetting is gone. Never assumed, always asked for.
+    #: Run without the replay set (no guard against catastrophic forgetting).
+    #: Must be requested explicitly.
     without_replay: bool = False
 
 
@@ -415,16 +358,12 @@ def _batch_or_404(db: Session, batch_id: str) -> int:
 
 @contextmanager
 def _epoch_progress(progress, epochs: int):
-    """Report real stages out of `retrain_head`, which has no progress hook.
+    """Report progress from `retrain_head`, which has no progress hook.
 
-    `retrain_head.retrain_head()` scores the held-out set once before training,
-    once after every epoch, and once at the end -- so counting those calls is
-    exactly the run's real progress, and costs nothing. The function is
-    observed by swapping the module-level name for a counting wrapper around
-    it, and restoring it afterwards; its behaviour is untouched (it is thesis
-    surface and must not be edited), and the single-run lock means no two of
-    these overlap. The alternative was a bar that moves on a timer, which
-    would be a lie about a run that takes tens of minutes.
+    `retrain_head` scores the held-out set before training, after each epoch
+    and at the end, so counting `evaluate` calls tracks real progress. The
+    module-level name is temporarily replaced by a counting wrapper; this is
+    safe because only one run executes at a time.
     """
     original = retrain_head.evaluate
     calls = {"n": 0}
@@ -464,11 +403,10 @@ def _run_retraining(
     base_checkpoint: str,
     progress,
 ) -> None:
-    """The whole run, on the job's background thread.
+    """Execute one run on the job's background thread.
 
-    Writes the outcome onto the `retrain_runs` row exactly once, at the end --
-    including when it fails, so a crashed run leaves a record rather than a
-    row stuck at "running". Then re-raises, so the job reports an error too.
+    Records the outcome on the `retrain_runs` row, including on failure (then
+    re-raises so the job also reports the error).
     """
     session = SessionLocal()
     try:
@@ -512,10 +450,8 @@ def _run_retraining(
 
         with _epoch_progress(progress, request.epochs):
             result = retrain_head.retrain_head(
-                # The checkpoint resolved when the run was started, not
-                # whichever one is in service by the time the thread gets here:
-                # the run log names one checkpoint, and it has to be the one
-                # that was actually fine-tuned.
+                # Use the checkpoint resolved at start time, so the run log
+                # names the checkpoint that was actually fine-tuned.
                 checkpoint_path=str(model_registry.WEIGHTS_DIR / base_checkpoint),
                 dataset_dir=str(dataset_dir),
                 holdout_dir=str(_holdout_dir(settings)),
@@ -577,23 +513,16 @@ def start_retrain(
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ) -> JobOut:
-    """Start one re-training run on this batch and return a job to poll.
+    """Start a re-training run launched from this batch; poll `/jobs/{id}`.
 
-    The answer is a `JobOut` polled at `/jobs/{id}`, the same mechanism full
-    grading uses -- there is one job system in this app, not two. Everything
-    that can be checked up front is checked here, so an impossible request
-    fails immediately with a real status code instead of becoming a job that
-    dies a minute later.
+    `scope` selects every submitted correction (default) or this batch only.
+    A successful run only writes a candidate checkpoint; it is never
+    activated automatically.
 
-    `scope` decides what it trains on: every correction sent so far (the
-    default) or this batch alone. The batch id is recorded either way -- it is
-    where the run was launched from, and two runs with the same batch id and
-    different scopes are otherwise indistinguishable in the log.
-
-    What this never does: activate anything. A successful run leaves a
-    candidate file beside the baseline and a row in the run log; the model
-    serving patients is the same one as before, until a person says otherwise
-    on `/models`.
+    Returns 404 for an unknown batch, 409 when prerequisites are missing or
+    another run is in progress, and 400 when the replay set is missing and
+    `without_replay` was not requested. If the same batch is already running,
+    its existing job is returned.
     """
     request = request or RetrainRequest()
     batch_corrections = _batch_or_404(db, batch_id)
@@ -623,8 +552,7 @@ def start_retrain(
     with _start_lock:
         existing_job = jobs.running_for(JOB_KIND, batch_id)
         if existing_job is not None:
-            # Same batch, already in flight: hand back the run that is running
-            # rather than starting a rival one on the same CPU and paths.
+            # Same batch already running: return that job instead of a rival.
             return JobOut.from_job(existing_job)
 
         in_flight = _live_run(db)
@@ -643,8 +571,7 @@ def start_retrain(
             batch_id=batch_id,
             status="running",
             started_at=datetime.datetime.utcnow(),
-            # Replaced with what the rebuild actually used once it has run;
-            # this is the expected size, so a row is never blank while running.
+            # Expected size; replaced with the actual count after the rebuild.
             n_corrections=(
                 readiness.cumulative_corrections if cumulative else batch_corrections
             ),
@@ -665,14 +592,12 @@ def start_retrain(
         db.add(run)
         db.commit()
         db.refresh(run)
-        # Plain int, not the ORM object: the request's session is closed once
-        # the response goes out, and a background thread touching an expired
-        # instance from a closed session raises instead of running.
+        # Pass a plain id: the request session closes after the response, and
+        # the worker thread cannot use ORM instances bound to it.
         run_id = run.id
 
-        # The row has to be complete before the worker touches it: the job id
-        # is only known once the thread is already running, so the worker waits
-        # for this request to finish writing rather than racing it.
+        # The job id is known only after the thread starts; the worker waits
+        # until it has been written to the row.
         row_written = threading.Event()
 
         def work(progress) -> None:

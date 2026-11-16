@@ -3,9 +3,8 @@
 TotalSpineSeg (nnU-Net based) segments and labels vertebrae, intervertebral
 discs, spinal cord and spinal canal from a spine MRI. It pins ``numpy<2`` and
 pulls in nnU-Net/torchio, which conflict with this backend's torch/numpy, so it
-is NOT imported in-process. Instead we shell out to its CLI (``totalspineseg``),
-which is expected to live in its own environment; the path is configurable via
-``Settings.totalspineseg_bin``.
+is not imported in-process. Its CLI (``totalspineseg``) is run as a subprocess
+from its own environment; the path is set via ``Settings.totalspineseg_bin``.
 
 ``run_segmentation(volume_path)`` runs the CLI on a single NIfTI volume, locates
 the final labelmap in the tool's ``step2_output/`` folder, and returns
@@ -25,9 +24,9 @@ import numpy as np
 
 from app.config import Settings
 
-# Final ``step2_output`` labelmap of TotalSpineSeg (release r20241115). Source:
-# the label table in the TotalSpineSeg README. Only lumbar-relevant + spinal
-# structures matter for this app, but the full spine map is kept for fidelity.
+# Final ``step2_output`` labelmap of TotalSpineSeg (release r20241115), from
+# the label table in the TotalSpineSeg README. The full spine map is kept even
+# though the app uses mainly lumbar structures.
 TOTALSPINESEG_LABELS: dict[int, str] = {
     1: "spinal_cord",
     2: "spinal_canal",
@@ -81,7 +80,6 @@ TOTALSPINESEG_LABELS: dict[int, str] = {
     100: "disc_L5_S",
 }
 
-# Folder inside the TotalSpineSeg output that holds the final labelmap.
 _FINAL_OUTPUT_DIR = "step2_output"
 
 
@@ -154,10 +152,9 @@ def run_segmentation(
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
 
-    # The CLI lives in its own venv and is usually NOT on the backend's PATH
-    # (see module docstring). Resolve it up front so a misconfiguration surfaces
-    # as an actionable message instead of a bare ``FileNotFoundError`` from
-    # ``subprocess`` deep in the request.
+    # The CLI is usually not on the backend's PATH. Resolve it up front so a
+    # misconfiguration gives an actionable error instead of a bare
+    # ``FileNotFoundError`` from ``subprocess``.
     seg_bin = shutil.which(settings.totalspineseg_bin) or (
         settings.totalspineseg_bin
         if Path(settings.totalspineseg_bin).is_file()
@@ -171,8 +168,7 @@ def run_segmentation(
             "'<tss-venv>/bin/totalspineseg') in backend/.env or the environment."
         )
 
-    # The TotalSpineSeg CLI only accepts NIfTI. Convert other inputs (e.g. the
-    # SPIDER .mha, a DICOM series dir) to a temp .nii.gz first.
+    # The CLI only accepts NIfTI; convert other inputs (.mha, DICOM series).
     nifti_input = _ensure_nifti(volume_path, output_path)
 
     cmd = [
@@ -190,8 +186,8 @@ def run_segmentation(
     if settings.totalspineseg_data:
         cmd += ["--data-dir", settings.totalspineseg_data]
 
-    # Also cap the numeric libs' thread pools — on constrained containers
-    # OpenMP/BLAS spawning one thread per core trips the thread limit
+    # Cap the numeric libraries' thread pools: on constrained containers one
+    # OpenMP/BLAS thread per core exceeds the thread limit
     # ("libgomp: Thread creation failed: Resource temporarily unavailable").
     import os
 

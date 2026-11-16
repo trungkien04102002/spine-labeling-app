@@ -1,9 +1,8 @@
 """In-process inference backend.
 
-Runs TotalSpineSeg for anatomy masks, then grades each lumbar disc using crops
-that the segmentation localizes (seg->grading chain, approved by the project
-owner: an uploaded volume ships no per-disc crops, so the mask is what tells us
-where each disc is).
+Runs TotalSpineSeg for anatomy masks, then grades each lumbar disc from crops
+localized by the segmentation; an uploaded volume has no per-disc crops, so the
+mask is what locates each disc.
 """
 
 from __future__ import annotations
@@ -22,9 +21,8 @@ from app.schemas import InferResult, SegmentationResult
 
 MODEL_VERSION = "phase2-cbam + totalspineseg-r20241115"
 
-# Logs to the backend console/log so /infer progress is visible (uvicorn only
-# prints the request line after the whole thing finishes, which for a minutes-
-# long segmentation looks like a hang otherwise).
+# Progress is logged explicitly: uvicorn prints the request line only after a
+# minutes-long segmentation finishes, which otherwise looks like a hang.
 logger = logging.getLogger("uvicorn.error")
 
 

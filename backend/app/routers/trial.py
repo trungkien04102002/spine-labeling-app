@@ -1,10 +1,7 @@
-"""Everything the trial produced, as one download.
+"""Export of all clinical-trial results as a single zip download.
 
-The box a trial runs on is disposable -- destroying a Vast instance destroys
-its disk -- so the results have to leave it, and they have to leave in a form
-someone can open without this code: CSVs that Excel reads in Vietnamese, plus a
-copy of the database for anything the CSVs did not anticipate. One button on
-the operator page, no SSH.
+The server's disk may be ephemeral, so results are exported in a form readable
+without this code: UTF-8 CSVs (Excel-compatible) plus a SQLite snapshot.
 """
 
 from __future__ import annotations
@@ -30,8 +27,8 @@ from app.survey_questions import QUESTIONS
 
 router = APIRouter(tags=["trial"])
 
-# Excel reads a CSV as the local code page unless it opens with a UTF-8
-# byte-order mark, which turns Vietnamese into mojibake.
+# Without a UTF-8 BOM, Excel decodes CSV with the local code page and garbles
+# Vietnamese text.
 _BOM = "\ufeff"
 
 
@@ -62,10 +59,9 @@ def readers_csv(db: Session) -> str:
 def corrections_csv(db: Session) -> str:
     """One row per grade a clinician changed.
 
-    ``before`` is the value in the version the clinician edited, which is the
-    model's output only for the first edit to that cell; a second edit's
-    ``before`` is the first edit's ``after``. To measure agreement with the
-    model, take each cell's earliest row.
+    ``before`` is the model's output only for the first edit of a cell; later
+    edits record the previous edit's value. For agreement with the model, use
+    each cell's earliest row.
     """
     rooms = _room_names(db)
     patient_of = {
@@ -129,7 +125,7 @@ def survey_csv(db: Session) -> str:
 
 
 def questions_csv() -> str:
-    """What each Q-column means, so the answers survive separation from code."""
+    """Text of each Q-column, so the export is self-describing."""
     return _csv(
         ["question", "group", "kind", "required", "text"],
         [[f"Q{q.id}", q.group, q.kind, q.as_dict()["required"], q.text] for q in QUESTIONS],
@@ -157,10 +153,10 @@ backend/data/ off the box separately if they are needed. See DEPLOY_VAST.md.
 
 
 def _snapshot(db: Session) -> bytes | None:
-    """A consistent copy of the live SQLite file, or None if there is none.
+    """Return a consistent copy of the SQLite database, or None if not SQLite.
 
-    sqlite3's backup API rather than a file copy: copying the file while the
-    app writes can produce a torn database that will not open.
+    Uses the sqlite3 backup API: a plain file copy during writes can produce a
+    corrupt database.
     """
     url = db.get_bind().url
     if url.get_backend_name() != "sqlite" or not url.database or url.database == ":memory:":
@@ -184,7 +180,7 @@ def reference_b_csv(settings: Settings) -> str:
         try:
             r = reference_b.load_result(path.parent)
         except ValueError:
-            continue  # an unreadable file must not cost the whole export
+            continue  # skip unreadable results rather than fail the export
         for item in r.results:
             rows.append(
                 [path.parent.name, item.label, item.probability, item.prediction,
@@ -202,6 +198,7 @@ def reference_b_csv(settings: Settings) -> str:
 def export_trial(
     db: Session = Depends(get_db), settings: Settings = Depends(get_settings)
 ) -> Response:
+    """Download all trial results as a zip of CSVs plus a database snapshot (admin only)."""
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
         z.writestr("README.txt", _README)

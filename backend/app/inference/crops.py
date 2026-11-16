@@ -1,14 +1,11 @@
 """Per-disc crop extraction from a segmentation mask.
 
-The Phase-2 CBAM grading model scores one intervertebral disc at a time from a
+The CBAM grading model scores one intervertebral disc at a time from a
 ``(9, 112, 224)`` sagittal crop centered on that disc. An uploaded volume has no
-pre-made crops, so we localize each lumbar disc using TotalSpineSeg's disc
-labels and cut a crop the same way the RSNA preprocessing did (9 slices around
-the disc's sagittal slice; a 240x120 in-plane window around its centroid,
-resized to 224x112; percentile-normalized to [0, 1]).
-
-This deliberately consumes the segmentation output to drive grading -- a
-seg->grading chain the project owner approved (see the LVTN software chapter).
+pre-made crops, so each lumbar disc is localized from TotalSpineSeg's disc
+labels and cropped the same way as the RSNA preprocessing (9 slices around the
+disc's sagittal slice; a 240x120 in-plane window around its centroid, resized
+to 224x112; percentile-normalized to [0, 1]).
 """
 
 from __future__ import annotations
@@ -18,7 +15,7 @@ import torch
 import torch.nn.functional as F
 
 # TotalSpineSeg disc label id -> grading level string. Only the five lumbar
-# levels the Phase-2 model was trained on.
+# levels the grading model was trained on.
 DISC_LABEL_TO_LEVEL: dict[int, str] = {
     92: "L1-L2",
     93: "L2-L3",
@@ -60,7 +57,7 @@ def _crop_one(
     for offset in range(-(_N_SLICES // 2), _N_SLICES // 2 + 1):  # -4..+4
         idx = min(max(slice_c + offset, 0), num_slices - 1)
         cropped = vol_arr[idx, y1:y2, x1:x2].astype(np.float32)
-        # Bilinear resize to (H=112, W=224) via torch (avoids an opencv dep).
+        # Resized with torch to avoid an OpenCV dependency.
         tensor = torch.from_numpy(cropped)[None, None]  # (1, 1, H, W)
         resized = F.interpolate(
             tensor, size=(_OUT_H, _OUT_W), mode="bilinear", align_corners=False
@@ -89,7 +86,6 @@ def extract_disc_crops(
         coords = np.argwhere(mask_arr == label_id)
         if coords.size == 0:
             continue
-        # coords columns are (slice, y, x).
         slice_c = int(round(coords[:, 0].mean()))
         y_c = int(round(coords[:, 1].mean()))
         x_c = int(round(coords[:, 2].mean()))

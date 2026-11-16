@@ -1,10 +1,5 @@
-"""
-Attention-Enhanced Grading Model for SpineNetV2.
-
-Extends GradingModelBaseline with CBAM (Convolutional Block Attention Module).
-Improves feature discrimination for minority classes (Moderate, Severe).
-
-Author: SpineNetV2 Improved Implementation
+"""Grading model with CBAM attention: the baseline ResNet34 plus a CBAM block
+after each residual stage.
 """
 
 import os
@@ -13,36 +8,19 @@ import torch
 import torch.nn as nn
 from typing import List
 
-# Import from baseline
 from .grading_baseline import BasicBlock, conv3x3, conv1x1
 from .attention import CBAM
 
 
 class GradingModelWithCBAM(nn.Module):
-    """
-    CBAM-Enhanced Grading Model (ResNet34 + CBAM) for multi-task IVD classification.
+    """Multi-task IVD grading model: ResNet34 with CBAM after layer1-4.
 
-    Architecture Improvements over Baseline:
-        - Adds CBAM after each ResNet layer (layer1-4)
-        - Channel attention learns "what" features are important
-        - Spatial attention learns "where" to focus
-        - Better discrimination for subtle pathologies (Moderate vs Severe)
+    Input: ``[B, 1, 9, 112, 224]``.
 
-    Input:
-        [Batch, 1, 9, 112, 224] - Batch of IVD volumes
-
-    Output (format='rsna'):
-        Dictionary with 3 keys:
-        - 'spinal_canal': [Batch, 3]
-        - 'left_foraminal': [Batch, 3]
-        - 'right_foraminal': [Batch, 3]
-
-    Example:
-        >>> model = GradingModelWithCBAM(format='rsna')
-        >>> x = torch.randn(2, 1, 9, 112, 224)
-        >>> outputs = model(x)
-        >>> outputs['spinal_canal'].shape
-        torch.Size([2, 3])
+    Output:
+        format='rsna': dict with ``spinal_canal``, ``left_foraminal`` and
+        ``right_foraminal``, each ``[B, 3]``.
+        format='original': tuple of 11 logit tensors (SpineNet tasks).
     """
 
     def __init__(
@@ -59,15 +37,9 @@ class GradingModelWithCBAM(nn.Module):
     ):
         """
         Args:
-            block: BasicBlock (ResNet34)
-            layers: Number of blocks in each layer [3, 4, 6, 3]
-            format: 'rsna' (3 tasks) or 'original' (11 tasks)
-            use_cbam: Enable CBAM attention (default: True)
-            cbam_reduction: CBAM channel reduction ratio (default: 16)
-            zero_init_residual: Zero-initialize residual BN
-            groups: Conv groups (default: 1)
-            width_per_group: Width per group (default: 64)
-            norm_layer: Normalization layer (default: BatchNorm3d)
+            format: 'rsna' (3 tasks) or 'original' (11 tasks).
+            use_cbam: insert CBAM after each stage; False gives the baseline.
+            cbam_reduction: CBAM channel reduction ratio.
         """
         super(GradingModelWithCBAM, self).__init__()
 
@@ -82,8 +54,6 @@ class GradingModelWithCBAM(nn.Module):
         self.format = format
         self.use_cbam = use_cbam
 
-        # === BACKBONE ===
-        # Initial convolution: 1 -> 64 channels
         self.conv1 = nn.Conv3d(
             1, self.inplanes,
             kernel_size=(3, 7, 7),
@@ -99,30 +69,25 @@ class GradingModelWithCBAM(nn.Module):
             padding=(0, 1, 1)
         )
 
-        # ResNet layers
-        self.layer1 = self._make_layer(block, 64, layers[0])   # 64 channels
-        self.layer2 = self._make_layer(block, 128, layers[1], stride=1)  # 128 channels
-        self.layer3 = self._make_layer(block, 256, layers[2], stride=2)  # 256 channels
-        self.layer4 = self._make_layer(block, 512, layers[3], stride=2)  # 512 channels
+        self.layer1 = self._make_layer(block, 64, layers[0])
+        self.layer2 = self._make_layer(block, 128, layers[1], stride=1)  # stride 1 keeps spatial detail
+        self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
+        self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
 
-        # === CBAM ATTENTION MODULES ===
         if self.use_cbam:
             self.cbam1 = CBAM(in_channels=64, reduction=cbam_reduction)
             self.cbam2 = CBAM(in_channels=128, reduction=cbam_reduction)
             self.cbam3 = CBAM(in_channels=256, reduction=cbam_reduction)
             self.cbam4 = CBAM(in_channels=512, reduction=cbam_reduction)
 
-        # Global average pooling
         self.avgpool = nn.AdaptiveAvgPool3d((1, 1, 1))
 
-        # === CLASSIFICATION HEADS ===
         if format == 'rsna':
             # 3 tasks, all 3-class (Normal/Mild, Moderate, Severe)
             self.fc_spinal_canal = nn.Linear(512 * block.expansion, 3)
             self.fc_left_foraminal = nn.Linear(512 * block.expansion, 3)
             self.fc_right_foraminal = nn.Linear(512 * block.expansion, 3)
         elif format == 'original':
-            # 11 tasks with different number of classes
             self.fc_pf = nn.Linear(512 * block.expansion, 5)
             self.fc_nar = nn.Linear(512 * block.expansion, 4)
             self.fc_ccs = nn.Linear(512 * block.expansion, 4)
@@ -137,7 +102,6 @@ class GradingModelWithCBAM(nn.Module):
         else:
             raise ValueError(f"Unknown format: {format}. Use 'original' or 'rsna'")
 
-        # === INITIALIZATION ===
         self._initialize_weights(zero_init_residual)
 
     def _make_layer(
@@ -211,18 +175,14 @@ class GradingModelWithCBAM(nn.Module):
             If format='rsna': Dictionary with 3 keys
             If format='original': Tuple of 11 tensors
         """
-        # Input: [B, 1, 9, 112, 224]
-
-        # Initial conv + pooling
         x = self.conv1(x)       # [B, 64, 9, 56, 112]
         x = self.bn1(x)
         x = self.relu(x)
         x = self.maxpool(x)     # [B, 64, 9, 28, 56]
 
-        # ResNet blocks with CBAM
         x = self.layer1(x)      # [B, 64, 9, 28, 56]
         if self.use_cbam:
-            x = self.cbam1(x)   # Apply channel + spatial attention
+            x = self.cbam1(x)
 
         x = self.layer2(x)      # [B, 128, 9, 28, 56]
         if self.use_cbam:
@@ -236,11 +196,9 @@ class GradingModelWithCBAM(nn.Module):
         if self.use_cbam:
             x = self.cbam4(x)
 
-        # Global pooling
         x = self.avgpool(x)     # [B, 512, 1, 1, 1]
         x = torch.flatten(x, 1) # [B, 512]
 
-        # Multi-task classification
         if self.format == 'rsna':
             out_spinal_canal = self.fc_spinal_canal(x)      # [B, 3]
             out_left_foraminal = self.fc_left_foraminal(x)  # [B, 3]
@@ -266,16 +224,7 @@ class GradingModelWithCBAM(nn.Module):
                     x_umc, x_lmc, x_fsl, x_fsr, x_hrn)
 
     def encode(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Extract 512-dim feature BEFORE classification heads.
-        Used by Hybrid model when CBAM is frozen backbone.
-
-        Args:
-            x: Input volume [B, 1, 9, 112, 224]
-
-        Returns:
-            Feature tensor [B, 512]
-        """
+        """Return the pooled 512-d feature ``[B, 512]`` (the input to the heads)."""
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
@@ -299,18 +248,16 @@ class GradingModelWithCBAM(nn.Module):
         return x
 
     def load_pretrained_backbone(self, weights_dir: str, strict: bool = False, verbose: bool = True):
-        """
-        Load pretrained backbone weights from original SpineNet model.
+        """Load backbone weights from a SpineNet checkpoint.
 
-        Only loads backbone (conv1, bn1, layer1-4, avgpool), NOT classification heads.
-        CBAM modules are randomly initialized (not in pretrained weights).
+        Heads and CBAM blocks keep their fresh initialisation; tensors with an
+        unknown name or a mismatched shape are skipped.
 
         Args:
-            weights_dir: Path to directory containing pretrained weights (.pt files)
-            strict: If True, requires exact match. If False, allows missing/extra keys
-            verbose: Print loading information
+            weights_dir: a ``.pt`` file, or a directory (newest ``*.pt`` is used).
+            strict: passed to ``load_state_dict``.
+            verbose: print what was loaded.
         """
-        # Find latest checkpoint
         if os.path.isdir(weights_dir):
             list_of_pt = glob.glob(os.path.join(weights_dir, "*.pt"))
             if not list_of_pt:
@@ -322,25 +269,18 @@ class GradingModelWithCBAM(nn.Module):
         if verbose:
             print(f"  Loading backbone from: {checkpoint_path}")
 
-        # Load checkpoint
         checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
         pretrained_dict = checkpoint.get("model_weights", checkpoint)
 
-        # Get current model state
         model_dict = self.state_dict()
 
-        # Filter out classification heads and CBAM modules
         backbone_dict = {}
         for k, v in pretrained_dict.items():
-            # Skip classification heads
             if k.startswith('fc_'):
                 continue
-            # Skip CBAM (not in pretrained weights, will be randomly initialized)
             if 'cbam' in k:
                 continue
-            # Only load if key exists in current model
             if k in model_dict:
-                # Check shape compatibility
                 if v.shape == model_dict[k].shape:
                     backbone_dict[k] = v
                 elif verbose:
@@ -355,7 +295,6 @@ class GradingModelWithCBAM(nn.Module):
             print(f"  Loaded {loaded_params}/{total_params} parameters")
             print(f"  CBAM modules and classification heads randomly initialized")
 
-        # Update model dict and load
         model_dict.update(backbone_dict)
         self.load_state_dict(model_dict, strict=strict)
 
@@ -363,31 +302,18 @@ class GradingModelWithCBAM(nn.Module):
             print(f"  ✓ Backbone loaded successfully")
 
     def freeze_backbone(self, freeze: bool = True):
-        """
-        Freeze or unfreeze backbone parameters for transfer learning.
-
-        Args:
-            freeze: If True, freeze backbone (train only heads + CBAM).
-                   If False, unfreeze backbone (train everything).
-        """
-        # Freeze/unfreeze backbone layers
+        """Freeze (or unfreeze) the backbone; ``fc_*`` heads and CBAM blocks stay trainable."""
         for name, param in self.named_parameters():
-            # Classification heads start with 'fc_'
-            # CBAM modules contain 'cbam'
-            # Freeze everything except fc_* and cbam*
             if not name.startswith('fc_') and 'cbam' not in name:
                 param.requires_grad = not freeze
 
 
-# Test code
 if __name__ == "__main__":
     print("Testing GradingModelWithCBAM...")
 
-    # Create model
     model = GradingModelWithCBAM(format='rsna', use_cbam=True)
     model.eval()
 
-    # Test forward pass
     x = torch.randn(2, 1, 9, 112, 224)
     outputs = model(x)
 
@@ -397,13 +323,11 @@ if __name__ == "__main__":
     for key, value in outputs.items():
         print(f"  - {key}: {value.shape}")
 
-    # Count parameters
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"\n  - Total parameters: {total_params:,}")
     print(f"  - Trainable parameters: {trainable_params:,}")
 
-    # Test freezing
     print(f"\nTesting backbone freezing...")
     model.freeze_backbone(freeze=True)
     trainable_params_frozen = sum(p.numel() for p in model.parameters() if p.requires_grad)

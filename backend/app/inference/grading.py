@@ -28,9 +28,6 @@ import torch.nn.functional as F
 from app.schemas import GradingItem
 from models.grading_attention import GradingModelWithCBAM
 
-# Which checkpoint is served now lives in app.feedback.model_registry (see
-# _load_model); it defaults to models/weights/phase2_cbam.pth.
-
 # Model head name -> GradingItem.condition value.
 _HEAD_TO_CONDITION = {
     "spinal_canal": "canal_stenosis",
@@ -39,11 +36,9 @@ _HEAD_TO_CONDITION = {
 }
 
 # argmax class index -> severity label (matches severity_map in
-# backend/reference/test_rsna_preprocessed.py, minus the -1/"N/A" missing-label case
-# which does not apply to inference on unlabeled crops).
+# backend/reference/test_rsna_preprocessed.py, without the -1 missing-label case).
 _SEVERITY_BY_CLASS = {0: "Normal/Mild", 1: "Moderate", 2: "Severe"}
 
-# Matches spine level tokens like "l1", "l5", "s1" (case-insensitive).
 _LEVEL_TOKEN_RE = re.compile(r"^[lsLS]\d+$")
 
 
@@ -51,10 +46,9 @@ _LEVEL_TOKEN_RE = re.compile(r"^[lsLS]\d+$")
 def _load_model() -> GradingModelWithCBAM:
     """Load the active CBAM grading checkpoint once and cache it.
 
-    Which checkpoint that is comes from `app.feedback.model_registry`, so
-    activating a retrained version takes effect on the next request (the
-    registry clears this cache when it switches). The import is local to avoid
-    a cycle: the registry needs this function to invalidate the cache.
+    The checkpoint comes from `app.feedback.model_registry`, which clears this
+    cache on activation. The import is local to avoid a cycle: the registry
+    needs this function to invalidate the cache.
     """
     from app.feedback.model_registry import active_checkpoint_path
 
@@ -87,7 +81,6 @@ def _level_from_filename(npy_path: Path) -> str:
     tokens = npy_path.stem.split("_")
     level_tokens = [t for t in tokens if _LEVEL_TOKEN_RE.match(t)]
     if not level_tokens:
-        # Fall back to the last two underscore-separated tokens.
         level_tokens = tokens[-2:] if len(tokens) >= 2 else tokens
     return "-".join(t.upper() for t in level_tokens)
 
@@ -99,7 +92,7 @@ def _grade_crop(
     bbox: list[float] | None = None,
 ) -> list[GradingItem]:
     """Grade one `(9, 112, 224)` crop -> one `GradingItem` per condition head."""
-    # [9, 112, 224] -> [1, 1, 9, 112, 224] (batch, channel dims).
+    # [9, 112, 224] -> [1, 1, 9, 112, 224]
     tensor = torch.from_numpy(volume).float().unsqueeze(0).unsqueeze(0)
     tensor = tensor.to(next(model.parameters()).device)
     with torch.no_grad():
@@ -144,8 +137,8 @@ def grade_crops(crops: dict[str, dict[str, object]]) -> list[GradingItem]:
 def run_grading(study_dir: str) -> list[GradingItem]:
     """Run the CBAM grading model on every per-IVD `.npy` crop in `study_dir`.
 
-    Kept for RSNA-style preprocessed studies that ship `.npy` crops. The app's
-    live path grades seg-localized crops via `grade_crops` instead.
+    Used for RSNA-style preprocessed studies that ship `.npy` crops; uploaded
+    studies are graded from segmentation-localized crops via `grade_crops`.
 
     Args:
         study_dir: directory containing one or more preprocessed `(9, 112, 224)`

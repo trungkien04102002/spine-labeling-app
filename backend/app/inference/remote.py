@@ -1,7 +1,7 @@
 """Remote inference backend.
 
-Posts the study volume to a standalone model server running on a Vast.ai box
-(see the repo-root `serve_models.py`), which exposes `/seg` and `/grade`. The
+Posts the study volume to a standalone model server (see the repo-root
+`serve_models.py`), which exposes `/seg` and `/grade`. The
 segmentation mask stays on the remote and is referenced by URL in `mask_uri`.
 """
 

@@ -1,13 +1,8 @@
-"""Volume I/O + web conversion.
+"""Volume I/O and conversion for the viewer and the models.
 
-Reads the volume formats this app ingests -- a DICOM series (a directory of
-``.dcm`` slices, e.g. RSNA, uploaded as a ``.zip`` and unpacked by
-``extract_dicom_zip``), a MetaImage ``.mha`` (SPIDER), or a NIfTI
-(``.nii`` / ``.nii.gz``) -- via SimpleITK, and standardizes them to NIfTI for
-the frontend.
-
-Cornerstone3D renders volumes through its NIfTI volume loader, so
-``to_web_form`` always emits ``.nii.gz`` regardless of the source format.
+Reads a DICOM series (a directory of slices, uploaded as a ``.zip`` and split by
+``extract_dicom_zip``), a MetaImage ``.mha`` or a NIfTI file via SimpleITK.
+Cornerstone3D only loads NIfTI, so ``to_web_form`` always emits ``.nii.gz``.
 """
 
 from __future__ import annotations
@@ -44,14 +39,12 @@ class SeriesInfo:
 
 
 def orientation_of(image: sitk.Image) -> str:
-    """Classify an acquisition plane from the image's direction cosines.
+    """Classify the acquisition plane from the image's direction cosines.
 
-    The slice normal is the third column of the direction matrix (the axis we
-    scroll along). Its dominant patient axis names the plane: x = left-right
-    normal = sagittal, y = anterior-posterior = coronal, z = superior-inferior
-    = axial. Oblique acquisitions (very common for axial lumbar stacks angled
-    to each disc) still classify by their dominant component, which is what a
-    radiologist would call them.
+    The dominant patient-space component of the slice normal names the plane:
+    x (left-right) = sagittal, y (anterior-posterior) = coronal,
+    z (superior-inferior) = axial. Oblique stacks, common for axial lumbar
+    series angled to each disc, classify by their dominant component.
     """
     direction = image.GetDirection()
     if len(direction) != 9:
@@ -64,15 +57,12 @@ def orientation_of(image: sitk.Image) -> str:
 
 
 def slice_axis(image: sitk.Image) -> int:
-    """Which array axis the slices are stacked along.
+    """Return the array axis the slices are stacked along.
 
-    For a DICOM series it is always the last, which is what this code used to
-    assume everywhere. A NIfTI or MetaImage file makes no such promise: the
-    public SPIDER and Zenodo lumbar T2 volumes store 24 and 39 sagittal slices
-    along the FIRST axis, so reading the third column labelled both "axial".
-    The stacking axis is the one sampled most coarsely -- slice thickness is
-    what a 2D acquisition has in excess -- with the fewest samples breaking a
-    tie (an isotropic 3D scan), and the last axis breaking that.
+    A DICOM series always stacks along the last axis, but NIfTI/MetaImage files
+    need not (SPIDER volumes stack sagittal slices along the first). The
+    stacking axis is the most coarsely sampled one; ties (isotropic scans) go
+    to the axis with fewest samples, then to the last axis.
     """
     spacing, size = image.GetSpacing(), image.GetSize()
     if len(spacing) != 3:
@@ -86,12 +76,9 @@ logger = logging.getLogger("uvicorn.error")
 def describe_unreadable(directory: Path, sample: int = 3) -> str:
     """Summarise files that failed to parse as a DICOM series.
 
-    When someone uploads a study from a hospital PACS and it does not open, the
-    bare message "no DICOM series" is useless from the other end of a phone
-    call: it cannot distinguish a renamed .rar from a perfectly valid study
-    whose pixels are JPEG2000-compressed (which GDCM here refuses without extra
-    plugins). This reports what the archive actually held, so the answer is
-    visible in the log instead of requiring the file to be sent over.
+    Distinguishes non-DICOM files from valid DICOM that GDCM refuses (e.g.
+    JPEG2000-compressed pixels), so a failed upload can be diagnosed from the
+    log and the error message alone.
     """
     files = sorted(p for p in directory.iterdir() if p.is_file())
     exts = Counter("".join(p.suffixes).lower() or "<no extension>" for p in files)
@@ -101,10 +88,8 @@ def describe_unreadable(directory: Path, sample: int = 3) -> str:
         + ", ".join(f"{ext} x{n}" for ext, n in exts.most_common(5)),
     ]
     for path in files[:sample]:
-        # Read strictly first. force=True would happily "parse" a JPEG and
-        # report empty fields, which hides the one distinction that matters
-        # here: a real DICOM the reader refused (compressed pixels) versus a
-        # file that was never DICOM.
+        # Strict read on purpose: force=True would "parse" a JPEG with empty
+        # fields and hide whether the file was DICOM at all.
         try:
             ds = pydicom.dcmread(str(path), stop_before_pixels=True)
         except pydicom.errors.InvalidDicomError:
@@ -126,17 +111,12 @@ def describe_unreadable(directory: Path, sample: int = 3) -> str:
 def extract_dicom_zip(zip_path: str, out_dir: str) -> list[SeriesInfo]:
     """Extract a ``.zip`` of DICOM files, split it per series, describe each.
 
-    A study archive may hold several acquisitions (sagittal T1, sagittal T2,
-    axial T2 ...). Series membership is decided by ``SeriesInstanceUID`` in the
-    file headers, not by folder layout, so every file is unpacked first and
-    then grouped. Each series lands in its own ``dicom/<n>_<uid>/`` directory,
-    which keeps every downstream reader (which expects "a directory holding one
-    series") working unchanged.
-
-    Accepts flat zips (``*.dcm`` at the archive root, Oxford-demo style) and
-    nested ones. Filenames are flattened, but collisions between series (both
-    holding ``1.dcm``) are de-duplicated rather than silently overwritten.
-    Guards against zip-slip. Raises ``ValueError`` if no DICOM series is found.
+    Series membership comes from ``SeriesInstanceUID`` in the headers, not the
+    folder layout, so all files are unpacked flat first and then grouped. Each
+    series lands in ``dicom/<n>_<uid>/`` because downstream readers expect one
+    series per directory. Name collisions are de-duplicated, zip-slip is
+    rejected, and localizers or unreadable series are skipped (see
+    ``SKIPPED_SERIES``). Raises ``ValueError`` if no usable series remains.
     """
     dest = Path(out_dir) / "dicom"
     if dest.exists():
@@ -193,10 +173,8 @@ def extract_dicom_zip(zip_path: str, out_dir: str) -> list[SeriesInfo]:
         series_dir.mkdir(parents=True, exist_ok=True)
         for path in files:
             shutil.move(path, series_dir / Path(path).name)
-        # One bad series must not sink the rest. A real Siemens lumbar export
-        # (Mendeley 10.17632/k57fr854j2) carries a POSDISP series of three
-        # differently sized reference images that ITK cannot stack; it used to
-        # fail the whole upload while five good series sat beside it.
+        # One bad series must not fail the upload: exports can include
+        # reference series of differently sized images that ITK cannot stack.
         label = _series_label(series_dir) or uid[-12:]
         reason = _not_diagnostic(series_dir, len(files))
         if reason:
@@ -228,10 +206,9 @@ SKIPPED_SERIES: contextvars.ContextVar[list[str]] = contextvars.ContextVar(
     "skipped_series", default=[]
 )
 
-# Scout and position-reference series: acquired to plan the scan, not to read
-# it. A 3-plane localizer even stacks into something ITK accepts -- eight
-# slices in three orientations -- and was then offered to the doctor, labelled
-# "sagittal", beside the real T2.
+# Scout and position-reference series are acquired to plan the scan, not to
+# read it. Filtered by name because a 3-plane localizer can still stack into a
+# volume ITK accepts and would otherwise be listed as a sagittal series.
 _NON_DIAGNOSTIC = ("localizer", "localiser", "scout", "survey", "posdisp", "3-plane", "3plane")
 MIN_SLICES = 3
 
@@ -248,13 +225,10 @@ def _series_label(series_dir: Path) -> str | None:
 
 
 def _weighting_from_header(series_dir: Path) -> str | None:
-    """T1 / T2 / STIR from the acquisition timings, when the name is missing.
+    """Infer T1 / T2 / STIR from TR/TE/TI when SeriesDescription is blank.
 
-    Anonymised exports often blank SeriesDescription (every RSNA sagittal
-    T2/STIR arrives with an empty one) and the viewer then said only
-    "Sagittal". TR/TE separate the weightings reliably when they survive:
-    long TR + long TE is T2, short + short is T1, an inversion time with a
-    long TR is STIR.
+    Anonymised exports (e.g. RSNA) often blank the description. Long TR + long
+    TE is T2, short + short is T1, and an inversion time with a long TR is STIR.
     """
     first = next((p for p in series_dir.iterdir() if p.is_file()), None)
     if first is None:
@@ -278,15 +252,12 @@ def _weighting_from_header(series_dir: Path) -> str | None:
 
 
 def fill_missing_weighting(series: list) -> None:
-    """Name an unnamed sagittal series T2 when its sibling is the T1.
+    """Name an unnamed sagittal series T2 when its only sibling is a T1.
 
-    A lumbar protocol has a sagittal T1 and a sagittal T2 (or STIR). When the
-    export blanks one name and the timings are gone too (RSNA), the unnamed
-    sagittal beside a named T1 is the T2 -- and it is the series the models
-    must read, so it also has to sort ahead of the T1. Works on anything with
-    ``description`` and ``orientation`` attributes; edits the list in place
-    (a frozen `SeriesInfo` is swapped for a renamed copy, a database row is
-    renamed directly).
+    A lumbar protocol has a sagittal T1 and a sagittal T2/STIR; the unnamed one
+    beside a named T1 is the T2, which the models must read and which must sort
+    first. Accepts any objects with ``description`` and ``orientation``; edits
+    the list in place (frozen ``SeriesInfo`` items are replaced by copies).
     """
     sagittal = [s for s in series if s.orientation == "sagittal"]
     names = [(s.description or "").upper() for s in sagittal]
@@ -318,12 +289,10 @@ def _not_diagnostic(series_dir: Path, n_files: int) -> str | None:
 
 
 def _reading_order(info: SeriesInfo) -> tuple[int, str]:
-    """Sort key putting the series the models read first.
+    """Sort key that puts sagittal T2/STIR first.
 
-    Sagittal T2 leads: it is the sequence the grading models were trained on
-    (and the one a radiologist opens first), so it becomes the default active
-    series. Grading a study on sagittal T1 by accident would silently feed the
-    models the wrong sequence.
+    The first series becomes the default active one, and the grading models
+    were trained on sagittal T2; grading a T1 would silently give wrong results.
     """
     description = (info.description or "").upper()
     if info.orientation == "sagittal":
@@ -363,12 +332,11 @@ def _describe_series(uid: str, series_dir: Path) -> SeriesInfo:
 
 
 def _slice_spacing(files: list[str], first: pydicom.Dataset) -> float | None:
-    """Through-plane spacing, preferring the distance the slices actually moved.
+    """Through-plane spacing, preferring the measured step between slices.
 
-    ``SliceThickness`` is the excited slab, not the sampling step -- the RSNA
-    lumbar series here are 4.0 mm thick but stepped 4.8 mm, a 20% error if the
-    tag is trusted. Projecting the position delta onto the slice normal gives
-    the real step, so that is tried first.
+    ``SliceThickness`` is the excited slab, not the sampling step (RSNA lumbar
+    series are 4.0 mm thick but stepped 4.8 mm), so the position delta projected
+    onto the slice normal is tried first.
     """
     if len(files) > 1:
         try:
@@ -392,19 +360,11 @@ def _slice_spacing(files: list[str], first: pydicom.Dataset) -> float | None:
 def _spacing_from_headers(files: list[str]) -> tuple[float, float, float] | None:
     """Recover voxel spacing from the DICOM headers, or None if unavailable.
 
-    Only used when GDCM already gave up. The RSNA-2024 DICOMs are anonymised
-    re-exports that declare ``Enhanced MR Image Storage`` while holding ordinary
-    single-frame classic MR data. For Enhanced MR the standard keeps the voxel
-    size in ``SharedFunctionalGroupsSequence -> PixelMeasuresSequence``, so GDCM
-    correctly looks there, finds nothing, and returns 1x1x1 mm -- ignoring the
-    legacy ``(0028,0030) PixelSpacing`` that is right there in the file, and
-    that pydicom reads without complaint.
-
-    Nothing downstream notices on its own. The viewer merely looks a little
-    squashed, but TotalSpineSeg resamples by *physical* size: a lumbar scan that
-    claims to be isotropic 1 mm when it is really 0.47 x 0.47 x 4.8 mm arrives
-    at the network several times the wrong shape, and comes back with the
-    vertebrae labelled as cervical and thoracic.
+    Used only when GDCM returns its 1x1x1 mm fallback. Some anonymised exports
+    (e.g. RSNA 2024) declare Enhanced MR storage but hold classic single-frame
+    data, so GDCM finds no functional-group spacing and ignores the legacy
+    ``PixelSpacing`` tag. Wrong spacing must be fixed here: TotalSpineSeg
+    resamples by physical size and mislabels vertebrae on a mis-scaled volume.
     """
     try:
         first = pydicom.dcmread(files[0], stop_before_pixels=True)
@@ -462,9 +422,8 @@ def read_metadata(path: str) -> dict[str, object]:
     }
 
 
-# Curated DICOM tags worth surfacing in the viewer, in display order. Only a
-# DICOM source carries these; MHA/NIfTI (e.g. SPIDER) have none, so the result
-# is simply empty for those. Public tags only -- RSNA/Kaggle data is anonymized.
+# DICOM tags shown in the viewer, in display order. Public tags only;
+# MHA/NIfTI sources carry none.
 _DICOM_TAGS: list[tuple[str, str]] = [
     ("0008|103e", "Series"),
     ("0018|0024", "Sequence"),
@@ -545,10 +504,9 @@ def _web_stem(path: str) -> str:
 def _orient_slices_last(image: sitk.Image) -> sitk.Image:
     """Permute so the fewest-slice axis is last (the axis the viewer scrolls).
 
-    Cornerstone's NIfTI loader enumerates one image per slice along the 3rd
-    axis. Sagittal-acquired lumbar MRI (RSNA/SPIDER) has few through-plane
-    slices; without this, the loader would slice the wrong (high-count) axis
-    and produce thin, unreadable frames.
+    Cornerstone's NIfTI loader makes one image per index of the third axis;
+    for sagittal lumbar MRI stored slice-first it would otherwise scroll the
+    wrong axis and show thin, unreadable frames.
     """
     size = image.GetSize()  # (x, y, z)
     min_axis = min(range(3), key=lambda i: size[i])
@@ -558,28 +516,22 @@ def _orient_slices_last(image: sitk.Image) -> sitk.Image:
     return sitk.PermuteAxes(image, order)
 
 
-# The orientation every model input must arrive in: array columns run toward
-# Posterior, rows toward Inferior, slices toward the patient's Right. It is not
-# a preference but a measurement -- all 16 sagittal RSNA training series read
-# this way, as does a clinical Siemens export, because that is how a DICOM
-# sagittal series stacks.
+# Orientation every model input must arrive in (columns toward Posterior, rows
+# toward Inferior, slices toward the patient's Right). This is how a DICOM
+# sagittal series stacks, and therefore how the RSNA training data was laid out.
 MODEL_ORIENTATION = "PIR"
 
 
 def to_model_orientation(image: sitk.Image) -> sitk.Image:
     """Flip and permute a volume into the orientation the models were trained on.
 
-    The models read raw arrays and never look at the direction matrix. A DICOM
-    series already arrives in MODEL_ORIENTATION, which is why the RSNA
-    validation cases grade correctly. A NIfTI or MetaImage file does not: the
-    public Zenodo lumbar T2 reached the models upside down and mirrored front to
-    back, and a SPIDER volume upside down with its slices in reverse -- which
-    swaps LEFT and RIGHT foraminal stenosis without any error. The viewer showed
-    all of them correctly all along, because it does read the direction matrix;
-    only the models were being handed a different picture.
+    The models read raw arrays and ignore the direction matrix. DICOM series
+    already arrive in MODEL_ORIENTATION; NIfTI/MetaImage files may be flipped,
+    which silently swaps left and right foraminal grades. The viewer is
+    unaffected because it honours the direction matrix.
 
-    DICOMOrient only permutes and flips axes, never interpolates, so every
-    voxel value is unchanged and a labelmap stays a labelmap.
+    DICOMOrient only permutes and flips axes (no interpolation), so labelmaps
+    stay valid.
     """
     return sitk.DICOMOrient(image, MODEL_ORIENTATION)
 
@@ -644,9 +596,8 @@ def to_web_mask(mask_path: str, out_dir: str) -> str:
     image = sitk.Cast(_orient_slices_last(_read_image(mask_path)), sitk.sitkUInt16)
     out_path = Path(out_dir) / "mask.nii.gz"
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    # Written beside and renamed into place: the viewer may be downloading the
-    # mask while a grading run writes it, and half a gzip read as NIfTI fails
-    # with "Offset is outside the bounds of the DataView" (2026-10-06).
+    # Write to a temp file and rename: the viewer may download the mask while
+    # a grading run rewrites it, and a partial gzip fails to parse.
     tmp_path = out_path.with_name(".mask.tmp.nii.gz")
     sitk.WriteImage(image, str(tmp_path))
     tmp_path.replace(out_path)

@@ -1,8 +1,7 @@
-"""Clinician questionnaire: serve the questions, take answers, report them.
+"""Clinician questionnaire: serve the questions, record answers, report them.
 
-The questions are served rather than duplicated in the frontend, so there is
-one place to edit them and no way for the two halves to drift apart while
-answers are being collected.
+Questions are defined only in `app.survey_questions` and served to the
+frontend, so the two cannot drift apart.
 """
 
 import csv
@@ -51,16 +50,14 @@ class SurveySubmission(BaseModel):
 
 @router.get("/survey/questions")
 def get_questions(settings: Settings = Depends(get_settings)) -> dict[str, object]:
-    """The questionnaire, in presentation order, with its rating scale.
+    """Return the questionnaire in presentation order, with its rating scale.
 
-    The model-B items appear only while clinicians can see model B: asking
-    about a panel they were never shown would collect guesses.
+    Model-B items are included only while model B is visible to clinicians.
     """
     show_b = is_visible(settings)
     shown = [q for q in QUESTIONS if show_b or q.kind != "reference_b"]
-    # Without model B, nothing is compared: the group is named for what it
-    # asks of our own model, and its items render as plain questions in
-    # their own wording rather than as one-row "pairs" labelled "model A".
+    # Without model B there is no comparison, so the comparison group is
+    # renamed and its items render as plain questions.
     rename = {} if show_b else {COMPARE: COMPARE_GROUP_A_ONLY}
 
     def group_name(g: str) -> str:
@@ -84,7 +81,7 @@ def get_questions(settings: Settings = Depends(get_settings)) -> dict[str, objec
         ]
         if show_b
         else [],
-        # Set: the clinician is sent to this Google Form instead (see config).
+        # When set, the frontend sends clinicians to this external form instead.
         "form_url": settings.survey_form_url or None,
         "scale": {
             "min": SCALE_MIN,
@@ -102,10 +99,9 @@ def submit_response(
 ) -> dict[str, object]:
     """Record one clinician's answers.
 
-    Six questions are required and the other ten may be skipped. The required
-    six are the ones anybody who opened two studies can answer; the rest ask
-    about one condition, or one screen, and a blank there is worth more than a
-    guess. Means are taken over what was answered, so skipping costs nothing.
+    Only `REQUIRED_IDS` must be answered; others may be skipped and means are
+    taken over answered items. Returns 400 for unknown ids, out-of-range
+    values or missing required answers.
     """
     unknown = sorted(set(payload.answers) - _VALID_IDS)
     if unknown:
@@ -127,16 +123,13 @@ def submit_response(
 
     row = SurveyResponse(
         reader_id=reader.id if reader is not None else None,
-        # A blank name stays blank: the form tells clinicians that leaving it
-        # empty answers anonymously. The room link (reader_id) remains, so
-        # the operator can still tell a practice run from a clinician.
+        # A blank name means an anonymous response; reader_id is still kept.
         respondent=(payload.respondent or None),
         role=(payload.role or None),
         answers_json={str(k): v for k, v in payload.answers.items()},
         comment=(payload.comment or None),
-        # Kept on the row rather than recomputed later: it is what gets
-        # reported, and a change to the question set would otherwise rewrite
-        # numbers that have already been published.
+        # Stored rather than recomputed, so later changes to the question set
+        # do not alter already reported numbers.
         clinical_mean=mean_of(payload.answers, CLINICAL_IDS),
     )
     db.add(row)
@@ -150,11 +143,7 @@ def my_responses(
     db: Session = Depends(get_db),
     reader: Reader | None = Depends(current_reader),
 ) -> dict[str, object]:
-    """How many surveys this room has sent, so the form can say so.
-
-    The survey is answered once, after a few studies; a clinician who comes
-    back to it should see that theirs is already in.
-    """
+    """Return how many responses the current reader room has submitted."""
     if reader is None:
         return {"count": 0, "last": None}
     rows = (
@@ -171,12 +160,11 @@ def my_responses(
 
 @router.get("/survey/summary", dependencies=[Depends(require_admin)])
 def summary(db: Session = Depends(get_db)) -> dict[str, object]:
-    """Aggregate for the operator page and for the report.
+    """Aggregate survey results (admin only).
 
-    Every row carries its own n and its 1-5 spread. At this sample size the
-    mean alone misleads -- two clinicians at 1 and 5 average to the same 3 as
-    two at 3 -- and questions differ in how many people answered them, because
-    ten of the sixteen can be skipped.
+    Each question reports its answer count and full score distribution, since
+    with few respondents the mean alone is misleading and optional questions
+    have different counts.
     """
     rows = db.query(SurveyResponse).order_by(SurveyResponse.submitted_at).all()
 
@@ -229,7 +217,7 @@ def summary(db: Session = Depends(get_db)) -> dict[str, object]:
             for g in GROUPS
         ],
         "questions": per_question,
-        # Same question, both models: which one clinicians rated lower.
+        # The same criterion rated for both models, side by side.
         "model_b_comparison": [
             {
                 "ours_id": ours,
@@ -258,12 +246,7 @@ def _answers(row: SurveyResponse) -> dict[int, int]:
 
 @router.get("/survey/responses", dependencies=[Depends(require_admin)])
 def list_responses(db: Session = Depends(get_db)) -> list[dict[str, object]]:
-    """Every response on its own, newest first.
-
-    The summary averages clinicians together, which is what a report quotes
-    but not what a reader needs when one answer looks odd: which clinician said
-    it, what else they said, and whether their comment explains it.
-    """
+    """List individual responses, newest first (admin only)."""
     rows = (
         db.query(SurveyResponse)
         .order_by(SurveyResponse.submitted_at.desc())
@@ -285,11 +268,10 @@ def list_responses(db: Session = Depends(get_db)) -> list[dict[str, object]]:
 
 
 def survey_csv(db: Session) -> str:
-    """One row per response, one column per question, for Excel or SPSS.
+    """Render responses as CSV: one row per response, one column per question.
 
-    Column headers carry the question number AND its text, so the file still
-    means something once it is separated from this code -- in an appendix, or
-    six months later.
+    Headers include both the question number and its text, so the file is
+    self-describing.
     """
     rows = db.query(SurveyResponse).order_by(SurveyResponse.submitted_at).all()
     out = io.StringIO()
@@ -310,14 +292,14 @@ def survey_csv(db: Session) -> str:
     return out.getvalue()
 
 
-# Excel reads a CSV as the local ANSI code page unless it starts with a UTF-8
-# byte-order mark, which turns every Vietnamese answer and comment into
-# mojibake. The mark costs three bytes and is ignored by everything else.
+# Without a UTF-8 BOM, Excel decodes CSV with the local ANSI code page and
+# garbles Vietnamese text.
 _UTF8_BOM = "\ufeff"
 
 
 @router.get("/survey/responses.csv", dependencies=[Depends(require_admin)])
 def responses_csv(db: Session = Depends(get_db)) -> Response:
+    """Download all responses as a UTF-8 CSV (admin only)."""
     return Response(
         content=_UTF8_BOM + survey_csv(db),
         media_type="text/csv; charset=utf-8",
@@ -327,11 +309,9 @@ def responses_csv(db: Session = Depends(get_db)) -> Response:
 
 @router.delete("/survey/responses/{response_id}", status_code=204, dependencies=[Depends(require_admin)])
 def delete_response(response_id: int, db: Session = Depends(get_db)) -> Response:
-    """Remove one response -- for a test submission, not for tidying results.
+    """Permanently delete one response, e.g. a test submission (admin only).
 
-    A trial run by one person produces its own practice answers, and those must
-    not be averaged in with the clinicians'. The operator page asks before
-    calling this, and says the deletion is permanent.
+    Returns 404 if the response does not exist.
     """
     row = db.get(SurveyResponse, response_id)
     if row is None:

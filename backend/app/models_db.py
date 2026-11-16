@@ -19,8 +19,8 @@ from app.db import Base
 def active_series(db: Session, study: "Study") -> "Series | None":
     """The series row the study currently points at, if it has one.
 
-    Returns ``None`` for studies uploaded before series tracking existed (their
-    volume still works; we just cannot say which plane it is).
+    Returns ``None`` for studies without series rows (legacy uploads); their
+    volume still works but its plane is unknown.
     """
     return (
         db.query(Series)
@@ -32,11 +32,10 @@ def active_series(db: Session, study: "Study") -> "Series | None":
 def grading_series(db: Session, study: "Study") -> "Series | None":
     """The series the grading models read: the study's sagittal one.
 
-    The models take (9, 112, 224) sagittal crops -- the RSNA preprocessing
-    convention they were trained on -- so an axial stack would yield confident
-    but meaningless grades. Inference therefore always reads the sagittal
-    series, independently of which one the doctor happens to be viewing; rows
-    are stored in reading order, so sagittal T2 comes first.
+    The models were trained on (9, 112, 224) sagittal crops, so an axial stack
+    would yield confident but meaningless grades. Inference therefore reads the
+    first sagittal series regardless of which one is being viewed; rows are
+    stored in reading order, so sagittal T2 comes first.
     """
     rows = db.query(Series).filter_by(study_id=study.id).order_by(Series.id).all()
     for row in rows:
@@ -52,11 +51,7 @@ def grading_volume_path(db: Session, study: "Study") -> str:
 
 
 def mark_analyzed(db: Session, study: "Study") -> None:
-    """Record which series the AI just read, so the viewer can name it.
-
-    Inference reads one acquisition, not every plane in the study; flagging the
-    exact row keeps the series picker from implying otherwise.
-    """
+    """Record which series inference just read, so the viewer can label it."""
     row = grading_series(db, study) or active_series(db, study)
     if row is not None:
         study.analyzed_series_id = row.id
@@ -64,30 +59,22 @@ def mark_analyzed(db: Session, study: "Study") -> None:
 
 
 class Reader(Base):
-    """One clinician's room: picked by name from a list at the door.
+    """One clinician's room, isolating their studies, edits and survey answers.
 
-    Not an account. A room keeps one clinician's studies, edits and survey
-    answers apart from everyone else's, so two readers trying the tool at once
-    do not see -- or silently change -- each other's work. The 4-digit PIN
-    stops a clinician walking into a colleague's room by tapping the wrong
-    name; it is not access control (the API trusts X-Reader-Id), which a
-    small closed trial does not need.
+    Not an account. The 4-digit PIN only prevents entering a colleague's room
+    by mistake; it is not access control (the API trusts X-Reader-Id).
     """
 
     __tablename__ = "readers"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
-    # Case- and spacing-insensitive, so "Minh", "minh " and "MINH" are one room.
-    # Diacritics are kept: "Nguyễn" and "Nguyen" can be different people.
+    # Normalised name: case- and whitespace-insensitive, but diacritics are kept
+    # because "Nguyễn" and "Nguyen" can be different people.
     key: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
-    # What a personal link carries (/?phong=<code>). A clinician who forgets
-    # the name they typed can be sent their link again from /admin; a link also
-    # removes typing, and with it the "Minh" today, "BS Minh" tomorrow split.
-    # Short and unambiguous to read aloud; unique, not secret.
+    # Code carried by the room's personal link (/?phong=<code>). Unique, not secret.
     code: Mapped[str | None] = mapped_column(String(16), nullable=True, unique=True)
-    # "salt$pbkdf2-hex" of the room's 4-digit PIN; None until one is set (rooms
-    # made before PINs, or after /admin reset one). Never the PIN itself.
+    # "salt$pbkdf2-hex" of the room's 4-digit PIN; None until one is set.
     pin_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime, default=datetime.datetime.utcnow
@@ -97,8 +84,7 @@ class Patient(Base):
     __tablename__ = "patients"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    # The room this row belongs to; NULL for rows that predate rooms (the
-    # shared sample studies, and anything created before 2026-09-28).
+    # Owning room; NULL for shared sample studies and rows created before rooms.
     reader_id: Mapped[int | None] = mapped_column(
         ForeignKey("readers.id"), nullable=True
     )
@@ -112,8 +98,7 @@ class Study(Base):
     __tablename__ = "studies"
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    # The room this row belongs to; NULL for rows that predate rooms (the
-    # shared sample studies, and anything created before 2026-09-28).
+    # Owning room; NULL for shared sample studies and rows created before rooms.
     reader_id: Mapped[int | None] = mapped_column(
         ForeignKey("readers.id"), nullable=True
     )
@@ -121,14 +106,12 @@ class Study(Base):
     modality: Mapped[str] = mapped_column(String(32), default="MRI")
     volume_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     display_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
-    # Which series inference last ran on, so the UI can state plainly which
-    # acquisition the AI actually read (it reads one, not all of them).
+    # Series inference last ran on (it reads one series, not all of them).
     analyzed_series_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime, default=datetime.datetime.utcnow
     )
-    # The clinician's own conclusion for this scan, in their words (2026-10-06):
-    # what they would write on the report, beside the AI's per-level grades.
+    # The clinician's free-text conclusion for this scan.
     doctor_conclusion: Mapped[str | None] = mapped_column(Text, nullable=True)
     doctor_conclusion_at: Mapped[datetime.datetime | None] = mapped_column(
         DateTime, nullable=True
@@ -138,11 +121,9 @@ class Study(Base):
 class Series(Base):
     """One DICOM series (one acquisition) inside a study.
 
-    A lumbar MRI study is read across several series -- typically sagittal T1,
-    sagittal T2 and axial T2 -- which are separate acquisitions with different
-    geometry, so they cannot be stacked into one volume. Each gets a row here;
-    ``Study.volume_path`` / ``Study.display_path`` point at whichever series is
-    currently active, which is what inference and the viewer operate on.
+    Series (e.g. sagittal T1/T2, axial T2) have different geometry and cannot be
+    stacked into one volume. ``Study.volume_path`` / ``Study.display_path``
+    point at the currently active series.
     """
 
     __tablename__ = "series"
@@ -168,9 +149,8 @@ class Annotation(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     study_id: Mapped[str] = mapped_column(ForeignKey("studies.id"), nullable=False)
     version: Mapped[int] = mapped_column(Integer, nullable=False)
-    # "ai" (what the model produced) | "corrected" (a doctor's grade edit) |
-    # "mask" (a doctor's segmentation edit). `mask_path` is per version: each
-    # row points at the file holding *that* version's labelmap, so a mask edit
+    # "ai" (model output) | "corrected" (clinician grade edit) | "mask"
+    # (clinician segmentation edit). `mask_path` is per version: a mask edit
     # archives the old file and repoints the rows that referred to it.
     kind: Mapped[str] = mapped_column(String(16), nullable=False)
     payload_json: Mapped[dict] = mapped_column(JSON, nullable=False)
@@ -184,8 +164,7 @@ class CorrectionLog(Base):
     __tablename__ = "correction_log"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    # The room this row belongs to; NULL for rows that predate rooms (the
-    # shared sample studies, and anything created before 2026-09-28).
+    # Owning room; NULL for shared sample studies and rows created before rooms.
     reader_id: Mapped[int | None] = mapped_column(
         ForeignKey("readers.id"), nullable=True
     )
@@ -196,12 +175,9 @@ class CorrectionLog(Base):
     at: Mapped[datetime.datetime] = mapped_column(
         DateTime, default=datetime.datetime.utcnow
     )
-    # A correction is captured the moment a doctor saves, but it only enters a
-    # training batch once someone submits it. Keeping "captured" and
-    # "submitted" apart means the doctor gets an explicit hand-off ("these N
-    # went to the model") instead of silently feeding a training set, and it
-    # gives the retraining side a stable batch to reason about even when
-    # corrections keep arriving.
+    # Corrections are logged on save but only join a training batch when
+    # explicitly submitted, giving an explicit hand-off and a stable batch for
+    # re-training while new corrections keep arriving.
     submitted_at: Mapped[datetime.datetime | None] = mapped_column(
         DateTime, nullable=True
     )
@@ -209,27 +185,17 @@ class CorrectionLog(Base):
 
 
 class RetrainRun(Base):
-    """One re-training run started from the operator page, and how it ended.
+    """One re-training run started from the operator page, and its outcome.
 
-    A run is the missing half of the audit trail: the correction log says what
-    a doctor changed, ``/models`` says which checkpoint is in service, and
-    nothing in between recorded that a run happened at all -- which batch it
-    was launched from, whether it trained on that batch alone or on every
-    correction sent so far (``params_json["scope"]``), with what parameters,
-    whether a candidate came out of it, and what the held-out numbers were
-    before and after. Scope belongs in the record because two runs launched
-    from one batch with different scopes saw different data. Without that row
-    a candidate checkpoint appearing in ``models/weights/`` has no provenance,
-    and a run that produced nothing leaves no trace that it was ever tried.
+    Provides provenance for candidate checkpoints: source batch, scope
+    (``params_json["scope"]``: that batch only or all submitted corrections),
+    parameters, and held-out metrics before and after.
 
-    "Produced nothing" is a normal outcome, not a failure: ``retrain_head``
-    refuses to write a checkpoint unless held-out macro-F1 improves, so
-    ``status == "done"`` with ``improved is False`` and no ``checkpoint_name``
-    is a successful run that honestly found no improvement. ``status`` is
-    ``running`` | ``done`` | ``error`` | ``interrupted``; the last one is
-    stamped at startup on rows left running by a server that went away,
-    because an in-memory job does not survive a restart and a row stuck at
-    "running" forever would block every later run.
+    ``status`` is ``running`` | ``done`` | ``error`` | ``interrupted``.
+    ``done`` with ``improved is False`` and no ``checkpoint_name`` is a normal
+    outcome: ``retrain_head`` only writes a checkpoint when held-out macro-F1
+    improves. ``interrupted`` marks rows whose in-memory job no longer exists
+    (see ``mark_interrupted_runs``).
     """
 
     __tablename__ = "retrain_runs"
@@ -245,9 +211,8 @@ class RetrainRun(Base):
     finished_at: Mapped[datetime.datetime | None] = mapped_column(
         DateTime, nullable=True
     )
-    #: Everything the run was given: epochs, lr, batch size, replay dir/size,
-    #: the checkpoint fine-tuned from, the dataset and held-out directories.
-    #: Stored verbatim so a past run can be re-read rather than reconstructed.
+    #: All run inputs verbatim: epochs, lr, batch size, replay dir/size, base
+    #: checkpoint, dataset and held-out directories.
     params_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     #: None while running; False = ran fine, held-out macro-F1 did not improve.
     improved: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
@@ -255,8 +220,8 @@ class RetrainRun(Base):
     checkpoint_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     before_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     after_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    #: Corrections the batch held, and the disc rows actually rebuilt from them
-    #: (they differ: eight of the eleven conditions are not re-trained here).
+    #: Corrections in the batch vs. disc rows built from them (they differ:
+    #: only three of the eleven conditions are re-trained).
     n_corrections: Mapped[int | None] = mapped_column(Integer, nullable=True)
     n_rows: Mapped[int | None] = mapped_column(Integer, nullable=True)
     skipped_json: Mapped[list | None] = mapped_column(JSON, nullable=True)
@@ -264,25 +229,11 @@ class RetrainRun(Base):
 
 
 class ModelActivation(Base):
-    """One decision to change (or restore) the checkpoint that grades patients.
+    """Audit record of a human decision to change or restore the active checkpoint.
 
-    The whole claim this app makes about its feedback loop is that the model
-    only ever changes because a person decided it should. Until this table
-    existed, that decision left no trace: ``POST /model/activate`` moved a
-    one-line ``ACTIVE`` pointer and nothing recorded that anyone had moved it,
-    when, or away from what -- so "a human approved this" was an assertion
-    about the UI, not something the system could show afterwards.
-
-    A revert is recorded the same way, because going back to the baseline is
-    an activation decision like any other: it changes what the next patient is
-    graded by, and a loop that logs only the optimistic half of its decisions
-    is not an audit trail.
-
-    ``actor`` is honest about what the app knows. There is no sign-in here --
-    a deliberate demo posture, not an oversight -- so it is ``None``, meaning
-    "unattributed", rather than a name this code would have had to invent. If
-    authentication is ever added, the column is already where the identity
-    goes and old rows stay truthfully blank.
+    The model only changes when a person activates a checkpoint; reverts are
+    recorded the same way. ``actor`` is ``None`` (unattributed) because the app
+    has no authentication.
     """
 
     __tablename__ = "model_activations"
@@ -290,17 +241,14 @@ class ModelActivation(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     #: The checkpoint put into service by this decision.
     checkpoint: Mapped[str] = mapped_column(String(255), nullable=False)
-    #: What was in service immediately before it. Equal to `checkpoint` when
-    #: someone re-activated what was already running -- still a decision, and
-    #: still recorded, because "nothing happened" is itself worth being able
-    #: to show.
+    #: Checkpoint in service immediately before. Equal to `checkpoint` when the
+    #: active one was re-activated; that is still recorded.
     previous_checkpoint: Mapped[str | None] = mapped_column(
         String(255), nullable=True
     )
-    #: "activate" | "revert" -- the same operation, but the intent differs and
-    #: only the record can preserve which one a person believed they made.
+    #: "activate" | "revert": the same operation, recorded with its intent.
     action: Mapped[str] = mapped_column(String(16), default="activate")
-    #: None == unattributed: this build has no authentication. See above.
+    #: None == unattributed (no authentication).
     actor: Mapped[str | None] = mapped_column(String(128), nullable=True)
     at: Mapped[datetime.datetime] = mapped_column(
         DateTime, default=datetime.datetime.utcnow
@@ -308,20 +256,13 @@ class ModelActivation(Base):
 
 
 def mark_interrupted_runs(db: Session, is_alive: "Callable[[str | None], bool]") -> int:
-    """Close out runs that claim to be running but have nothing working on them.
+    """Mark "running" rows whose job no longer exists as interrupted.
 
-    Jobs live in memory, and a run only ever starts inside the server process,
-    so a "running" row whose job this process does not hold is a row nothing
-    will ever finish -- the server was restarted, or the worker died between
-    the job ending and the row being written. Saying so is both honest and
-    necessary: a stuck row would otherwise refuse every later run for as long
-    as the database lives.
-
-    `is_alive` is asked about each row's `job_id`, which is what keeps this
-    from closing out a run that is genuinely in flight. It must never be a
-    blanket "no": this used to run at startup against every running row, and a
-    second process opening the same database (the test suite does) stamped a
-    live run as interrupted while it was still training.
+    Jobs live in memory, so a running row without a live job (server restart,
+    worker death) will never finish and would otherwise block later runs.
+    `is_alive(job_id)` must check the actual job: a blanket ``False`` would mark
+    live runs as interrupted when another process (e.g. tests) opens the same
+    database. Returns the number of rows closed.
     """
     stale = [
         run
@@ -344,24 +285,19 @@ def mark_interrupted_runs(db: Session, is_alive: "Callable[[str | None], bool]")
 class SurveyResponse(Base):
     """One clinician's answers to the questionnaire in app/survey_questions.py.
 
-    Answers are stored as {question_id: 1..5} rather than fifteen columns, so
-    the questionnaire can gain or lose an item without a schema change; the
-    question text lives in code, and a stored id is meaningless without it.
-    ``clinical_mean`` is denormalised because it is what gets reported, and
-    recomputing it later would silently change published numbers if the
-    question set ever moved.
+    Answers are stored as {question_id: 1..5} so questions can change without a
+    schema change; question text lives in code. ``clinical_mean`` is stored so
+    reported numbers do not shift if the question set changes later.
     """
 
     __tablename__ = "survey_response"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    # The room this row belongs to; NULL for rows that predate rooms (the
-    # shared sample studies, and anything created before 2026-09-28).
+    # Owning room; NULL for shared sample studies and rows created before rooms.
     reader_id: Mapped[int | None] = mapped_column(
         ForeignKey("readers.id"), nullable=True
     )
-    # Optional: the trial is small enough that a name identifies someone, and
-    # an unsigned answer is worth more than no answer.
+    # Optional, so clinicians can answer anonymously.
     respondent: Mapped[str | None] = mapped_column(String(128), nullable=True)
     role: Mapped[str | None] = mapped_column(String(128), nullable=True)
     answers_json: Mapped[dict] = mapped_column(JSON, nullable=False)

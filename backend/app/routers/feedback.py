@@ -1,18 +1,13 @@
-"""Doctor corrections on their way to the model, and which model is served.
+"""Clinician correction queue, and selection of the checkpoint in service.
 
-Saving a correction and handing it to the model are deliberately two steps.
-Saving is the doctor fixing the record for this patient; submitting is them
-choosing to contribute it as training material. Splitting them gives the doctor
-an explicit, visible hand-off instead of a silent pipe from the chart into a
-training set, and it gives retraining a fixed batch to work from while new
-corrections keep arriving.
+Saving a correction and submitting it for training are separate steps:
+saving fixes this patient's record; submitting seals pending corrections into
+a fixed batch that re-training can work from while new corrections arrive.
 
-Submitting does not retrain anything. It queues -- a batch is picked up offline
-by `app.feedback.build_dataset` + `retrain_head`, and only becomes live when
-someone activates the resulting checkpoint here. That human gate is what FDA's
-Predetermined Change Control Plan guidance expects of a model that changes
-after deployment, and it is the reason a bad batch can never quietly reach a
-patient.
+Submitting does not retrain anything. Batches are consumed by
+`app.feedback.build_dataset` and `retrain_head`, and a resulting checkpoint
+grades patients only after someone activates it here (a human approval gate,
+in line with FDA Predetermined Change Control Plan guidance).
 """
 
 from __future__ import annotations
@@ -56,7 +51,7 @@ class CorrectionQueue(BaseModel):
 
 
 class BatchOut(BaseModel):
-    """One sealed hand-off: what `POST /corrections/submit` stamped in one go."""
+    """One sealed batch: the corrections stamped by one `POST /corrections/submit`."""
 
     batch_id: str
     sealed_at: datetime.datetime | None
@@ -90,24 +85,16 @@ class ActivationOut(BaseModel):
     checkpoint: str
     previous_checkpoint: str | None
     action: str
-    #: None == unattributed. This build has no sign-in, so there is no name to
-    #: report; the UI says so rather than implying the record names someone.
+    #: None means unattributed: there is no authentication, so no user name.
     actor: str | None
     at: datetime.datetime
 
 
 def _checkpoint_out(info: model_registry.CheckpointInfo) -> CheckpointOut:
-    """A checkpoint on its way out over HTTP, with its numbers made JSON-safe.
+    """Convert checkpoint info for HTTP, replacing NaN/inf metrics with null.
 
-    The sidecar written beside a retrained checkpoint can hold NaN: a class
-    with no examples in the held-out set scores NaN on purpose, so it can be
-    left out of the macro average rather than counted as zero. `json.dumps`
-    emits that as the bare token `NaN`, which `JSON.parse` rejects -- and it
-    rejects the whole response, so one absent measurement inside one
-    checkpoint stops `/models` from loading at all instead of leaving one cell
-    blank. `app.jsonsafe.finite_only` turns it into `null`, which is what a
-    measurement that was not made actually means, and is the same rule the
-    re-training run log applies to the same numbers.
+    Metrics sidecars may contain NaN for classes absent from the held-out set,
+    and the browser's ``JSON.parse`` rejects bare ``NaN``.
     """
     fields = vars(info) | {"metrics": finite_only(info.metrics)}
     return CheckpointOut(**fields)
@@ -116,18 +103,17 @@ def _checkpoint_out(info: model_registry.CheckpointInfo) -> CheckpointOut:
 def _record_activation(
     db: Session, checkpoint: str, previous: str | None, action: str
 ) -> None:
-    """Write down that someone changed what grades patients, and from what.
+    """Record a change of the serving checkpoint.
 
-    Called after the pointer has actually moved, so the log never claims a
-    change that did not happen.
+    Call only after the change succeeded, so the log never records a change
+    that did not happen.
     """
     db.add(
         ModelActivation(
             checkpoint=checkpoint,
             previous_checkpoint=previous,
             action=action,
-            # No authentication in this build; recorded as unattributed rather
-            # than attributed to an invented user.
+            # No authentication, so the change is recorded as unattributed.
             actor=None,
             at=datetime.datetime.utcnow(),
         )
@@ -142,19 +128,13 @@ def list_corrections(
     db: Session = Depends(get_db),
     reader: Reader | None = Depends(current_reader),
 ) -> CorrectionQueue:
-    """How many corrections are waiting, how many were handed over, and the latest few.
+    """Return pending/submitted counts and the most recent corrections.
 
-    The counts are always over the whole log; `status` narrows only `recent`.
-    That matters for the operator view, where the queue and the already-sent
-    history are two separate lists: asking for the newest 200 rows overall can
-    return 200 sent rows and hide a waiting one, which would misreport the
-    thing the queue exists to show. `status` is one of "all" (default),
-    "pending" or "submitted"; anything else is treated as "all" rather than
-    refused, so an older client asking for something unknown still gets a
-    usable answer.
+    Counts always cover the whole log (scoped to the reader room, if any);
+    `status` ("all", "pending" or "submitted") filters only `recent`. Unknown
+    values are treated as "all".
     """
-    # In a room, the queue is that room's: a clinician's "waiting to be sent"
-    # must not count, or send, another clinician's corrections.
+    # In a reader room, only that room's corrections are counted.
     base = db.query(CorrectionLog)
     if reader is not None:
         base = base.filter(CorrectionLog.reader_id == reader.id)
@@ -190,14 +170,10 @@ def list_corrections(
 
 @router.get("/corrections/batches", response_model=list[BatchOut])
 def list_batches(db: Session = Depends(get_db)) -> list[BatchOut]:
-    """Every sealed batch, newest first, with its size and the studies it spans.
+    """List sealed batches, newest first, with their size and studies.
 
-    A batch id is the only handle that makes a past training run reproducible
-    (`build_dataset --batch-id` rebuilds exactly the corrections it saw), so
-    the operator view needs the ids themselves, not just a count of them. The
-    study list is here because a batch is deliberately cross-patient -- it is
-    every correction outstanding at the moment someone pressed send, whichever
-    patient it came from -- and a count alone never shows that.
+    A batch id is what makes a training run reproducible
+    (`build_dataset --batch-id`). A batch can span several studies.
     """
     rows = (
         db.query(CorrectionLog)
@@ -229,11 +205,10 @@ def submit_corrections(
     db: Session = Depends(get_db),
     reader: Reader | None = Depends(current_reader),
 ) -> SubmitResult:
-    """Hand every pending correction to the model as one batch.
+    """Seal all pending corrections (of the reader room, if any) into one batch.
 
-    Stamps the rows and returns; training happens offline. Submitting with
-    nothing pending is not an error -- it just reports zero, so a doctor
-    pressing the button twice gets a clear answer rather than a failure.
+    Only stamps the rows; no training is started. With nothing pending, returns
+    `submitted=0` rather than an error.
     """
     query = db.query(CorrectionLog).filter(CorrectionLog.submitted_at.is_(None))
     if reader is not None:
@@ -274,11 +249,9 @@ def list_model_versions() -> list[CheckpointOut]:
 def activate_model(
     request: ActivateRequest, db: Session = Depends(get_db)
 ) -> CheckpointOut:
-    """Put a checkpoint into service. Takes effect on the next inference.
+    """Put a checkpoint into service; it takes effect on the next inference.
 
-    The change is recorded in ``model_activations`` once it has taken: what
-    was in service before, what is now, and when. A refused activation writes
-    nothing, because nothing changed.
+    Recorded in ``model_activations``. Returns 404 for an unknown checkpoint.
     """
     previous = model_registry.active_checkpoint_name()
     try:
@@ -291,10 +264,9 @@ def activate_model(
 
 @router.post("/model/revert", response_model=CheckpointOut, dependencies=[Depends(require_admin)])
 def revert_model(db: Session = Depends(get_db)) -> CheckpointOut:
-    """Go back to the shipped baseline checkpoint.
+    """Revert to the baseline checkpoint; recorded like any activation.
 
-    Recorded like any other activation: reverting decides what the next
-    patient is graded by just as much as approving a candidate does.
+    Returns 500 if the baseline file is missing.
     """
     previous = model_registry.active_checkpoint_name()
     try:
@@ -309,11 +281,9 @@ def revert_model(db: Session = Depends(get_db)) -> CheckpointOut:
 def list_model_activations(
     limit: int = 20, db: Session = Depends(get_db)
 ) -> list[ActivationOut]:
-    """Every recorded decision to change the serving checkpoint, newest first.
+    """List recorded changes of the serving checkpoint, newest first.
 
-    Empty is a meaningful answer, not a missing one: it means nothing has been
-    switched on this server since the record started -- the baseline the app
-    shipped with is still what grades patients.
+    An empty list means the baseline checkpoint has never been replaced.
     """
     rows = (
         db.query(ModelActivation)

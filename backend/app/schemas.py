@@ -43,7 +43,7 @@ class StudyDetail(BaseModel):
     num_slices: int | None = None
     # Acquisition tags from the source DICOM (empty for MHA/NIfTI sources).
     dicom_tags: dict[str, str] = {}
-    # Uploaded as one 2D picture: viewable, model B only, no model A grading.
+    # Uploaded as a single 2D picture: viewable and gradable by model B only.
     is_picture: bool = False
     # The clinician's written conclusion, and when it was last saved.
     doctor_conclusion: str | None = None
@@ -59,9 +59,8 @@ class SeriesOut(BaseModel):
     orientation: str
     num_slices: int | None = None
     is_active: bool
-    # True for the series inference last ran on. The app's models read a
-    # sagittal series; other planes are viewable but not fed to the model, and
-    # the UI says so rather than implying multi-view inference.
+    # True for the series inference last ran on. Models read one sagittal
+    # series; other planes are viewable only.
     analyzed_by_ai: bool = False
 
 
@@ -91,22 +90,18 @@ class InferResult(BaseModel):
 
 
 class FullGradingResult(BaseModel):
-    """The Oxford-demo-style 11-label grading table.
+    """The 11-label per-level grading table.
 
-    ``grading`` mixes two sources: ``canal_stenosis`` / ``left_foraminal`` /
-    ``right_foraminal`` always come from the app's fine-tuned CBAM model
-    (`app/inference/grading.py`); the other 8 conditions (``pfirrmann``,
-    ``disc_narrowing``, ``spondylolisthesis``, ``upper_endplate_defect``,
-    ``lower_endplate_defect``, ``upper_marrow``, ``lower_marrow``,
-    ``disc_herniation``) come from the vendored upstream SpineNet pipeline
-    (`app/inference/spinenet_grading.py`). See
-    `app/inference/full_grading.py::merge_gradings`.
+    ``canal_stenosis``, ``left_foraminal`` and ``right_foraminal`` come from the
+    fine-tuned CBAM model (`app/inference/grading.py`); the other 8 conditions
+    come from the vendored SpineNet pipeline (`app/inference/spinenet_grading.py`).
+    See `app/inference/full_grading.py::merge_gradings`.
     """
 
     study_id: str
     grading: list[GradingItem]
     slice_image_uri: str
     model_version: str
-    # Segmentation mask produced by the same run (persisted so the viewer can
-    # overlay it and the doctor can edit/save it via the /annotations flow).
+    # Segmentation from the same run, persisted so the viewer can overlay it and
+    # the clinician can edit it via /annotations.
     segmentation: SegmentationResult | None = None

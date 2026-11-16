@@ -1,21 +1,13 @@
-"""A tiny in-process registry for work that takes minutes, not milliseconds.
+"""In-process registry for long-running background work.
 
-Full grading runs TotalSpineSeg and SpineNet back to back and takes 8-15
-minutes on a laptop CPU. Holding an HTTP request open that long fails in three
-separate ways: any reverse proxy in front of the app cuts it off (nginx
-defaults to 60s), the doctor watches a spinner with no idea whether it is
-working or hung, and closing the tab throws the work away.
+Full grading can take many minutes on CPU, too long to hold an HTTP request
+open behind a reverse proxy. The request starts a job and returns immediately;
+the client polls for stage and progress. Jobs persist their own results, so a
+client that missed the end of a job can fetch the outcome from the normal GET
+endpoints.
 
-So the request starts a job and returns immediately; the browser polls for
-stage and elapsed time. Results are persisted by the job itself, exactly as the
-synchronous path does, so a client that missed the end of a job can still fetch
-the outcome from the normal GET endpoints.
-
-Deliberately in-memory: this is a single-process clinical demo, not a cluster.
-Jobs do not survive a restart, and that is stated rather than papered over --
-`GET /jobs/{id}` returns 404 for an unknown id, and the frontend falls back to
-asking whether a result exists. Anything more (Celery, Redis, a database queue)
-would be infrastructure this deployment does not have.
+Deliberately in-memory and single-process: jobs do not survive a restart, and
+`GET /jobs/{id}` returns 404 for an unknown id.
 """
 
 from __future__ import annotations
@@ -47,8 +39,8 @@ class Job:
     stage: str = "Starting"
     percent: int = 0
     error: str | None = None
-    #: What the work has finished so far and the client may show early
-    #: (full grading: the segmentation's labels, before the grades exist).
+    #: Intermediate results the client may show early (e.g. segmentation
+    #: labels before grading finishes).
     partial: dict = field(default_factory=dict)
     started_at: datetime.datetime = field(default_factory=datetime.datetime.utcnow)
     finished_at: datetime.datetime | None = None
@@ -77,9 +69,8 @@ class JobRegistry:
     def running_for(self, kind: str, target_id: str) -> Job | None:
         """An in-flight job for this target, if any.
 
-        Used to refuse a second grading run on the same study: two runs would
-        write the same result files and the same v0 annotation, and the loser
-        would silently corrupt the winner's output.
+        Used to refuse a second concurrent grading of the same study, since
+        both runs would write the same result files and annotation.
         """
         with self._lock:
             for job in self._jobs.values():
@@ -115,10 +106,8 @@ class JobRegistry:
             try:
                 work(report)
             except Exception as exc:
-                # The traceback goes to the server log, tagged with the study
-                # so a doctor's "it failed" can be found among everyone's runs;
-                # the client gets the message. A failed job must never look
-                # like a hung one.
+                # Full traceback to the server log, tagged with the target id;
+                # the client gets the message. A failed job must never look hung.
                 logger.error(
                     "[job %s %s] FAILED after %.0fs at stage %r\n%s",
                     kind,

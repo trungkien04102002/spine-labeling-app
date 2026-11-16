@@ -1,8 +1,7 @@
 """Full 11-label grading endpoints (upstream SpineNet + fine-tuned CBAM).
 
-Separate from `/infer` (segmentation + CBAM canal/foraminal only) so the
-existing TotalSpineSeg/CBAM path stays untouched; this endpoint runs that same
-CBAM path plus the vendored upstream SpineNet pipeline and merges them (see
+Unlike `/infer` (segmentation + CBAM canal/foraminal only), this runs the same
+CBAM path plus the vendored SpineNet pipeline and merges the results (see
 `app/inference/full_grading.py`).
 """
 
@@ -35,8 +34,8 @@ class JobOut(BaseModel):
     percent: int
     elapsed_seconds: float
     error: str | None
-    #: Set once the segmentation is on disk (label id -> name): the viewer can
-    #: show it while the grading carries on.
+    #: Label id -> name, set once the segmentation is on disk so the viewer can
+    #: show it while grading continues.
     segmentation_labels: dict[int, str] | None = None
 
     @classmethod
@@ -95,14 +94,14 @@ def run_and_persist_full_grading(
     settings: Settings,
     progress=None,
 ) -> FullGradingResult:
-    """The whole grading run, shared by the sync endpoint and the background job.
+    """Run full grading and persist its outputs.
 
-    Kept as one function on purpose: two copies of this would drift, and the
-    background path is the one that actually gets used, so a bug fixed in only
-    the synchronous copy would never reach a doctor.
+    Shared by the synchronous endpoint and the background job; keep it as the
+    single implementation. Writes the result JSON, the labelled slice PNG, the
+    viewer mask and a version-0 AI annotation.
     """
     study = _require_gradable_study(db, study_id)
-    # Always grade the sagittal series, whichever one the doctor is viewing.
+    # Always grade the sagittal series, whichever one is being viewed.
     volume_path = grading_volume_path(db, study)
     study_dir = Path(settings.data_dir) / study_id
     study_dir.mkdir(parents=True, exist_ok=True)
@@ -110,8 +109,8 @@ def run_and_persist_full_grading(
     published: list[str] = []
 
     def step(stage: str, percent: int, mask_path: str | None = None, labels=None) -> None:
-        # The segmentation is published as soon as it exists, so the viewer
-        # can draw it while the discs are still being graded.
+        # Publish the segmentation as soon as it exists so the viewer can draw
+        # it while discs are still being graded.
         partial = {}
         if mask_path is not None:
             published.append(to_web_mask(mask_path, str(study_dir)))
@@ -124,10 +123,8 @@ def run_and_persist_full_grading(
     )
     mark_analyzed(db, study)
 
-    # Reorient the raw labelmap into the study dir (aligned to the viewer volume)
-    # and expose it via the API path, exactly like /infer does.
-    # Already written when the segmentation was published; writing it again
-    # here raced the viewer still downloading that first copy.
+    # The viewer mask was normally already written when the segmentation was
+    # published; rewriting it would race the viewer downloading that copy.
     mask_fs_path = published[0] if published else to_web_mask(mask_path, str(study_dir))
     result.segmentation = SegmentationResult(
         mask_uri=f"/studies/{study_id}/mask.nii.gz", labels=labels
@@ -136,10 +133,8 @@ def run_and_persist_full_grading(
     _result_path(settings, study_id).write_text(result.model_dump_json(indent=2))
     _slice_path(settings, study_id).write_bytes(png_bytes)
 
-    # Persist a v0 AI annotation so the editable "Abnormality grades" panel and
-    # the doctor-correction / feedback pipeline (getAnnotation -> edit ->
-    # /annotations -> correction_log) work on the full 11-label grading, the
-    # same way they already do for /infer's InferResult.
+    # A version-0 AI annotation is the baseline that clinician corrections and
+    # the feedback pipeline (correction_log) diff against.
     infer_payload = InferResult(
         study_id=study_id,
         segmentation=result.segmentation,
@@ -157,9 +152,8 @@ def run_and_persist_full_grading(
     )
     db.commit()
 
-    # The comparison model, strictly after our own result is saved: it cannot
-    # raise, and a study it fails on simply shows no model-B panel. Skipped
-    # while it is hidden from clinicians: nobody reads it, and it holds the GPU.
+    # Model B runs only after the main result is saved, never raises, and is
+    # skipped while hidden from clinicians (it would only occupy the GPU).
     if is_visible(settings):
         reference_b.run_quietly(study_id, volume_path, study_dir)
 
@@ -174,9 +168,8 @@ def grade_full(
 ) -> FullGradingResult:
     """Grade synchronously and return the result.
 
-    Takes 8-15 minutes on CPU, so anything with a proxy or an impatient user in
-    front of it should POST to `/grade_full/start` instead. Kept because it is
-    the simplest thing to call from a script or a test.
+    Can take many minutes on CPU; interactive clients should use
+    `/grade_full/start`. Intended for scripts and tests.
     """
     return run_and_persist_full_grading(db, study_id, settings)
 
@@ -187,22 +180,20 @@ def start_grade_full(
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ) -> JobOut:
-    """Start grading in the background and return a job to poll.
+    """Start grading in the background and return a job to poll at `/jobs/{id}`.
 
-    Validates the study up front so an unusable request fails immediately with
-    a real status code, rather than becoming a job that fails a minute later.
+    The study is validated first (404/400). If grading is already running for
+    this study, the existing job is returned.
     """
     _require_gradable_study(db, study_id)
 
     existing = jobs.running_for("grade_full", study_id)
     if existing is not None:
-        # Two concurrent runs would race over the same result files and the
-        # same v0 annotation. Hand back the run already in flight.
+        # Concurrent runs would race over the same result files and annotation.
         return JobOut.from_job(existing)
 
     def work(progress) -> None:
-        # A background thread cannot borrow the request's session -- that one
-        # is closed as soon as the response goes out.
+        # The request's session closes after the response; use a fresh one.
         session = SessionLocal()
         try:
             run_and_persist_full_grading(session, study_id, settings, progress=progress)
@@ -214,10 +205,11 @@ def start_grade_full(
 
 @router.get("/jobs/{job_id}", response_model=JobOut)
 def get_job(job_id: str) -> JobOut:
+    """Return a background job's status and progress; 404 if unknown."""
     job = jobs.get(job_id)
     if job is None:
-        # Unknown, or the server restarted. The client should fall back to
-        # asking whether a result exists.
+        # Unknown, or lost in a server restart; the client should then check
+        # whether a result exists.
         raise HTTPException(status_code=404, detail=f"Unknown job: {job_id}")
     return JobOut.from_job(job)
 

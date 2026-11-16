@@ -1,7 +1,7 @@
 """Inference backend interface + factory.
 
 Two backends implement the same contract: `LocalBackend` runs the models in
-this process; `RemoteVastBackend` (added later) posts to a Vast.ai server.
+this process; `RemoteVastBackend` posts to a remote model server.
 `get_backend` selects one from settings and is used as a FastAPI dependency.
 """
 

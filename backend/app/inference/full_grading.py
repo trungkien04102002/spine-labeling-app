@@ -1,13 +1,11 @@
 """Full 11-label grading: upstream SpineNet (8 labels) + fine-tuned CBAM (3).
 
-HONESTY CONTRACT (see CLAUDE.md / thesis software chapter): ``canal_stenosis``,
-``left_foraminal``, and ``right_foraminal`` in the merged table always come
-from the app's own fine-tuned CBAM model (``app/inference/grading.py``),
-never from upstream SpineNet -- even though SpineNet computes its own
-versions of these three internally as part of its standard 11-task head (see
-``spinenet_grading.CBAM_OWNED_CONDITIONS``), ``merge_gradings`` unconditionally
-discards them in favor of the CBAM predictions. This is the app's one
-authoritative place enforcing which model sources which column.
+``canal_stenosis``, ``left_foraminal`` and ``right_foraminal`` in the merged
+table always come from the fine-tuned CBAM model (``app/inference/grading.py``),
+never from SpineNet. SpineNet also predicts these three internally (see
+``spinenet_grading.CBAM_OWNED_CONDITIONS``), but ``merge_gradings`` always
+discards them. This is the single place that decides which model sources
+which column.
 """
 
 from __future__ import annotations
@@ -46,11 +44,9 @@ def merge_gradings(
 
 
 def grade_with_cbam(volume_path: str, mask_path: str) -> list[GradingItem]:
-    """The seg -> crop -> CBAM path (as `app/inference/local.py::LocalBackend`)
-    for the canal/foraminal items, on a segmentation already made."""
-    # Image and labelmap through the same reorientation, so the crops are cut
-    # from the model's orientation and still line up voxel for voxel. The
-    # labelmap shares its input's geometry, which is what makes that hold.
+    """Grade canal/foraminal items with CBAM from an existing segmentation."""
+    # Image and labelmap go through the same reorientation so they stay
+    # aligned voxel for voxel (the labelmap shares the input's geometry).
     vol_arr = sitk.GetArrayFromImage(to_model_orientation(_read_image(volume_path)))
     mask_arr = sitk.GetArrayFromImage(to_model_orientation(_read_image(mask_path)))
     crops = extract_disc_crops(vol_arr, mask_arr)
@@ -63,14 +59,11 @@ def build_full_grading(
     """Run SpineNet + the CBAM path, merge them, and render the labelled slice.
 
     Args:
-        progress: optional ``(stage, percent, **partial) -> None`` callback. The
-            stage boundaries are reported honestly rather than interpolated:
-            segmentation is a shell-out to TotalSpineSeg with no progress of its
-            own, so the percentage sits still while it runs and the stage label
-            plus elapsed time carry the information. A smooth-looking fake bar
-            would only make a stall indistinguishable from progress. Once the
-            segmentation exists it is passed as ``mask_path=`` / ``labels=``
-            so the caller can show it while the grading runs.
+        progress: optional ``(stage, percent, **partial) -> None`` callback,
+            called at stage boundaries only. Segmentation reports no progress
+            of its own, so the percentage is not interpolated (a fake smooth
+            bar would hide a stall). Once the segmentation exists it is passed
+            as ``mask_path=`` / ``labels=`` so the caller can show it early.
 
     Returns:
         ``(result, slice_png_bytes, mask_path, labels)`` -- the caller persists
@@ -82,12 +75,11 @@ def build_full_grading(
         if progress is not None:
             progress(stage, percent, **partial)
 
-    # By far the longest step.
+    # The longest step.
     report("Segmenting vertebrae", 10)
     mask_path, labels = run_segmentation(volume_path)
-    # Handed out before any grading, so the doctor sees the segmentation on
-    # the image first and the diagnoses after, instead of both at once at the
-    # very end (a clinician found the all-at-once arrival confusing).
+    # The segmentation is reported before grading so the viewer can show it
+    # first, rather than everything arriving at once at the end.
     report("Segmentation ready. Grading each disc", 50, mask_path=mask_path, labels=labels)
     cbam_items = grade_with_cbam(volume_path, mask_path)
 

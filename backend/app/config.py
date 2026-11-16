@@ -11,41 +11,31 @@ class Settings(BaseSettings):
     mysql_dsn: str = "sqlite:///./spine.db"
     data_dir: str = "./data"
 
-    # Built frontend (Vite `dist/`) to serve from this same app. Serving both
-    # from one port is what lets a remote user open a single URL; the split
-    # localhost:5173 + localhost:8000 setup only works on the developer's own
-    # machine. Empty -> look for ../frontend/dist, and if that is absent serve
-    # no UI at all, which is what local dev and the test suite expect.
+    # Built frontend (Vite `dist/`) served from this app so a remote user needs
+    # a single URL. Empty -> use ../frontend/dist if present, else serve no UI
+    # (local dev with the Vite server, and the test suite).
     frontend_dist: str = ""
 
-    # Studies a clinician may copy into their room to try the tool, as a glob
-    # on the study id. The RSNA validation cases: already graded, with ground
-    # truth, from patients the model never trained on.
+    # Glob on study id for the sample studies a clinician may copy into their
+    # room (graded validation cases from patients the model never trained on).
     sample_studies: str = "VAL-*,SAMPLE-*"
 
-    # The questionnaire as a Google Form instead of the in-app one: its link
-    # (tools/google_form/ makes the Form and prints it; a literal ROOM_NAME in
-    # the link is replaced with the clinician's room name). Answers then
-    # live in the Form's Sheet, safe from a box being destroyed. Empty means
-    # the in-app form.
+    # External Google Form URL used instead of the in-app questionnaire (see
+    # tools/google_form/). A literal ROOM_NAME in the URL is replaced with the
+    # clinician's room name. Empty means the in-app form.
     survey_form_url: str = ""
 
-    # A box clinicians only look at: every study already graded, nothing to
-    # correct (there is no retraining loop to feed). The pages hide every
-    # editing control, and the server refuses every write that does not carry
-    # the admin passphrase -- so the operator can still set rooms up, and a
-    # stray click cannot start a 30-minute CPU grading on a small server.
+    # Read-only deployment: the UI hides editing controls and the server
+    # refuses every write without the admin passphrase, so the operator can
+    # still manage rooms but a stray click cannot start a long CPU grading.
     view_only: bool = False
 
-    # Passphrase for the operator pages (/admin): who is in which room, the
-    # survey results, exports, switching models, re-training. Empty means no
-    # lock, which is what local development and the test suite use; set it on
-    # any box a clinician can reach.
+    # Passphrase for the operator pages (/admin). Empty means no lock (local
+    # development and tests); set it on any publicly reachable deployment.
     admin_password: str = ""
 
-    # Browser origins allowed to call the API (comma-separated). The Vite dev
-    # server is always allowed; add more when the frontend runs on another host
-    # (e.g. laptop UI hitting a backend exposed directly, without an SSH tunnel).
+    # Extra browser origins allowed to call the API (comma-separated). The Vite
+    # dev server is always allowed.
     cors_origins: str = ""
 
     # TotalSpineSeg is run out-of-process via its own CLI (it pins numpy<2 and
@@ -53,24 +43,17 @@ class Settings(BaseSettings):
     totalspineseg_bin: str = "totalspineseg"  # CLI name or absolute path
     totalspineseg_data: str = ""  # weights dir; "" -> CLI's packaged default
     seg_device: str = "cpu"  # "cpu" | "cuda" (CLI does not accept "mps")
-    # nnU-Net spawns worker processes/threads; on constrained containers (e.g.
-    # Vast) the default (= all cores) hits the process/thread limit and dies
-    # ("libgomp: Thread creation failed" / "Background workers died"). Cap low.
+    # nnU-Net defaults to one worker per core, which exceeds the process/thread
+    # limit of constrained containers ("libgomp: Thread creation failed"). Keep low.
     seg_max_workers: int = 1
     seg_max_workers_nnunet: int = 1
-    # SpineNet + the CBAM model: "auto" = the GPU when torch sees one, else CPU.
-    # "cpu" forces the old behaviour (e.g. to compare outputs).
+    # Device for SpineNet and the CBAM model: "auto" = GPU when available, else CPU.
     grading_device: str = "auto"
 
-    # Re-training (POST /corrections/batches/{id}/retrain) mixes ~200 ORIGINAL
-    # discs into the corrections so the heads stay anchored to the distribution
-    # the deployed checkpoint learned; without them a few dozen corrections pull
-    # the model wherever they happen to point. Those discs are the preprocessed
-    # RSNA set from the research repo (~8.2 GB), which is NOT part of this
-    # application and sits at a different path on every machine -- hence a
-    # setting with no default rather than a guessed path. Empty means "not
-    # configured", which the operator page shows as a blocked state instead of
-    # quietly running the weaker, replay-free experiment.
+    # Directory of preprocessed RSNA discs replayed alongside corrections during
+    # re-training, so a few dozen corrections cannot drag the heads away from the
+    # original distribution. Not shipped with the app, so there is no default;
+    # empty blocks re-training rather than silently running without replay.
     retrain_replay_dir: str = ""
 
 

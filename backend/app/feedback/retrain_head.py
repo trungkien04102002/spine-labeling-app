@@ -1,30 +1,21 @@
-"""Simple head-only fine-tune of the deployed CBAM grading model.
+"""Head-only fine-tune of the deployed CBAM grading model on corrections.
 
-Deliberately minimal ("co the don gian thoi cung duoc" -- advisor feedback):
-load the checkpoint currently served in production, freeze the ResNet
-backbone (same `freeze_backbone()` the RSNA->SPIDER transfer flow in
-`spinet-v2/train_spider.py --freeze-backbone` uses -- it leaves the CBAM
-blocks and the three classification heads trainable), fine-tune on the small
-dataset `build_dataset.build_finetune_dataset` produced, evaluate on a
-held-out set before vs. after, and only keep the new checkpoint if it helps.
+Loads the checkpoint in service, freezes the ResNet backbone (CBAM blocks and
+the three classification heads stay trainable), fine-tunes on a
+`build_dataset.build_finetune_dataset` output with
+`CrossEntropyLoss(ignore_index=-1)` and early stopping, and keeps the new
+checkpoint only if a held-out set improves. Nothing calls this automatically.
 
-No LR schedule, no focal/uncertainty loss, no augmentation -- just
-`CrossEntropyLoss(ignore_index=-1)` for a handful of epochs with early
-stopping. This module only defines the fine-tune function + a CLI; nothing in
-this repo calls it automatically.
-
-Three guards make the "simple" version safe rather than merely small, because
-each covers a failure mode that is invisible in the output unless you look for
-it (see `spinet-v2/docs/LVTN_phase3/FEEDBACK_LOOP_METHODS.md`):
+Three guards protect against silent regressions:
 
 1. **BatchNorm is frozen during training.** `freeze_backbone()` only clears
    `requires_grad`; without `_freeze_batchnorm` the BN running statistics get
    overwritten by a handful of samples.
 2. **A replay buffer of original discs is mixed in** (`--replay-dir`).
-   Training on corrections alone is the standard way to induce forgetting.
+   Training on corrections alone induces forgetting.
 3. **The keep/discard gate is macro-F1, not accuracy.** `Severe` is rare
-   enough that a model can collapse to predicting `Normal/Mild`, lose all
-   clinical value, and still post a higher mean accuracy.
+   enough that a model can collapse to predicting `Normal/Mild` and still
+   post a higher mean accuracy.
 """
 
 from __future__ import annotations
@@ -51,15 +42,11 @@ _SEVERE = 2
 def _freeze_batchnorm(model: nn.Module) -> int:
     """Put every BatchNorm module in eval() so its running stats stop moving.
 
-    `freeze_backbone()` only clears `requires_grad`; BatchNorm layers keep
-    overwriting `running_mean` / `running_var` from whatever mini-batch they
-    see while the model is in `train()` mode. With a few dozen corrections at
-    `batch_size=4` those statistics are noise, and replacing the RSNA-scale
-    statistics with them is a documented cause of catastrophic forgetting when
-    adapting medical models on tiny local sets (arXiv:2011.08096, which also
-    found that touching only the BN affine terms matches full fine-tuning
-    across 7 medical datasets). Returns how many modules were frozen so the
-    caller can assert the guard actually bit.
+    `freeze_backbone()` only clears `requires_grad`; in `train()` mode
+    BatchNorm still updates `running_mean` / `running_var`. With a few dozen
+    samples at `batch_size=4` those statistics are noise and replacing the
+    original ones causes catastrophic forgetting (arXiv:2011.08096).
+    Returns how many modules were frozen.
     """
     frozen = 0
     for module in model.modules():
@@ -72,10 +59,9 @@ def _freeze_batchnorm(model: nn.Module) -> int:
 def _f1_per_class(confusion: np.ndarray) -> np.ndarray:
     """Per-class F1 from a `[true][pred]` confusion matrix.
 
-    Classes with no support in the held-out set come back as NaN rather than 0
-    so they can be excluded from the macro average -- on a held-out set this
-    small, `Severe` may legitimately be absent, and scoring it 0 would drag the
-    gate metric down for a reason that has nothing to do with the model.
+    Classes with no support come back as NaN rather than 0 so they are
+    excluded from the macro average; `Severe` may be absent from a small
+    held-out set.
     """
     tp = np.diag(confusion).astype(float)
     support = confusion.sum(axis=1).astype(float)
@@ -128,9 +114,8 @@ def _collate(batch: list[tuple[torch.Tensor, dict[str, int]]]):
 def load_checkpoint(weights_path: str, device: str = "cpu") -> GradingModelWithCBAM:
     """Load the deployed CBAM grading model in trainable (non-cached) form.
 
-    Mirrors `app.inference.grading._load_model`'s checkpoint-format handling,
-    but returns a fresh instance (that module's loader is `lru_cache`d and
-    kept in `eval()` for serving, so it's unsuitable for fine-tuning).
+    Mirrors `app.inference.grading._load_model`'s checkpoint-format handling
+    but returns a fresh instance; the serving loader is cached and in `eval()`.
     """
     model = GradingModelWithCBAM(format="rsna", use_cbam=True)
     checkpoint = torch.load(weights_path, map_location=device, weights_only=False)
@@ -153,12 +138,9 @@ def evaluate(
 ) -> dict[str, float]:
     """Mean loss + per-head accuracy *and* per-class F1 over labeled examples.
 
-    Accuracy on its own is actively misleading here: `Severe` is the rare
-    class, so a model that collapses to predicting `Normal/Mild` everywhere
-    still posts a high mean accuracy while being useless for the one class
-    this work exists to improve. `macro_f1` is therefore what the retrain gate
-    keys off, and `severe_f1` is reported separately so a collapse is visible
-    at a glance.
+    Accuracy alone is misleading because `Severe` is rare: a model predicting
+    `Normal/Mild` everywhere still scores high. The retrain gate uses
+    `macro_f1`; `severe_f1` is reported so a collapse is visible.
     """
     model.eval()
     total_loss, num_batches = 0.0, 0
@@ -213,9 +195,8 @@ def build_train_dataset(
 ) -> Dataset:
     """Corrections, optionally mixed with a capped sample of original discs.
 
-    The replay half is what keeps the heads anchored to the distribution the
-    deployed checkpoint was trained on; without it, a few dozen corrections
-    pull the heads wherever those corrections happen to point.
+    Replayed discs keep the heads anchored to the original training
+    distribution.
     """
     corrections: Dataset = CorrectionDataset(dataset_dir)
     if not replay_dir:
@@ -257,22 +238,16 @@ def retrain_head(
         checkpoint_path: the currently-deployed checkpoint (e.g.
             `models/weights/phase2_cbam.pth`).
         dataset_dir: a `build_finetune_dataset()` output (corrections to train on).
-        holdout_dir: a second such directory used ONLY for before/after eval
-            (a separate held-out set of corrected/known-good discs -- never
-            trained on). Freeze this set BEFORE collecting any corrections;
-            carving it out afterwards makes the before/after numbers
-            meaningless.
+        holdout_dir: a second such directory used only for before/after
+            evaluation, never trained on. Freeze it before collecting any
+            corrections (see `freeze_holdout`).
         out_checkpoint: where to write the improved checkpoint, if any.
-        epochs, lr, batch_size, patience: kept small/simple by design.
-        device: "cpu" or "cuda" (GPU is optional; nothing here requires it).
+        epochs, lr, batch_size, patience: training hyperparameters.
+        device: "cpu" or "cuda".
         replay_dir: optional `build_finetune_dataset()` output holding original
             training discs. Up to `replay_size` of them are mixed into each
-            epoch so the heads keep seeing the old distribution. Training on
-            corrections alone is what makes a model forget; in medical imaging
-            a small replay buffer has repeatedly beaten regularisation-based
-            schemes such as EWC, so this is the cheap guard worth having.
-        replay_size: cap on replayed samples (200 is plenty next to ~20-50
-            corrections and still runs on CPU).
+            epoch so the heads keep seeing the old distribution.
+        replay_size: cap on replayed samples.
         seed: fixes which replay samples get drawn, so a rerun is comparable.
 
     Returns:
@@ -295,9 +270,7 @@ def retrain_head(
     )
 
     model = load_checkpoint(checkpoint_path, device)
-    # Head-only fine-tune: freezes the ResNet backbone, leaves the CBAM blocks
-    # + the three fc_* heads trainable (same convention as
-    # `GradingModelWithCBAM.freeze_backbone` / `train_spider.py --freeze-backbone`).
+    # Freezes the ResNet backbone; CBAM blocks and fc_* heads stay trainable.
     model.freeze_backbone(freeze=True)
 
     criteria = {h: nn.CrossEntropyLoss(ignore_index=-1) for h in _HEADS}
@@ -356,8 +329,7 @@ def retrain_head(
             },
             out_checkpoint,
         )
-        # Sidecar copy of the numbers so the model-version UI can show what
-        # this checkpoint changed without loading ~240MB of weights.
+        # Sidecar metrics let the model-version UI avoid loading the weights.
         Path(f"{out_checkpoint}.json").write_text(
             json.dumps(
                 {

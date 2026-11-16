@@ -1,16 +1,14 @@
-"""Rooms: a clinician picks their name from a list and types a 4-digit PIN.
+"""Reader rooms: per-clinician workspaces entered by name plus a 4-digit PIN.
 
-No account. The point is separation, not security: several clinicians trying
-the tool at once must not see, or quietly overwrite, each other's studies,
-grades and survey answers. Typing a name each visit split one clinician into
-"Minh" and "BS Minh"; a list to pick from removes the typing, and the PIN
-stops a tap on the wrong name from opening a colleague's room. A personal link
-(/?phong=<code>, handed out from /admin) still goes straight in -- that is
-the way back for a clinician who forgot the PIN.
+Rooms provide separation, not security: concurrent clinicians must not see or
+overwrite each other's studies, grades and survey answers. Names are picked
+from a list to avoid duplicate spellings; the PIN prevents opening the wrong
+room. A personal link (``/?phong=<code>``, issued from /admin) also opens a
+room and is the recovery path for a forgotten PIN.
 
-The frontend sends the room as an ``X-Reader-Id`` header. A request without
-one is the operator's view and sees everything, which is what /admin and the
-tests rely on.
+The frontend sends the room id in the ``X-Reader-Id`` header. Requests
+without it act as the operator view and see everything (used by /admin and
+the tests).
 """
 
 from __future__ import annotations
@@ -56,11 +54,10 @@ def current_reader(
     x_reader_id: int | None = Header(default=None),
     db: Session = Depends(get_db),
 ) -> Reader | None:
-    """The room this request acts in, or None for the operator's view.
+    """Return the request's room, or None for the operator view.
 
-    An id that no longer exists (the database was reset, the browser kept an
-    old room) is refused rather than ignored: silently falling back to the
-    operator's view would show one clinician everybody's work.
+    An unknown room id is rejected with 401 rather than ignored, since falling
+    back to the operator view would expose every room's data.
     """
     if x_reader_id is None:
         return None
@@ -71,19 +68,16 @@ def current_reader(
 
 
 def room_prefix(reader: Reader) -> str:
-    """Prefix for study ids made in a room, so two rooms can both have "ca1"."""
+    """Prefix for study ids created in a room, so ids are unique across rooms."""
     return f"p{reader.id}-"
 
 
-# No 0/o, 1/l/i: a code gets read over the phone and copied by eye.
+# Excludes 0/o and 1/l/i, which are easily confused when copied by hand.
 _CODE_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789"
 
 
 def ensure_code(db: Session, reader: Reader) -> str:
-    """The room's link code, minted the first time anyone asks for it.
-
-    Lazily, so rooms created before links existed get one too.
-    """
+    """Return the room's link code, generating it on first use."""
     if reader.code:
         return reader.code
     while True:
@@ -106,8 +100,11 @@ def _check_pin_format(pin: str) -> str:
 
 
 def hash_pin(pin: str) -> str:
-    """Salted PBKDF2. Four digits are guessable however they are stored; this
-    only keeps the PIN itself out of the database and the export zip."""
+    """Hash a PIN with salted PBKDF2.
+
+    A 4-digit PIN is guessable regardless; hashing only keeps the plain PIN
+    out of the database and exports.
+    """
     salt = secrets.token_hex(8)
     digest = hashlib.pbkdf2_hmac("sha256", pin.encode(), salt.encode(), 100_000)
     return f"{salt}${digest.hex()}"
@@ -137,11 +134,11 @@ class JoinIn(BaseModel):
 
 @router.post("/readers")
 def join(payload: JoinIn, db: Session = Depends(get_db)) -> dict[str, object]:
-    """Enter a room by name, creating it the first time the name is used.
+    """Enter a room by name, creating it if the name is new.
 
-    A room with a PIN needs it. A new room takes the PIN it is created with;
-    the door always sends one, while /admin creates rooms without, and the
-    clinician sets theirs on first entry (``has_pin`` false tells them to).
+    A room with a PIN requires it (403 if wrong). A new room takes the PIN
+    supplied, if any; rooms created without one report ``has_pin: false`` so
+    the clinician sets it on first entry.
     """
     name = re.sub(r"\s+", " ", payload.name).strip()
     if not name:
@@ -163,7 +160,7 @@ def join(payload: JoinIn, db: Session = Depends(get_db)) -> dict[str, object]:
 
 @router.get("/readers/public")
 def public_rooms(db: Session = Depends(get_db)) -> list[dict[str, object]]:
-    """Names to pick from at the door. No codes: a code is a way in."""
+    """List room names for the sign-in page; link codes are not exposed."""
     return [
         {"id": r.id, "name": r.name, "has_pin": r.pin_hash is not None}
         for r in db.query(Reader).order_by(Reader.name).all()
@@ -175,6 +172,7 @@ def my_room(
     reader: Reader | None = Depends(current_reader),
     db: Session = Depends(get_db),
 ) -> dict[str, object]:
+    """Return the current room; 400 without an ``X-Reader-Id`` header."""
     if reader is None:
         raise HTTPException(400, "Not in a room.")
     return _room_out(db, reader, created=False)
@@ -190,8 +188,11 @@ def set_my_pin(
     reader: Reader | None = Depends(current_reader),
     db: Session = Depends(get_db),
 ) -> dict[str, object]:
-    """Give a PIN-less room its PIN. Changing an existing one goes through
-    /admin (reset, then set again), so nobody locks a colleague out."""
+    """Set the PIN of a room that has none (409 if it already has one).
+
+    Changing a PIN requires an admin reset first, so nobody can lock a
+    colleague out.
+    """
     if reader is None:
         raise HTTPException(400, "Not in a room.")
     if reader.pin_hash is not None:
@@ -203,8 +204,7 @@ def set_my_pin(
 
 @router.delete("/readers/{reader_id}/pin", dependencies=[Depends(require_admin)])
 def reset_pin(reader_id: int, db: Session = Depends(get_db)) -> dict[str, object]:
-    """For a clinician who forgot theirs: the room opens without a PIN until
-    they enter it and choose a new one."""
+    """Clear a room's PIN (admin only); the next entry sets a new one."""
     reader = db.get(Reader, reader_id)
     if reader is None:
         raise HTTPException(404, f"No room {reader_id}")
@@ -224,7 +224,7 @@ def enter_by_code(code: str, db: Session = Depends(get_db)) -> dict[str, object]
 
 @router.get("/readers", dependencies=[Depends(require_admin)])
 def list_readers(db: Session = Depends(get_db)) -> list[dict[str, object]]:
-    """Every room with what is in it, for the operator page."""
+    """List all rooms with their study, correction and survey counts (admin only)."""
     out = []
     for r in db.query(Reader).order_by(Reader.created_at).all():
         out.append(
@@ -265,7 +265,7 @@ def list_samples(
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ) -> list[dict[str, object]]:
-    """Studies a room may copy in to try the tool, and whether it already has."""
+    """List graded sample studies and whether the current room has copied each."""
     have = set()
     if reader is not None:
         prefix = room_prefix(reader)
@@ -287,8 +287,8 @@ def list_samples(
 def _rewrite(path: str | None, src: Path, dst: Path) -> str | None:
     """Repoint an absolute path from the sample's directory to the copy's.
 
-    Paths are stored absolute. Replacing the directory prefix, not a substring
-    of the id, is what keeps DEMO-001 from also matching DEMO-0010.
+    Paths are stored absolute. Rebasing on the directory, rather than
+    replacing a substring of the id, keeps DEMO-001 from matching DEMO-0010.
     """
     if not path:
         return path
@@ -306,13 +306,12 @@ def add_sample(
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ) -> dict[str, object]:
-    """Copy one sample study into a room, as the model originally graded it.
+    """Copy a sample study into a room with only its original AI grading.
 
-    A copy rather than a shared view, because grades are stored per study:
-    two clinicians correcting one shared study would each see the other's
-    edits appear in their table. Only the model's own output comes across --
-    none of the corrections anyone has made to the sample since -- so every
-    clinician starts from exactly what the AI said.
+    A copy (not a shared view) because grades are stored per study.
+    Corrections made to the sample are not copied. Returns 404 for an unknown
+    room or sample, 409 if the sample was never graded, and ``created: false``
+    if the room already has it.
     """
     reader = db.get(Reader, reader_id)
     if reader is None:

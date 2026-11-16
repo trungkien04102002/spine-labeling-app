@@ -10,8 +10,8 @@ Base = declarative_base()
 
 settings = Settings()
 
-# create_engine() does not connect eagerly, so importing this module never
-# requires a live MySQL server (needed for the SQLite-backed unit tests).
+# create_engine() connects lazily, so importing this module needs no live
+# database server.
 engine: Engine = create_engine(settings.mysql_dsn, pool_pre_ping=True, future=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -33,28 +33,24 @@ def init_db(bind: Engine = engine) -> None:
     _add_missing_columns(bind)
 
 
-# Columns added to tables that already exist in deployed databases. create_all
-# only ever creates missing *tables*, so a new column on an existing table is
-# invisible to it and the app fails at query time. There is no Alembic setup
-# here, so this runs the additive DDL itself: idempotent, additive only, and
-# it never drops or rewrites anything.
+# Columns added after their tables first shipped. create_all only creates
+# missing tables, and there is no Alembic setup, so these are added with
+# idempotent, additive-only ALTER TABLE statements.
 _ADDED_COLUMNS: list[tuple[str, str, str]] = [
     # (table, column, type) -- nullable so existing rows need no backfill.
     ("studies", "analyzed_series_id", "INTEGER NULL"),
     ("correction_log", "submitted_at", "DATETIME NULL"),
     ("correction_log", "batch_id", "VARCHAR(64) NULL"),
-    # The questionnaire dropped its SUS block, so the stored score is now the
-    # mean of the clinical questions and the old column name lied.
+    # Mean of the clinical questionnaire items.
     ("survey_response", "clinical_mean", "FLOAT NULL"),
-    # Rooms (2026-09-28): who each row belongs to.
+    # Owning reader (room) of each row.
     ("patients", "reader_id", "INTEGER NULL"),
     ("studies", "reader_id", "INTEGER NULL"),
     ("correction_log", "reader_id", "INTEGER NULL"),
     ("survey_response", "reader_id", "INTEGER NULL"),
     ("readers", "code", "VARCHAR(16) NULL"),
-    # Room PINs (2026-10-01): pick your name, then type your PIN.
     ("readers", "pin_hash", "VARCHAR(128) NULL"),
-    # The clinician's written conclusion per study (2026-10-06).
+    # Clinician's written conclusion per study.
     ("studies", "doctor_conclusion", "TEXT NULL"),
     ("studies", "doctor_conclusion_at", "DATETIME NULL"),
 ]

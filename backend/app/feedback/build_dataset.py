@@ -1,9 +1,7 @@
-"""Build a head-only fine-tune dataset from doctor corrections.
+"""Build a head-only fine-tune dataset from submitted clinician corrections.
 
-This is the deliberately-simple "future work" feedback loop the advisor asked
-for: give a doctor ~10-20 studies, log their corrections, and turn those
-corrections into a small training set the deployed grading model can be
-lightly re-tuned on (see ``retrain_head.py``).
+The result is a small training set for lightly re-tuning the deployed grading
+model (see ``retrain_head.py``).
 
 Pipeline:
     ``correction_log`` (+ latest ``annotations`` row per study, for the mask)
@@ -14,7 +12,7 @@ Pipeline:
     -> write one ``.npy`` crop per (study, level) + one RSNA-metadata-style CSV
        row (``spinal_canal`` / ``left_foraminal`` / ``right_foraminal`` columns,
        ``-1`` = "no correction for this head on this disc", matching the
-       ``ignore_index=-1`` convention `spinenet-v2` trains with).
+       ``ignore_index=-1`` convention used in training).
 """
 
 from __future__ import annotations
@@ -71,17 +69,15 @@ def _latest_corrections(
 ) -> list[CorrectionLog]:
     """One `CorrectionLog` row per (study_id, field): the most recent by `at`.
 
-    Handles "multiple corrections on the same disc" -- a doctor can correct the
-    same field more than once; only the latest edit should feed training.
+    A field can be corrected more than once; only the latest edit feeds
+    training.
 
     Args:
         batch_id: restrict to a single submitted batch. Use this to rebuild
             exactly what a past training run saw.
-        submitted_only: default. A correction is training material only once
-            the doctor has submitted it (`POST /corrections/submit`); pulling
-            unsubmitted rows would train on edits they are still working
-            through and defeat the point of having a hand-off at all. Set
-            False only for local experiments.
+        submitted_only: only use corrections submitted via
+            `POST /corrections/submit`; unsubmitted rows may still be in
+            progress. Set False only for local experiments.
     """
     query = db.query(CorrectionLog)
     if batch_id is not None:
@@ -133,11 +129,10 @@ def build_finetune_dataset(
             `train_metadata.csv` into (created if missing).
         crop_fn: how to regenerate a disc crop; defaults to
             :func:`default_crop_fn` (real volume/mask -> `extract_disc_crops`).
-            Tests can inject a stub here instead of writing real volumes/masks.
+            Tests can inject a stub.
         batch_id: build from one submitted batch only, so a training run can be
             reproduced from exactly the corrections it originally saw.
-        submitted_only: default. Only corrections the doctor has handed over
-            become training data; see :func:`_latest_corrections`.
+        submitted_only: see :func:`_latest_corrections`.
 
     Returns:
         A `BuildResult` summarizing what was written and what was skipped
@@ -153,9 +148,8 @@ def build_finetune_dataset(
         db, batch_id=batch_id, submitted_only=submitted_only
     )
 
-    # Group per-condition corrections onto their shared disc: the grading
-    # model outputs all three heads per crop, so one dataset row per
-    # (study_id, level), with -1 for heads the doctor didn't touch.
+    # The model outputs all three heads per crop, so emit one row per
+    # (study_id, level) with -1 for heads that were not corrected.
     per_disc: dict[tuple[str, str], dict[str, str]] = {}
     skipped: list[str] = []
     for row in corrections:

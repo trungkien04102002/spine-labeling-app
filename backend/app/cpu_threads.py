@@ -1,12 +1,10 @@
 """Size the CPU thread pools to the CPUs this container may actually use.
 
-A Vast.ai box reports every core of the host (os.cpu_count() said 26 on
-2026-10-26) while its cgroup quota allows a fraction of them (6.7 CPUs).
-PyTorch and the BLAS libraries start one thread per reported core, so 26
-threads fought over 6.7 CPUs and SpineNet's disc detection, which does real
-work on the CPU, took 83 s instead of 6 s: a whole grading went from 44 s to
-124 s. Imported first by app.main, before numpy or torch are loaded, so the
-environment variables still take effect. An explicit setting always wins.
+In containers, os.cpu_count() reports every host core while the cgroup quota
+may allow only a fraction. PyTorch and BLAS start one thread per reported core,
+and the resulting oversubscription slows CPU inference several-fold. This
+module must be imported before numpy or torch so the environment variables
+take effect. Explicitly set variables are never overridden.
 """
 
 from __future__ import annotations

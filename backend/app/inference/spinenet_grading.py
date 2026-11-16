@@ -1,18 +1,14 @@
 """Upstream SpineNet grading wrapper.
 
-Runs the vendored upstream SpineNet pipeline (``backend/spinenet/``, weights
-in ``backend/spinenet/weights/`` -- gitignored, ~784MB, see tools/fetch_assets.py) end to
+Runs the vendored upstream SpineNet pipeline (``backend/spinenet/``; weights in
+``backend/spinenet/weights/``, gitignored, see tools/fetch_assets.py) end to
 end: vertebra detection -> IVD extraction -> 11-task radiological grading.
-CPU-friendly (no GPU required); see ``spinenet.main.SpineNet``.
+Runs on CPU or GPU; see ``spinenet.main.SpineNet``.
 
-This module computes ALL 11 upstream conditions, including
-``canal_stenosis`` / ``left_foraminal`` / ``right_foraminal`` -- but those
-three are computed here only for completeness/testability. The app's merge
-step (``app/inference/full_grading.py::merge_gradings``) unconditionally
-discards them and substitutes the app's own fine-tuned CBAM model's
-predictions instead (``app/inference/grading.py``). This module never renders
-a "canal_stenosis"/"left_foraminal"/"right_foraminal" value that reaches the
-UI without going through that swap -- see ``CBAM_OWNED_CONDITIONS``.
+All 11 upstream conditions are computed, but ``canal_stenosis`` /
+``left_foraminal`` / ``right_foraminal`` are always replaced by the CBAM
+model's predictions in ``full_grading.merge_gradings`` (see
+``CBAM_OWNED_CONDITIONS``).
 """
 
 from __future__ import annotations
@@ -35,9 +31,8 @@ from app.schemas import GradingItem
 # backend/app/inference/spinenet_grading.py -> parents[2] == backend/
 _SPINENET_PKG_PARENT = Path(__file__).resolve().parents[2]
 
-# Conditions the app's fine-tuned CBAM model owns. SpineNet computes its own
-# versions of these internally (as part of its standard 11-task head), but
-# `merge_gradings` always drops them in favor of the CBAM predictions.
+# Conditions owned by the fine-tuned CBAM model; `merge_gradings` drops
+# SpineNet's own predictions for these.
 CBAM_OWNED_CONDITIONS = frozenset({"canal_stenosis", "left_foraminal", "right_foraminal"})
 
 # Canonical spine order, used to normalize a detected "lower-upper" level
@@ -116,16 +111,14 @@ class SpineNetGradingResult:
 def _grade_ivds_with_confidence(spnt, ivd_dicts: list[dict]) -> list[GradingItem]:
     """Grade every IVD with all 11 upstream heads, keeping softmax confidence.
 
-    Reimplements `spinenet.utils.classification.classify_ivd_v2_resnet` +
-    `format_gradings`'s class-shift logic locally (rather than calling
-    `SpineNet.grade_ivds`) so each head's softmax probability can be kept as
-    the `GradingItem.score` -- upstream's own helper only keeps the argmax.
-    Note: `classify_ivd_v2_resnet` feeds each `(9, 112, 224)` IVD volume to the
-    grading model directly (batch+channel dims added); it does NOT go through
-    `format_volume_for_classification_net` (that helper crops assuming an
-    uncropped `(rows, cols, slices)` volume and is used by a different,
-    unused-here classification path -- calling it on `get_all_ivd_vol`'s
-    already-cropped `(9, 112, 224)` output produces a garbage crop).
+    Reimplements `spinenet.utils.classification.classify_ivd_v2_resnet` plus
+    `format_gradings`'s class shift, instead of calling `SpineNet.grade_ivds`,
+    so each head's softmax probability is kept as `GradingItem.score`
+    (upstream keeps only the argmax).
+
+    Each IVD volume is already a `(9, 112, 224)` crop and is fed to the model
+    directly. Do not pass it through `format_volume_for_classification_net`:
+    that helper expects an uncropped volume and produces a garbage crop here.
     """
     items: list[GradingItem] = []
     for ivd in ivd_dicts:
@@ -152,22 +145,17 @@ def _grade_ivds_with_confidence(spnt, ivd_dicts: list[dict]) -> list[GradingItem
 def _load_volume_for_spinenet(volume_path: str) -> tuple[np.ndarray, float]:
     """Load an app study volume into SpineNet's expected (H, W, S) + spacing.
 
-    Best-effort general path for arbitrary uploaded volumes (DICOM/MHA/NIfTI
-    read the same way the rest of the app does, via `volume_io`). The
-    dedicated sample-scan validation instead uses
-    `spinenet.io.load_dicoms_from_folder` directly -- the exact convention
-    upstream's own `test_spinenet.py` uses -- which is what has actually been
-    verified end to end (see `run_spinenet_grading_on_dicom_folder`).
+    Best-effort path for arbitrary uploads (DICOM/MHA/NIfTI via `volume_io`).
+    The sample-scan validation instead uses upstream's own loader; see
+    `run_spinenet_grading_on_dicom_folder`.
     """
     image = to_model_orientation(_read_image(volume_path))
     arr = sitk.GetArrayFromImage(image).astype(np.float32)  # (S, H, W)
     volume_hws = np.transpose(arr, (1, 2, 0))  # (H, W, S)
     sx, sy, _sz = image.GetSpacing()
-    # Upstream expects a single in-plane spacing scalar (it does
-    # ``patch_edge_len * 10 / pixel_spacing``); it computes the same via
-    # ``np.mean(PixelSpacing)`` in ``dicom_io``. Match that: mean of the two
-    # in-plane axes. Passing the (sy, sx) tuple raises TypeError deep in
-    # ``split_into_patches_exhaustive``.
+    # Upstream expects a single in-plane spacing scalar, computed as
+    # ``np.mean(PixelSpacing)`` in ``dicom_io``. Passing a (sy, sx) tuple
+    # raises TypeError in ``split_into_patches_exhaustive``.
     pixel_spacing = float(np.mean([sy, sx]))
     return volume_hws, pixel_spacing
 

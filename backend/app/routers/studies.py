@@ -65,19 +65,18 @@ def create_study(
     db: Session = Depends(get_db),
     reader: Reader | None = Depends(current_reader),
 ) -> dict[str, object]:
-    """Create a new (empty) study + its patient; a volume is uploaded later.
+    """Create an empty study and its patient; the volume is uploaded later.
 
-    In a room, the id gets the room's prefix and the patient is looked up only
-    among that room's patients. Otherwise two clinicians who both type "ca1",
-    or both name a patient "Nguyen Van A", would collide on one row.
+    In a reader room, the study id gets the room prefix and the patient is
+    looked up only within that room, so identical ids or patient names from
+    different readers do not collide. Returns 409 if the study id exists.
     """
     study_id = payload.id if reader is None else f"{room_prefix(reader)}{payload.id}"
     if db.get(Study, study_id) is not None:
         raise HTTPException(
             status_code=409, detail=f"Study '{payload.id}' already exists."
         )
-    # Group studies under one patient: reuse an existing patient of the same
-    # name in the same room, otherwise create a new one.
+    # Reuse an existing patient of the same name in the same room.
     name = payload.patient_name.strip() or "Unknown"
     owner = reader.id if reader is not None else None
     patient = db.query(Patient).filter_by(name=name, reader_id=owner).first()
@@ -124,10 +123,9 @@ def save_conclusion(
     payload: ConclusionIn,
     db: Session = Depends(get_db),
 ) -> dict[str, object]:
-    """Save the clinician's own written conclusion for this study.
+    """Save the clinician's free-text conclusion for this study.
 
-    Free text, beside the AI's per-level grades: what a reader would write on
-    the report, including what the grade buttons cannot say. Empty clears it.
+    Stored alongside the per-level grades. An empty text clears it.
     """
     study = db.get(Study, study_id)
     if study is None:
@@ -148,7 +146,10 @@ def delete_study(
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ) -> Response:
-    """Delete a study, its annotations/logs, and its files on disk."""
+    """Delete a study, its annotations and logs, and its files on disk.
+
+    Returns 409 while the study is being graded.
+    """
     study = db.get(Study, study_id)
     if study is None:
         raise HTTPException(status_code=404, detail=f"Unknown study: {study_id}")
@@ -187,13 +188,13 @@ def get_study_detail(
         doctor_conclusion=study.doctor_conclusion,
         doctor_conclusion_at=study.doctor_conclusion_at,
     )
-    # Image metadata comes from the viewer NIfTI (already reoriented).
+    # Geometry comes from the viewer NIfTI, which is already reoriented.
     if study.display_path and Path(study.display_path).is_file():
         meta = read_metadata(study.display_path)
         detail.dimensions = meta["dimensions"]  # type: ignore[assignment]
         detail.spacing_mm = meta["spacing_mm"]  # type: ignore[assignment]
         detail.num_slices = meta["num_slices"]  # type: ignore[assignment]
-    # Acquisition tags survive only in the original DICOM (not the NIfTI).
+    # Acquisition tags exist only in the original DICOM, not the NIfTI.
     if study.volume_path and not detail.is_picture:
         detail.dicom_tags = read_dicom_tags(study.volume_path)
     return detail
@@ -206,15 +207,18 @@ def upload_study(
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ) -> dict[str, object]:
-    """Store an uploaded volume, convert it to a viewer NIfTI, record paths.
+    """Store an uploaded scan, convert it for the viewer, and record its series.
 
-    The study row must already exist (created via demo import / patient flow).
+    Accepts a DICOM series as .zip, a .mha/.nii/.nii.gz volume, or a PNG/JPEG
+    picture. Replaces any previous image of the study together with its mask,
+    grades and unsubmitted corrections. Returns 404 for an unknown study, 409
+    while the study is being graded, and 400 for an unreadable file.
     """
     study = db.get(Study, study_id)
     if study is None:
         raise HTTPException(status_code=404, detail=f"Unknown study: {study_id}")
-    # A new upload replaces the scan the running job is reading, which then
-    # fails half way (2026-10-04) and leaves the old scan's mask on the new one.
+    # Replacing the scan under a running grading job would make the job fail
+    # midway and leave the old scan's mask on the new one.
     if jobs.running_for("grade_full", study_id) is not None:
         raise HTTPException(status_code=409, detail=BUSY_UPLOAD)
 
@@ -222,13 +226,9 @@ def upload_study(
     study_dir.mkdir(parents=True, exist_ok=True)
 
     filename = Path(file.filename or "volume").name
-    # Accepted: DICOM series as a .zip, or a single MHA / NIfTI volume file.
-    # (A bare DICOM series is a directory of slices, which HTTP upload can't
-    # carry file-by-file -- zip it, that's what the .zip path is for.)
     suffixes = "".join(Path(filename).suffixes).lower()
-    # .ima is how Siemens scanners name DICOM files; a single one is refused a
-    # few lines on for being one slice, with advice, instead of here as an
-    # "unsupported type" that sends the doctor looking for a converter.
+    # .dcm/.ima (Siemens DICOM) are accepted here so that a single slice is
+    # rejected later with a specific message rather than "unsupported type".
     accepted = (".zip", ".mha", ".nii", ".nii.gz", ".dcm", ".ima") + IMAGE_SUFFIXES
     if suffixes.endswith(".mhd"):
         raise HTTPException(
@@ -251,9 +251,8 @@ def upload_study(
     dest = study_dir / filename
     with dest.open("wb") as out:
         shutil.copyfileobj(file.file, out)
-    # Logged before anything can fail: when a doctor's study will not open, the
-    # first question is always what they actually sent, and the upload is the
-    # only place that knows. The file itself stays on disk for postmortem.
+    # Logged before anything can fail, so a failed upload can be diagnosed
+    # from what was actually received. The file stays on disk for inspection.
     logger.info(
         "[upload %s] received %s (%.1f MB, content-type %s)",
         study_id,
@@ -262,12 +261,9 @@ def upload_study(
         file.content_type or "unset",
     )
 
-    # Everything already held about this study describes the PREVIOUS image:
-    # the mask, the grades, the rendered slice, the converted volumes. Left
-    # behind, the viewer would draw the old patient's segmentation over the new
-    # scan and show grades that were never computed from it -- wrong in a way
-    # that looks plausible. Clear it here rather than hoping each consumer
-    # notices the image changed.
+    # Everything derived from the previous image (mask, grades, rendered
+    # slices, converted volumes) must go; otherwise the viewer would overlay
+    # the old segmentation and grades on the new scan.
     for stale in study_dir.iterdir():
         if stale == dest:
             continue
@@ -278,9 +274,8 @@ def upload_study(
 
     db.query(Series).filter_by(study_id=study_id).delete()
     db.query(Annotation).filter_by(study_id=study_id).delete()
-    # Corrections already handed to a training batch are not ours to retract --
-    # the batch is sealed and the retraining side reasons about it. Unsubmitted
-    # ones refer to grades that no longer exist, so they go.
+    # Corrections already in a training batch are sealed and kept. Unsubmitted
+    # ones refer to grades that no longer exist, so they are deleted.
     dropped = (
         db.query(CorrectionLog)
         .filter(
@@ -307,9 +302,8 @@ def upload_study(
         )
     study.analyzed_series_id = None
 
-    # One 2D picture (PNG/JPEG): shown as a one-slice volume. Model A cannot
-    # grade it -- it needs a sagittal series -- so only model B reads it, at
-    # once, since that is the only answer this study can have.
+    # A 2D picture is shown as a one-slice volume. Model A needs a sagittal
+    # series, so only model B can read it; it runs immediately.
     if is_picture(str(dest)):
         try:
             display = picture_to_web_form(str(dest), out_dir=str(study_dir))
@@ -339,9 +333,8 @@ def upload_study(
             "skipped": [],
         }
 
-    # A zip that holds a volume file rather than DICOM slices -- a NIfTI zipped
-    # for email, or a .mhd with its .raw -- is unwrapped and treated as that
-    # file. Both were refused as "no DICOM series" before.
+    # A zip holding a single volume file (e.g. a zipped NIfTI, or .mhd + .raw)
+    # is unwrapped and treated as that file.
     if dest.suffix.lower() == ".zip":
         inner = _volume_inside_zip(dest, study_dir)
         if inner is not None:
@@ -358,9 +351,8 @@ def upload_study(
             logger.error("[upload %s] %s rejected: %s", study_id, filename, exc)
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         except Exception as exc:  # noqa: BLE001 - unknown formats reach here
-            # Anything not anticipated would otherwise surface as a bare 500
-            # with no trace of which file caused it, on a machine nobody is
-            # watching. Keep the traceback; hand back something answerable.
+            # Log the traceback and return a 400 naming the file, rather than
+            # an opaque 500.
             logger.error(
                 "[upload %s] %s failed to unpack\n%s",
                 study_id,
@@ -395,7 +387,7 @@ def upload_study(
             for info in found
         ]
     else:
-        # MHA/NIfTI carry no series concept: the file is the one "series".
+        # A single MHA/NIfTI file is treated as one series.
         volume_path = str(dest.resolve())
         _refuse_single_slice(volume_path, filename)
         rows = [
@@ -412,18 +404,16 @@ def upload_study(
         db.add(row)
     db.flush()  # assign row ids
 
-    # The first row is the default active series (sagittal first, see
-    # extract_dicom_zip) -- only it needs a display volume built up front;
-    # the others are converted lazily when the user switches to them.
+    # The first row is the default active series (extract_dicom_zip sorts
+    # sagittal first). Only it is converted now; others convert on selection.
     active = rows[0]
     try:
         active.display_path = to_web_form(
             active.volume_path, out_dir=str(study_dir)
         )
     except Exception as exc:  # noqa: BLE001 - conversion, not validation
-        # Reached when a series parses but will not convert (odd geometry,
-        # single slice, unsupported pixel format). Distinguishing this from a
-        # failed unpack is the whole point of logging both separately.
+        # The series parsed but would not convert (odd geometry, single
+        # slice, unsupported pixel format); logged apart from unpack failures.
         logger.error(
             "[upload %s] %s unpacked but would not convert\n%s",
             study_id,
@@ -446,8 +436,7 @@ def upload_study(
         "volume_path": study.volume_path,
         "display_path": study.display_path,
         "series_count": len(rows),
-        # Series left out of a DICOM archive, and why, so the page can say so
-        # rather than let a missing series look like a bug.
+        # Series skipped from a DICOM archive, with reasons, for display.
         "skipped": skipped,
     }
 
@@ -482,7 +471,7 @@ def list_series(
         )
         for row in rows
     ]
-    # Studies uploaded before the name was inferred at upload time.
+    # Labels an unnamed sagittal series as T2 when its sibling is a T1.
     fill_missing_weighting(out)
     return out
 
@@ -555,7 +544,7 @@ def get_mask_volume(
         str(mask_path),
         media_type="application/gzip",
         filename=f"{study_id}_mask.nii.gz",
-        # The mask changes when a doctor saves edits; never serve a stale copy.
+        # The mask changes when edits are saved; never serve a cached copy.
         headers={"Cache-Control": "no-store"},
     )
 
@@ -565,29 +554,13 @@ MASK_VERSIONS_DIR = "mask_versions"
 
 
 def _archive_current_mask(db: Session, study_id: str, mask_path: Path) -> str | None:
-    """Keep the labelmap that is about to be overwritten, and say where it went.
+    """Copy the labelmap about to be overwritten into ``mask_versions/``.
 
-    Grade corrections have always been versioned -- every edit is a new
-    ``annotations`` row and the previous one is still there -- while a mask
-    edit wrote straight over ``mask.nii.gz`` and destroyed what it replaced. A
-    stray brush stroke saved by accident was therefore unrecoverable, and the
-    traceability this tool claims held for only half of what a doctor can
-    change.
+    The live mask stays at ``mask.nii.gz``; annotation rows that pointed at it
+    are repointed to the archived copy, so each version's ``mask_path`` names
+    the file holding that version. All versions are kept (they are small).
 
-    The fix is deliberately the small one: the serving path
-    (``GET /studies/{id}/mask.nii.gz``, the viewer, the export) still finds the
-    current mask exactly where it always did. Only the *old* bytes move, into
-    ``<study>/mask_versions/``, and the annotation rows that referred to them
-    are repointed there -- so each version's ``mask_path`` names the file that
-    actually holds that version's mask, which is what the column was for.
-
-    Every version is kept. A labelmap is a few hundred KB to a few MB gzipped,
-    so a study edited ten times costs single-digit megabytes; pruning would
-    trade the one property this exists to provide against disk that is not
-    scarce.
-
-    Returns the archive's filename (not its full path -- the on-disk layout
-    stays internal), or None when there was no mask to keep.
+    Returns the archive's filename, or None when there was no mask yet.
     """
     if not mask_path.is_file():
         return None
@@ -610,17 +583,13 @@ def _archive_current_mask(db: Session, study_id: str, mask_path: Path) -> str | 
 
 
 def _record_mask_version(db: Session, study_id: str, mask_path: Path) -> int | None:
-    """Add the annotation version that the just-written mask belongs to.
+    """Add an annotation version for the just-written mask.
 
-    Carries the latest payload forward unchanged -- a mask edit is not a grade
-    edit -- so the row says "at this version, the grades were these and the
-    mask was this file". It also keeps the newest row pointing at the live
-    mask, which is what ``build_dataset`` reads when it re-crops discs; without
-    it, repointing the old rows would have quietly aimed re-training at a
-    superseded labelmap.
+    The latest grade payload is carried forward unchanged. This keeps the
+    newest row pointing at the live mask, which ``build_dataset`` reads when
+    re-cropping discs for re-training.
 
-    Returns the new version number, or None when the study has no annotation
-    yet (nothing has been inferred, so there is no version line to extend).
+    Returns the new version number, or None if the study has no annotation.
     """
     prior = (
         db.query(Annotation)
@@ -652,11 +621,11 @@ async def save_mask(
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ) -> dict[str, object]:
-    """Persist a doctor-edited labelmap (raw uint8 voxels, display geometry).
+    """Save a clinician-edited labelmap.
 
-    The frontend sends the edited Cornerstone labelmap as a flat little-endian
-    uint8 buffer in slice order (z, y, x); we reshape it to the display volume's
-    size, copy that volume's geometry, and overwrite ``mask.nii.gz``.
+    The body is a flat uint8 buffer in (z, y, x) order matching the display
+    volume's size. The previous mask is archived and a new annotation version
+    is recorded. Returns 400 if the buffer size does not match.
     """
     study = db.get(Study, study_id)
     if study is None:
@@ -687,9 +656,7 @@ async def save_mask(
     return {
         "ok": True,
         "shape": [z, y, x],
-        # What the save can be undone back to, and the annotation version this
-        # edit became. Both are null on the first save of a study, when there
-        # was nothing to keep.
+        # Both are null on a study's first save.
         "previous_mask": archived,
         "version": version,
     }
@@ -761,11 +728,10 @@ def _volume_inside_zip(zip_path: Path, out_dir: Path) -> Path | None:
 
 
 def _refuse_single_slice(volume_path: str, filename: str) -> None:
-    """Refuse a file that is one image rather than a volume.
+    """Reject a file that holds a single image rather than a volume.
 
-    A single .dcm used to be accepted as a one-slice "study" that nothing
-    downstream can segment or grade, failing much later and far from the
-    cause. The fix a doctor needs is always the same, so say it here.
+    Nothing downstream can segment or grade one slice, so fail early with a
+    message explaining how to upload the whole series.
     """
     try:
         image = sitk.ReadImage(volume_path)

@@ -18,7 +18,7 @@ def list_patients(
     db: Session = Depends(get_db),
     reader: Reader | None = Depends(current_reader),
 ) -> list[PatientOut]:
-    """The worklist: a room's own patients, or everyone's for the operator."""
+    """List patients with their studies: the room's own, or all for the operator view."""
     query = db.query(Patient)
     if reader is not None:
         query = query.filter(Patient.reader_id == reader.id)

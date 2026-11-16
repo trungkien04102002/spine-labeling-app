@@ -33,6 +33,10 @@ def infer_study(
     backend: InferenceBackend = Depends(get_backend),
     settings: Settings = Depends(get_settings),
 ) -> InferResult:
+    """Run segmentation and CBAM grading on a study; saves a version-0 AI annotation.
+
+    Returns 404 for an unknown study and 400 if no volume was uploaded.
+    """
     study = db.get(Study, study_id)
     if study is None:
         raise HTTPException(status_code=404, detail=f"Unknown study: {study_id}")
@@ -40,7 +44,7 @@ def infer_study(
         raise HTTPException(
             status_code=400, detail="Study has no uploaded volume; upload first."
         )
-    # Always infer on the sagittal series, whichever one the doctor is viewing.
+    # Always infer on the sagittal series, whichever one is being viewed.
     result = backend.infer(study_id, grading_volume_path(db, study))
     mark_analyzed(db, study)
 
@@ -98,11 +102,11 @@ def save_annotation(
     db: Session = Depends(get_db),
     reader: Reader | None = Depends(current_reader),
 ) -> InferResult:
-    """Persist a doctor's corrected annotation as a new version.
+    """Save a clinician-corrected annotation as a new version.
 
-    Bumps the version, marks it ``kind='corrected'``, carries the prior mask
-    path forward (mask editing is separate), and logs each severity change to
-    ``correction_log`` (the raw material for the future feedback loop).
+    Stores it as ``kind='corrected'``, carries the prior mask path forward
+    (mask edits use ``PUT /studies/{id}/mask``), and logs each severity change
+    to ``correction_log``, the input of the re-training feedback loop.
     """
     study = db.get(Study, study_id)
     if study is None:
@@ -129,8 +133,7 @@ def save_annotation(
                         field=field,
                         old=old_sev,
                         new=new_sev,
-                        # Who made it, so the trial can report agreement per
-                        # clinician rather than one pooled number.
+                        # Enables per-clinician agreement reporting.
                         reader_id=reader.id if reader is not None else None,
                     )
                 )
