@@ -5,10 +5,12 @@
 #   tools/deploy_view_only.sh <SSH_PORT> <SSH_HOST> <BACKUP_TGZ> [ENV_FILE]
 #
 # BACKUP_TGZ holds data/<study dirs> and spine.final.db, taken on the box that
-# graded them. Paths in the DB
-# are absolute under /workspace/spine-labeling-app, so the app goes to the
-# same place here and nothing needs rewriting. ENV_FILE is that box's
-# backend/.env; VIEW_ONLY is forced on whatever it says.
+# graded them. Paths in the DB are absolute under /workspace/spine-labeling-app,
+# so the app is installed at the same place here and nothing needs rewriting.
+# ENV_FILE is that box's backend/.env; VIEW_ONLY is forced on regardless.
+#
+# The box must expose port 72299 in its Vast.ai template: the backend listens
+# on the host port Vast maps to it (VAST_TCP_PORT_72299).
 #
 # Skipped on purpose, unlike deploy_box.sh: model weights, TotalSpineSeg and
 # model B (~2 GB and ~15 minutes). torch still installs, because the backend

@@ -8,8 +8,8 @@
 #   ./run.sh logs         tail the logs
 #
 # Two deployment shapes:
-#   • All local     — ./run.sh on the laptop.
-#   • FE→remote BE  — backend on the VM (./run.sh backend), tunnel it back
+#   - All local     — ./run.sh on the laptop.
+#   - FE→remote BE  — backend on the VM (./run.sh backend), tunnel it back
 #       ssh -p <PORT> -L 8000:localhost:8000 root@<HOST>
 #     then ./run.sh frontend on the laptop (VITE_API_URL defaults to
 #     http://localhost:8000, i.e. the tunnel). No CORS change needed.
@@ -46,8 +46,8 @@ stop_one() {  # $1=pidfile $2=name $3=port $4=process-pattern
   if [ -f "$1" ] && kill -0 "$(cat "$1")" 2>/dev/null; then
     pid=$(cat "$1")
     kill "$pid" 2>/dev/null || true
-    # SIGTERM is a request: wait for it to take, then escalate. Reporting
-    # "stopped" without checking is how a live server gets left behind.
+    # SIGTERM can be ignored or slow: wait for the process to exit, then
+    # escalate to SIGKILL, so "stopped" is never reported for a live server.
     for _ in 1 2 3 4 5 6 7 8 9 10; do
       kill -0 "$pid" 2>/dev/null || break
       sleep 0.5

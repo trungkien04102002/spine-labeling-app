@@ -1,19 +1,19 @@
 // Open a study the way a clinician does and report why its picture looks wrong.
 //
 //   node tools/diagnose_viewer.mjs <BASE_URL> <STUDY_ID> <ROOM_ID> [OUT_DIR] [RUNS]
-//   node tools/diagnose_viewer.mjs http://1.2.3.4:5678 p6-A-MRI 6 /tmp 4
+//   node tools/diagnose_viewer.mjs http://localhost:5173 p1-SPIDER-100 1 /tmp 4
 //
-// Per run it prints: page errors,
-// WebGL-context warnings, the slice/VOI/camera the viewport ended up with, the
-// mean brightness of the image area (near 0 = black picture), and saves a
-// screenshot. Several runs because the worst viewer bugs were intermittent
-// (a black image on about half of all loads, 2026-10-02).
+// Per run it prints page errors, WebGL-context warnings, the slice/VOI/camera
+// the viewport ended up with and the mean brightness of the image area (near
+// 0 = black picture), and saves a screenshot. It runs several times because
+// viewer rendering bugs can be intermittent (e.g. a black image on some loads).
 //
-// What the numbers usually mean -- see the memory note "upload bug playbook":
+// What the numbers usually mean:
 //   brightness ~0, parallelScale huge (thousands)  -> camera fitted to bad geometry
 //   "Too many active WebGL contexts"                -> rendering engines leaking
 //   pageerror "Invalid URL"                         -> API base URL relative in the build
 //   brightness low but camera sane, VOI upper huge  -> saturated pixels, window too wide
+
 // Playwright lives in frontend/node_modules; resolve it from this file's path.
 const { chromium } = await import(
   new URL("../frontend/node_modules/playwright/index.mjs", import.meta.url).href
@@ -60,8 +60,8 @@ for (let run = 0; run < Number(runsArg); run++) {
   const file = `${outDir}/diag_${study}_${run}.png`;
   const clip = { x: 110, y: 330, width: 780, height: 450 };
   const png = await page.screenshot({ path: file, clip });
-  // Mean of the PNG's raw bytes is a crude but sufficient black-image detector
-  // once decoded; decode via a canvas in the page to stay dependency-free.
+  // Mean pixel brightness is a crude but sufficient black-image detector.
+  // Decode the PNG via a canvas in the page to stay dependency-free.
   const brightness = await page.evaluate(async (b64) => {
     const img = new Image();
     img.src = "data:image/png;base64," + b64;

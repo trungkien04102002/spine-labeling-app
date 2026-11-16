@@ -81,11 +81,10 @@ def test_put_mask_unknown_study_404(client):
 
 # --- A mask edit must be undoable ------------------------------------------
 #
-# Grade corrections have always been versioned: every edit is a new
-# `annotations` row and the previous one is still there. A mask edit used to
-# write straight over `mask.nii.gz`, so a stray brush stroke saved by accident
-# destroyed the segmentation it replaced -- the traceability this tool claims
-# held for only half of what a doctor can change.
+# Grade corrections are versioned: every edit is a new `annotations` row and
+# the previous one is still there. Mask edits must be versioned the same way;
+# writing straight over `mask.nii.gz` would let a stray brush stroke saved by
+# accident destroy the segmentation it replaced.
 
 
 def _seed_annotation(client_fixture, mask_path, version=0, kind="ai"):

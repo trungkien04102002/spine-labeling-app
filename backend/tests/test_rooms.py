@@ -68,8 +68,8 @@ def test_a_room_sees_only_its_own_worklist(env):
 
 
 def test_two_rooms_can_use_the_same_study_id_and_patient_name(env):
-    """Without room scoping, the second "ca1" was a 409 and the second
-    "Nguyen Van A" was silently the first clinician's patient."""
+    """Without room scoping, the second "ca1" would be a 409 and the second
+    "Nguyen Van A" would silently be the first clinician's patient."""
     client, Session, _ = env
     minh, lan = _join(client, "Minh"), _join(client, "Lan")
     for r in (minh, lan):

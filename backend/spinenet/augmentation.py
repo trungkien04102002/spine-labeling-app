@@ -409,4 +409,4 @@ if __name__ == "__main__":
     print(f"   Original: {volume.shape}, Augmented: {augmented.shape}")
     print(f"   Labels after compose: {lbl_after}")
 
-    print("\n✓ All transforms working!")
+    print("\nOK All transforms working!")

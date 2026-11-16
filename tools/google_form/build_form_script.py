@@ -13,9 +13,9 @@ then paste the .gs into script.google.com and run one function:
   updateSurveyForm()  -- rebuild the items of the Form FORM_ID in place, so
                          its link and its Sheet stay the same.
 
-The Form shows no question ids (clinicians found "[Q4]" clutter); the
-column -> app question id mapping is written next to the script, as
-form_question_ids.md, for scoring the response Sheet.
+The Form shows no question ids, to keep it uncluttered; the column -> app
+question id mapping is written next to the script, as form_question_ids.md,
+for scoring the response Sheet.
 """
 
 import json
@@ -26,13 +26,13 @@ form = json.load(open(sys.argv[1]))
 form_id = sys.argv[2] if len(sys.argv) > 2 else ""
 labels = form["scale"]["labels"]
 
-# Dropped from the Form: 19 asks how easy correcting the AI was, and the
-# clinicians on the view-only box cannot correct anything.
+# Dropped from the Form: question 19 asks how easy correcting the AI was, and
+# the view-only deployment offers no way to correct anything.
 SKIP_IDS = {19}
 questions = [q for q in form["questions"] if q["id"] not in SKIP_IDS]
 
-# Two lines: the first draft's five read as a wall of rules. Required
-# questions need no note -- Google Forms marks them with * itself.
+# Kept to two lines so it does not read as a wall of rules. Required questions
+# need no note: Google Forms marks them with * itself.
 INTRO = (
     "Khoảng 5 phút, trả lời một lần sau khi xem xong các ca mẫu.\n"
     "Phiếu ẩn danh, không cần đăng nhập. Không có đúng hay sai: đánh giá thấp cũng có ích."
@@ -93,17 +93,16 @@ for sec in form["sections"]:
         in_group = [q for q in questions if q["group"] == group]
         if not in_group:
             continue
-        # All required: with three clinicians, one blank is a third of that
-        # question's data.
+        # All required: with only a handful of respondents, every blank costs
+        # a large share of that question's data.
         if len(in_group) == 1:
             q = in_group[0]
             emit(f"  scale({js(q['text'])}, true);")
             mapping.append(f"| {q['text']} | {q['id']} |")
             continue
-        # A group of questions on the same 1-5 scale is one grid, a row per
-        # question: fifteen full-width scale blocks made the Form read as
-        # far longer than its twenty-odd answers. Column headings are the
-        # words alone; "1 · Rất kém" read as two things.
+        # A group of questions on the same 1-5 scale becomes one grid, a row
+        # per question, so the Form does not look longer than it is. Column
+        # headings are the words alone; "1 · Rất kém" reads as two things.
         is_labels = all(q["matrix"] for q in in_group)
         title = GRID_TITLE if is_labels else group
         help_text = GRID_HELP if is_labels else ROW_HELP

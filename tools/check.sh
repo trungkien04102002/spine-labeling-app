@@ -17,7 +17,12 @@ echo "== 1/3 backend tests"
 (cd "$REPO/backend" && "$PY" -m pytest -q -k "not end_to_end")
 
 echo "== 2/3 frontend lint + build"
-(cd "$REPO/frontend" && npm run --silent lint -- --quiet && npm run --silent build >/dev/null)
+# Build into a temporary folder: on a server, frontend/dist is what users are
+# served, and a plain build would bake in the default API URL.
+OUT="$(mktemp -d)"
+(cd "$REPO/frontend" && npm run --silent lint -- --quiet && npx tsc -b \
+  && npx vite build --outDir "$OUT" --emptyOutDir >/dev/null)
+rm -rf "$OUT"
 echo "frontend OK"
 
 if [ "${1:-}" != "--gpu" ]; then

@@ -436,7 +436,7 @@ class GradingModelBaseline(nn.Module):
         self.load_state_dict(model_dict, strict=strict)
 
         if verbose:
-            print(f"  ✓ Backbone loaded successfully")
+            print(f"  OK Backbone loaded successfully")
 
     def freeze_backbone(self, freeze: bool = True):
         """
@@ -462,7 +462,7 @@ if __name__ == "__main__":
     print("TEST 1: Original Format (11 tasks)")
     print("="*60)
     model_original = GradingModelBaseline(format='original')
-    print(f"✓ Model created (format='original')")
+    print(f"OK Model created (format='original')")
 
     total_params = sum(p.numel() for p in model_original.parameters())
     print(f"Total parameters: {total_params:,}")
@@ -479,14 +479,14 @@ if __name__ == "__main__":
     for i, (output, num_classes) in enumerate(zip(outputs, expected_classes)):
         assert output.shape == (batch_size, num_classes), \
             f"Output {i} shape mismatch! Expected ({batch_size}, {num_classes}), got {output.shape}"
-        print(f"  Task {i+1}: {output.shape} ✓")
+        print(f"  Task {i+1}: {output.shape} OK")
 
     # Test 2: RSNA format (3 tasks)
     print("\n" + "="*60)
     print("TEST 2: RSNA 2024 Format (3 tasks)")
     print("="*60)
     model_rsna = GradingModelBaseline(format='rsna')
-    print(f"✓ Model created (format='rsna')")
+    print(f"OK Model created (format='rsna')")
 
     total_params_rsna = sum(p.numel() for p in model_rsna.parameters())
     print(f"Total parameters: {total_params_rsna:,}")
@@ -498,9 +498,9 @@ if __name__ == "__main__":
     for key, value in outputs_rsna.items():
         assert value.shape == (batch_size, 3), \
             f"Output {key} shape mismatch! Expected ({batch_size}, 3), got {value.shape}"
-        print(f"  {key}: {value.shape} ✓")
+        print(f"  {key}: {value.shape} OK")
 
     print("\n" + "="*60)
-    print("✓ All tests passed!")
+    print("OK All tests passed!")
     print("="*60)
     print(f"\nParameter difference: {total_params - total_params_rsna:,} fewer params in RSNA format")

@@ -48,7 +48,7 @@ def main():
 
     # Check if preprocessed data exists
     if not Path(args.data_dir).exists():
-        print(f"\n❌ Error: Preprocessed data not found: {args.data_dir}")
+        print(f"\nERROR Error: Preprocessed data not found: {args.data_dir}")
         print("\nRun preprocessing first:")
         print("  python3 prepare_rsna_data.py --skip-download")
         return
@@ -61,14 +61,14 @@ def main():
             split='train'
         )
     except Exception as e:
-        print(f"❌ Error loading dataset: {e}")
+        print(f"ERROR Error loading dataset: {e}")
         return
 
     if len(dataset) == 0:
-        print("❌ No samples found in dataset!")
+        print("ERROR No samples found in dataset!")
         return
 
-    print(f"✓ Loaded {len(dataset)} samples")
+    print(f"OK Loaded {len(dataset)} samples")
 
     # Load model
     print(f"\n[2/3] Loading grading model...")
@@ -90,11 +90,11 @@ def main():
                 use_cbam = any('cbam' in key for key in checkpoint.keys())
 
             if use_cbam:
-                print(f"  ✓ Detected attention model (with CBAM)")
+                print(f"  OK Detected attention model (with CBAM)")
             else:
-                print(f"  ✓ Detected baseline model (no CBAM)")
+                print(f"  OK Detected baseline model (no CBAM)")
         except Exception as e:
-            print(f"  ⚠ Warning: Could not detect model type: {e}")
+            print(f"  WARNING: Could not detect model type: {e}")
             print(f"  → Assuming baseline model")
 
     # Create appropriate model
@@ -119,27 +119,27 @@ def main():
                     val_wll = checkpoint.get('val_weighted_logloss', None)
 
                     if isinstance(val_loss, float) and val_wll:
-                        print(f"  ✓ Loaded checkpoint from epoch {epoch} (val_loss: {val_loss:.4f}, weighted_logloss: {val_wll:.4f})")
+                        print(f"  OK Loaded checkpoint from epoch {epoch} (val_loss: {val_loss:.4f}, weighted_logloss: {val_wll:.4f})")
                     elif isinstance(val_loss, float):
-                        print(f"  ✓ Loaded checkpoint from epoch {epoch} (val_loss: {val_loss:.4f})")
+                        print(f"  OK Loaded checkpoint from epoch {epoch} (val_loss: {val_loss:.4f})")
                     else:
-                        print(f"  ✓ Loaded checkpoint from epoch {epoch}")
+                        print(f"  OK Loaded checkpoint from epoch {epoch}")
                 elif 'model_weights' in checkpoint:
                     # Alternative checkpoint format
                     model.load_state_dict(checkpoint['model_weights'])
                     epoch = checkpoint.get('epoch_no', '?')
                     val_loss = checkpoint.get('val_loss', '?')
-                    print(f"  ✓ Loaded checkpoint from epoch {epoch} (val_loss: {val_loss:.4f})" if isinstance(val_loss, float) else f"  ✓ Loaded checkpoint from epoch {epoch}")
+                    print(f"  OK Loaded checkpoint from epoch {epoch} (val_loss: {val_loss:.4f})" if isinstance(val_loss, float) else f"  OK Loaded checkpoint from epoch {epoch}")
                 else:
                     # Direct state_dict format
                     print(f"  - Checkpoint keys: {list(checkpoint.keys())[:10]}...")
                     model.load_state_dict(checkpoint)
-                    print(f"  ✓ Loaded model state dict")
+                    print(f"  OK Loaded model state dict")
             else:
-                print(f"  ❌ Unexpected checkpoint format: {type(checkpoint)}")
+                print(f"  ERROR Unexpected checkpoint format: {type(checkpoint)}")
                 return
         except Exception as e:
-            print(f"  ❌ Error loading checkpoint: {e}")
+            print(f"  ERROR Error loading checkpoint: {e}")
             import traceback
             traceback.print_exc()
             return
@@ -149,16 +149,16 @@ def main():
         weights_dir = os.path.expanduser('~/.spinenet/weights')
         try:
             model.load_pretrained_backbone(weights_dir, verbose=False)
-            print("  ✓ Pretrained backbone loaded")
+            print("  OK Pretrained backbone loaded")
         except Exception as e:
-            print(f"  ⚠ Warning: Could not load pretrained weights: {e}")
+            print(f"  WARNING: Could not load pretrained weights: {e}")
             print("  → Using random weights")
     else:
         print("  - Using random weights (no checkpoint or pretrained weights specified)")
 
     model = model.to(device)
     model.eval()
-    print("✓ Model ready")
+    print("OK Model ready")
 
     # Get unique patients and select N patients
     print(f"\n[3/3] Selecting {args.num_patients} patients...")
@@ -166,13 +166,13 @@ def main():
     num_patients = min(args.num_patients, len(unique_patients))
     selected_patients = unique_patients[:num_patients]
 
-    print(f"  ✓ Selected {num_patients} patients: {selected_patients.tolist()}")
+    print(f"  OK Selected {num_patients} patients: {selected_patients.tolist()}")
 
     # Get all samples for selected patients
     patient_samples = dataset.metadata[dataset.metadata['study_id'].isin(selected_patients)]
     num_samples = len(patient_samples)
 
-    print(f"  ✓ Total samples to test: {num_samples}")
+    print(f"  OK Total samples to test: {num_samples}")
     print("="*70)
 
     severity_map = {-1: 'N/A', 0: 'Normal/Mild', 1: 'Moderate', 2: 'Severe'}
@@ -304,16 +304,16 @@ def main():
 
     # Summary
     print("\n" + "="*70)
-    print("✓ TEST PASSED!")
+    print("OK TEST PASSED!")
     print("="*70)
     print("\nTested:")
-    print(f"  ✅ {num_patients} patients")
-    print(f"  ✅ {num_samples} total samples")
+    print(f"  OK {num_patients} patients")
+    print(f"  OK {num_samples} total samples")
     print("\nVerified:")
-    print("  ✅ Preprocessed .npy files load correctly")
-    print("  ✅ Model accepts input format")
-    print("  ✅ Model produces predictions")
-    print("  ✅ Output format is correct (3 conditions, 3 classes each)")
+    print("  OK Preprocessed .npy files load correctly")
+    print("  OK Model accepts input format")
+    print("  OK Model produces predictions")
+    print("  OK Output format is correct (3 conditions, 3 classes each)")
     print()
 
     if not args.use_pretrained:
@@ -330,8 +330,8 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\n\n⚠ Interrupted by user")
+        print("\n\nWARNING Interrupted by user")
     except Exception as e:
-        print(f"\n❌ Error: {e}")
+        print(f"\nERROR Error: {e}")
         import traceback
         traceback.print_exc()

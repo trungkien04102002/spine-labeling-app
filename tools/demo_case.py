@@ -10,7 +10,7 @@ Why: grading needs TotalSpineSeg plus SpineNet, about a minute on a GPU and
 10+ minutes on a laptop CPU. A newcomer should see a finished result first,
 before installing any of that. The imported study has no room (reader_id
 NULL) and an id starting with SAMPLE-, so every room can copy it in from
-"Try a sample case", exactly like the RSNA validation cases used in the trial.
+"Try a sample case", the same way as the RSNA validation cases.
 
 Paths are stored absolute in the DB, so the zip stores them relative to the
 study directory and import rewrites them for the local DATA_DIR.

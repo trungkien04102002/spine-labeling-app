@@ -118,7 +118,7 @@ def client(tmp_path):
 
 
 def test_extract_keeps_every_series(tmp_path):
-    """The regression: both series survive, filename collisions and all."""
+    """Both series survive, filename collisions and all."""
     zip_path = tmp_path / "study.zip"
     zip_path.write_bytes(_two_series_zip(tmp_path))
 

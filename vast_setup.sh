@@ -7,14 +7,15 @@
 #   ./vast_setup.sh                       # downloads weights from the GitHub Release
 #   ./vast_setup.sh --skip-download       # weights already placed (deploy_box.sh)
 #
-# Works on any Ubuntu box with an NVIDIA GPU where you are root (Vast.ai or
-# not). Installs backend deps, writes backend/.env (SQLite + CUDA seg),
-# frontend deps, the model weights + sample cases, and TotalSpineSeg (own venv). It is RESILIENT: a
-# failure in one step (e.g. the heavy TotalSpineSeg install) does NOT abort the
-# rest, and it is safe to re-run. A summary at the end lists what's OK/missing.
+# Works on any Ubuntu box with an NVIDIA GPU and root access (Vast.ai or not).
+# Installs backend deps, writes backend/.env (SQLite + CUDA segmentation),
+# installs frontend deps, the model weights + sample cases, and TotalSpineSeg
+# in its own venv. A failure in one step (e.g. the heavy TotalSpineSeg install)
+# does not abort the rest, and the script is safe to re-run. A summary at the
+# end lists what is OK or missing.
 #
-# NOTE: no `set -e` on purpose — steps are checked individually so the app can
-# still boot even if the optional segmentation engine isn't ready yet.
+# No `set -e` on purpose: steps are checked individually so the app can still
+# boot even if the optional segmentation engine is not ready yet.
 
 SKIP_DOWNLOAD=0
 while [[ $# -gt 0 ]]; do
@@ -61,31 +62,25 @@ else
   WARN+=("backend deps failed — the API will not start; check pip output above")
 fi
 
-# requirements.txt pins no torch, so pip serves whichever CUDA build is current
-# on PyPI -- cu130 as of 2026-09. A box whose driver only reaches 12.6 imports
-# that wheel happily and reports no GPU, and everything downstream keeps working
-# on the CPU roughly ten times slower. Nothing errors, so it is invisible.
-# Detect it and refetch the build this driver can actually run.
+# requirements.txt pins no torch, so pip installs whichever CUDA build is
+# current on PyPI. If the driver is older than that build, torch imports fine
+# but reports no GPU, and grading silently runs on the CPU about ten times
+# slower. Detect that and refetch the build this driver can run.
 if [ -x ./.venv/bin/python ] && command -v nvidia-smi >/dev/null 2>&1    && nvidia-smi -L >/dev/null 2>&1; then
-  # The trigger imports torchvision too. Asking torch alone misses the state
-  # where torch is right and torchvision is not: cuda_is_available() answers
-  # True and the refetch never runs, while the first grading dies on import.
+  # The check imports torchvision too: with a correct torch and a mismatched
+  # torchvision, cuda.is_available() is True but the first grading fails.
   if ! ./.venv/bin/python -c 'import sys, torch, torchvision
 from torchvision.ops import nms
 sys.exit(0 if torch.cuda.is_available() else 1)' 2>/dev/null; then
     DRIVER_CUDA=$(nvidia-smi | grep -oE 'CUDA Version: [0-9]+\.[0-9]+' | awk '{print $3}' | head -1)
     CU_TAG="cu$(echo "${DRIVER_CUDA:-}" | tr -d '.')"
     echo "   torch reports no GPU; driver supports CUDA ${DRIVER_CUDA:-?} → refetching $CU_TAG"
-    # torchvision must come from the same index: its compiled ops link against
-    # one torch build, and pip leaves the installed wheel alone because the
-    # version still "satisfies" the requirement. The mismatch stays silent
-    # until something imports it, then raises "operator torchvision::nms does
-    # not exist" -- so force it, and IMPORT it in the check below.
-    # torch.cuda.is_available() answers True over a broken torchvision.
-    # Name the exact +cuNNN version. Plain "torch" is reported as already
-    # satisfied by the wheel that is there -- pip compares versions, and
-    # 2.14.0 and 2.14.0+cu126 only differ once the local tag is spelled out.
-    # This is the same trap as torchvision below, in the other direction.
+    # Name the exact +cuNNN torch version: plain "torch" counts as already
+    # satisfied, since pip ignores the local tag unless it is spelled out.
+    # torchvision must come from the same index (its compiled ops link against
+    # one torch build) and needs --force-reinstall for the same reason;
+    # otherwise the mismatch surfaces later as "operator torchvision::nms does
+    # not exist". The import in the final check catches that case.
     TORCH_VER=$(./.venv/bin/python -c 'import torch; print(torch.__version__.split("+")[0])' 2>/dev/null)
     if [ -n "$DRIVER_CUDA" ] && [ -n "$TORCH_VER" ] \
        && ./.venv/bin/pip install -q \
@@ -104,6 +99,11 @@ sys.exit(0 if torch.cuda.is_available() else 1)'; then
 fi
 
 # --- backend/.env (write EARLY so the app can boot regardless) -------------
+# Only written when absent: a re-run must not drop settings added since,
+# such as ADMIN_PASSWORD (that would open /admin to anyone).
+if [ -f "$REPO_DIR/backend/.env" ]; then
+  echo ">> [3/6] backend/.env exists, kept as is"
+else
 echo ">> [3/6] Writing backend/.env (SQLite — no MySQL needed)…"
 cat > "$REPO_DIR/backend/.env" <<EOF
 MYSQL_DSN=sqlite:///./spine.db
@@ -117,6 +117,7 @@ SEG_DEVICE=cuda
 RETRAIN_REPLAY_DIR=
 EOF
 echo "   wrote $REPO_DIR/backend/.env"
+fi
 
 # --- Frontend deps ---------------------------------------------------------
 echo ">> [4/6] Frontend deps…"
@@ -187,7 +188,7 @@ fi
 echo ""
 echo "=== Setup summary ==="
 if [ ${#WARN[@]} -eq 0 ]; then
-  echo "  ✓ everything installed"
+  echo "  OK everything installed"
 else
   echo "  Some steps need attention:"
   for w in "${WARN[@]}"; do echo "   - $w"; done

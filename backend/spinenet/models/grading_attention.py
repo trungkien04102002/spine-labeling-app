@@ -360,7 +360,7 @@ class GradingModelWithCBAM(nn.Module):
         self.load_state_dict(model_dict, strict=strict)
 
         if verbose:
-            print(f"  ✓ Backbone loaded successfully")
+            print(f"  OK Backbone loaded successfully")
 
     def freeze_backbone(self, freeze: bool = True):
         """
@@ -391,7 +391,7 @@ if __name__ == "__main__":
     x = torch.randn(2, 1, 9, 112, 224)
     outputs = model(x)
 
-    print(f"\n✓ Model created successfully!")
+    print(f"\nOK Model created successfully!")
     print(f"  - Input shape: {x.shape}")
     print(f"  - Output keys: {list(outputs.keys())}")
     for key, value in outputs.items():
@@ -409,4 +409,4 @@ if __name__ == "__main__":
     trainable_params_frozen = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"  - After freezing: {trainable_params_frozen:,} trainable")
 
-    print(f"\n✓ All tests passed!")
+    print(f"\nOK All tests passed!")

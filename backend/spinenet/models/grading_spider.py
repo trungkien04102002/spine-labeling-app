@@ -266,7 +266,7 @@ class GradingModelSPIDERBaseline(nn.Module):
         self.load_state_dict(model_dict, strict=strict)
 
         if verbose:
-            print(f"  ✓ RSNA backbone loaded successfully")
+            print(f"  OK RSNA backbone loaded successfully")
 
     def freeze_backbone(self, freeze: bool = True):
         """Freeze/unfreeze backbone for transfer learning."""
@@ -493,7 +493,7 @@ class GradingModelSPIDERCBAM(nn.Module):
         self.load_state_dict(model_dict, strict=strict)
 
         if verbose:
-            print(f"  ✓ RSNA backbone + CBAM loaded successfully")
+            print(f"  OK RSNA backbone + CBAM loaded successfully")
 
     def freeze_backbone(self, freeze: bool = True):
         """Freeze/unfreeze backbone + CBAM for transfer learning."""
@@ -517,11 +517,11 @@ if __name__ == "__main__":
     x = torch.randn(2, 1, 9, 112, 224)
     outputs = model_baseline(x)
 
-    print(f"✓ Baseline model created!")
+    print(f"OK Baseline model created!")
     print(f"  - Input: {x.shape}")
     print(f"  - Outputs:")
     for key, value in outputs.items():
-        print(f"    • {key}: {value.shape}")
+        print(f"    - {key}: {value.shape}")
 
     total_params = sum(p.numel() for p in model_baseline.parameters())
     print(f"  - Total parameters: {total_params:,}")
@@ -533,17 +533,17 @@ if __name__ == "__main__":
 
     outputs = model_cbam(x)
 
-    print(f"✓ CBAM model created!")
+    print(f"OK CBAM model created!")
     print(f"  - Input: {x.shape}")
     print(f"  - Outputs:")
     for key, value in outputs.items():
-        print(f"    • {key}: {value.shape}")
+        print(f"    - {key}: {value.shape}")
 
     total_params = sum(p.numel() for p in model_cbam.parameters())
     print(f"  - Total parameters: {total_params:,}")
 
     print("\n" + "="*70)
-    print("✓ All tests passed!")
+    print("OK All tests passed!")
     print("="*70)
     print("\nBoth models ready for SPIDER transfer learning:")
     print("  - Baseline: ResNet34 backbone")

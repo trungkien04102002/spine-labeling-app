@@ -572,11 +572,11 @@ def test_runs_left_running_by_a_restart_are_closed_out(env):
 
 
 def test_a_run_that_is_really_going_is_never_closed_out(env, monkeypatch):
-    """The bug this guards: a second process opening the same database.
+    """Guards against a second process opening the same database.
 
-    The reconciliation used to run at startup and stamp every "running" row as
-    interrupted. The test suite opens the production database through the app's
-    lifespan, so it did exactly that to a run that was still training.
+    Reconciling at startup would stamp every "running" row as interrupted,
+    including a run another process is still training (the test suite, for
+    one, opens the production database through the app's lifespan).
     """
     _stub_build(monkeypatch)
     gate = threading.Event()

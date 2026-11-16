@@ -148,8 +148,8 @@ def test_every_label_the_app_outputs_is_asked_about(client):
         assert stem in text, f"no question covers {stem}"
 
 
-# Frozen 2026-09-28, the day the trial questionnaire was settled. Changing an
-# entry here means answers already collected now mean something else.
+# Frozen once the questionnaire went into use. Changing an entry here means
+# answers already collected now mean something else.
 FROZEN = {
     1: "AI tô: bám đúng bờ", 4: "điểm chẩn đoán", 5: "canal", 6: "foraminal",
     7: "Pfirrmann", 8: "disc narrowing", 9: "herniation", 10: "spondylolisthesis",

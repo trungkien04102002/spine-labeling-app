@@ -4,17 +4,18 @@
 #   tools/deploy_box.sh <SSH_PORT> <SSH_HOST> [--with-replay]
 #   tools/deploy_box.sh 41234 203.0.113.10
 #
-# Why a script and not a checklist: DEPLOY_VAST.md was followed by hand on
-# 2026-09-21 and four of its steps were wrong (a stale clone, two wrong paths,
-# and a summary that said "everything installed" on a box that could not grade).
-# Prose drifts from the code; this runs the code.
+# This is a script rather than a checklist because hand-followed deploy notes
+# drift from the code (stale clones, wrong paths, a setup summary reporting
+# success on a box that cannot grade). The script runs the code itself.
 #
-# It is re-runnable: every step is idempotent, so re-running after a failure
-# picks up where it left off rather than starting over.
+# Every step is idempotent, so re-running after a failure is safe.
 #
 # --with-replay also copies rsna_preprocessed (~8.2 GB, ~5 min) so the box can
-# actually re-train. Without it /admin shows the run blocked, which is honest
-# and fine unless you mean to train there.
+# re-train. Without it /admin shows re-training as blocked, which is expected
+# unless training is meant to happen on this box.
+#
+# Environment: RESEARCH_REPO (default ~/spinet-v2) is where rsna_preprocessed
+# is read from; ADMIN_PASSWORD overrides the one in the local backend/.env.
 set -uo pipefail
 
 PORT="${1:-}"; HOST="${2:-}"; WITH_REPLAY="${3:-}"
@@ -35,8 +36,8 @@ step "0 · reachable?"
 "${SSH[@]}" 'echo ok' >/dev/null || { echo "cannot ssh" >&2; exit 1; }
 "${SSH[@]}" 'nvidia-smi --query-gpu=name --format=csv,noheader; test -x /venv/main/bin/python && echo "/venv/main present"'
 
-# The repo is often ahead of what is pushed, so ship the working tree rather
-# than cloning. A clone on 2026-09-21 came back a month stale.
+# Ship the working tree rather than cloning: the local checkout is often ahead
+# of what has been pushed.
 step "1 · code (rsync, not clone — main is usually ahead of origin)"
 t=$(date +%s)
 "${SSH[@]}" "mkdir -p $REMOTE"
@@ -52,9 +53,8 @@ rsync -az -e "ssh -p $PORT -o BatchMode=yes" --delete \
 secs $t
 
 # None of these travel with the code: .gitignore excludes every weight file and
-# all of backend/data. Copying beats downloading -- robots.ox.ac.uk is slow and
-# has failed mid-transfer, and totalspineseg_init's fetch failed five times in
-# a row on 2026-09-20 while the same bytes copied from here in twelve seconds.
+# all of backend/data. Copying is used instead of downloading because the
+# upstream weight hosts are slow and unreliable (transfers fail mid-way).
 step "2 · weights + frozen held-out set (~1.4 GB)"
 t=$(date +%s)
 "${SSH[@]}" "mkdir -p $REMOTE/backend/models/weights"
@@ -73,12 +73,10 @@ t=$(date +%s)
 "${SSH[@]}" "cd $REMOTE && ./vast_setup.sh --skip-download 2>&1 | tail -25"
 secs $t
 
-# vast_setup.sh rewrites backend/.env from scratch, so a passphrase set there
-# by hand does not survive a deploy -- and a box with no passphrase serves
-# every room, every survey answer and the model switch to anyone who types
-# /admin. Carry it over from the laptop (ADMIN_PASSWORD in the environment,
-# else in the laptop's backend/.env). base64 so no character in it can break
-# the remote shell.
+# backend/.env is not synced, so a fresh box has no passphrase, and without one
+# /admin is open to anyone. Carry it over from the local machine (ADMIN_PASSWORD in the environment, else
+# the local backend/.env). It is sent base64-encoded so no character in it can
+# break the remote shell.
 step "3b . operator passphrase"
 ADMIN_PW="${ADMIN_PASSWORD:-$(grep -E '^ADMIN_PASSWORD=' "$LOCAL/backend/.env" 2>/dev/null | cut -d= -f2-)}"
 if [ -n "$ADMIN_PW" ]; then
@@ -114,9 +112,8 @@ step "5 · studies + database"
 t=$(date +%s)
 ( cd "$LOCAL/backend" && tar czf - data/VAL-* data/DEMO-* data/Case-113 data/p[0-9]*-* spine.db 2>/dev/null ) \
   | "${SSH[@]}" "cd $REMOTE/backend && tar xzf -"
-# Paths are stored absolute, so a copied database opens every study blank until
-# the prefix is rewritten. The worklist looks right, which is what makes it
-# confusing.
+# Paths are stored absolute, so a copied database opens every study blank
+# (while the worklist still looks correct) until the prefix is rewritten.
 "${SSH[@]}" "cd $REMOTE/backend && python3 - <<'PY'
 import sqlite3
 src, dst = '$LOCAL/backend/', '$REMOTE/backend/'

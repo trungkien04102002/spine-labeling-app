@@ -94,7 +94,7 @@ def _pending(Session, study_id, reader_id):
 
 
 def test_one_room_cannot_see_or_send_another_rooms_corrections(env):
-    """The queue used to be app-wide: pressing Send in one room sent everyone's."""
+    """The queue is per room: pressing Send in one room must not send everyone's."""
     client, Session = env
     minh, lan = _room(client, "Minh"), _room(client, "Lan")
     _pending(Session, "a", int(minh["x-reader-id"]))

@@ -132,7 +132,7 @@ class MetricsLogger:
         )
         marker = " (BEST)" if is_best else ""
         print(
-            f"  ✓ Logged epoch {epoch} -> {self.log_csv.name} | "
+            f"  OK Logged epoch {epoch} -> {self.log_csv.name} | "
             f"val_loss={row['val_loss']:.4f}, avg_severe_f1={severe_str}{marker}"
         )
 
@@ -189,7 +189,7 @@ class MetricsLogger:
             f"{data['avg_severe_f1']:.4f}" if data["avg_severe_f1"] is not None else "N/A"
         )
         print(
-            f"  ✓ Saved best metrics @ epoch {epoch}: "
+            f"  OK Saved best metrics @ epoch {epoch}: "
             f"val_loss={data['val_loss']:.4f}, avg_severe_f1={severe_str} "
             f"-> {self.best_json.name} + {self.best_txt.name}"
         )

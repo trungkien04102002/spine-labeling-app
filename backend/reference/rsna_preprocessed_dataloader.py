@@ -58,7 +58,7 @@ class RSNAPreprocessedDataset(Dataset):
         self.metadata = pd.read_csv(metadata_path)
         self.volumes_dir = self.data_dir / 'volumes'
 
-        print(f"✓ Loaded {len(self.metadata)} preprocessed samples from {data_dir}")
+        print(f"OK Loaded {len(self.metadata)} preprocessed samples from {data_dir}")
 
     def __len__(self) -> int:
         return len(self.metadata)
@@ -117,7 +117,7 @@ if __name__ == "__main__":
     # Check if preprocessed data exists
     data_dir = 'rsna_preprocessed'
     if not Path(data_dir).exists():
-        print(f"\n❌ Preprocessed data not found: {data_dir}")
+        print(f"\nERROR Preprocessed data not found: {data_dir}")
         print("\nRun preprocessing first:")
         print("  python3 prepare_rsna_data.py")
         exit(1)
@@ -130,7 +130,7 @@ if __name__ == "__main__":
     print("\nTesting sample loading...")
     volume, labels = dataset[0]
 
-    print(f"\n✓ Sample loaded successfully!")
+    print(f"\nOK Sample loaded successfully!")
     print(f"  - Volume shape: {volume.shape}")
     print(f"  - Volume dtype: {volume.dtype}")
     print(f"  - Volume range: [{volume.min():.3f}, {volume.max():.3f}]")
@@ -143,7 +143,7 @@ if __name__ == "__main__":
     loader = DataLoader(dataset, batch_size=4, shuffle=True, num_workers=2)
     batch_volumes, batch_labels = next(iter(loader))
 
-    print(f"✓ Batch loaded!")
+    print(f"OK Batch loaded!")
     print(f"  - Batch shape: {batch_volumes.shape}")
     print(f"  - Batch labels: {batch_labels}")
 
@@ -160,13 +160,13 @@ if __name__ == "__main__":
     with torch.no_grad():
         outputs = model(batch_input)
 
-    print(f"✓ Model inference successful!")
+    print(f"OK Model inference successful!")
     print(f"  - Output keys: {list(outputs.keys())}")
     for key, value in outputs.items():
         print(f"  - {key}: {value.shape}")
 
     print("\n" + "="*70)
-    print("✓ ALL TESTS PASSED!")
+    print("OK ALL TESTS PASSED!")
     print("="*70)
     print("\nPreprocessed dataset is ready for training!")
     print(f"  - {len(dataset)} samples")
